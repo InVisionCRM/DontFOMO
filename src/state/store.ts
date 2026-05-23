@@ -31,8 +31,10 @@ import {
   accrueMissedInstallments,
   applyBillPayment,
   applyInstallment,
+  applySwipe,
   billTotalDue,
   createBank,
+  createCashSwipe,
   createLoan,
   createPlayerToken,
   findBillDefinition,
@@ -45,6 +47,7 @@ import {
   quoteSell,
   tokenLaunchCost,
   type BankState,
+  type CashSwipeState,
   type PlayerTokenDef,
 } from '../engine/economy';
 import { TOKEN_BY_ID } from '../data/tokens';
@@ -96,6 +99,7 @@ export interface SavedGame {
   holdings: Record<string, number>;
   playerTokens: PlayerTokenDef[];
   bank: BankState;
+  cashSwipe: CashSwipeState;
 }
 
 export interface GameState {
@@ -115,6 +119,8 @@ export interface GameState {
   playerTokens: PlayerTokenDef[];
   /** Bills and loans — the Bank app's persistent state. */
   bank: BankState;
+  /** Daily swipe cap state for the CashSwipe minigame. */
+  cashSwipe: CashSwipeState;
   /** Which in-game app is open; null = the home screen. */
   openAppId: AppId | null;
 
@@ -140,6 +146,8 @@ export interface GameState {
   takeLoan: (tierId: string, now: number) => void;
   /** Pay one weekly installment on the active loan. */
   repayLoanInstallment: (now: number) => void;
+  /** Spend one CashSwipe swipe; credits $1 when below the daily cap. */
+  swipeOnce: (now: number) => void;
   /** Open an in-game app. */
   openApp: (id: AppId) => void;
   /** Return to the home screen. */
@@ -157,6 +165,7 @@ function freshGame(now: number): Pick<
   | 'holdings'
   | 'playerTokens'
   | 'bank'
+  | 'cashSwipe'
   | 'openAppId'
 > {
   return {
@@ -168,6 +177,7 @@ function freshGame(now: number): Pick<
     holdings: {},
     playerTokens: [],
     bank: createBank(now),
+    cashSwipe: createCashSwipe(now),
     openAppId: null,
   };
 }
@@ -240,6 +250,7 @@ export const useGameStore = create<GameState>()((set) => ({
         holdings: saved.holdings,
         playerTokens: saved.playerTokens,
         bank: { bills: saved.bank.bills, loan },
+        cashSwipe: saved.cashSwipe,
         openAppId: null,
       };
     }),
@@ -359,6 +370,16 @@ export const useGameStore = create<GameState>()((set) => ({
         bank: { bills: s.bank.bills, loan: nextLoan },
       };
     }),
+  swipeOnce: (now) =>
+    set((s) => {
+      const result = applySwipe(s.cashSwipe, now);
+      if (result.earned > 0) {
+        return { cash: s.cash + result.earned, cashSwipe: result.state };
+      }
+      // Capped — only persist the day-refreshed state if it changed.
+      if (result.state === s.cashSwipe) return {};
+      return { cashSwipe: result.state };
+    }),
   openApp: (id) => set({ openAppId: id }),
   closeApp: () => set({ openAppId: null }),
 }));
@@ -377,5 +398,6 @@ export function serializeGame(state: GameState): SavedGame {
     holdings: state.holdings,
     playerTokens: state.playerTokens,
     bank: state.bank,
+    cashSwipe: state.cashSwipe,
   };
 }

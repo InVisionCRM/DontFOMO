@@ -6,6 +6,58 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 20:14 UTC — Stage 4, checkpoint 4: the CashSwipe UI
+- Built the CashSwipe screen to the approved mockup, plus the store
+  wiring that drives it. The minigame is now playable: swipe up,
+  bills fly, cash climbs by $1 per swipe, the daily cap holds.
+- **Store integration.** Added `cashSwipe: CashSwipeState` to
+  `GameState` and `SavedGame`. New action `swipeOnce(now)` calls the
+  engine's `applySwipe`: when below the cap it credits $1 to cash
+  and stores the new swipe count; when capped it persists any day
+  refresh but credits nothing.
+- **SAVE_VERSION bumped 5 → 6.** Existing v5 saves discard on first
+  launch — same precedent as the prior bumps. Migrations are still
+  Stage 7 work.
+- **New `src/ui/cashSwipe/`.** Five focused components:
+  - `CashSwipeScreen` — top-level orchestrator. Green radial-ish
+    gradient background, the HUD overlay, the static stack at the
+    bottom, the swipe-up `PanResponder`, and the live set of flying
+    bills. A 15-second tick keeps the HUD and countdown live across
+    midnight rolls. The "Swipe up to make it rain" hint hides once
+    three bills are airborne.
+  - `BillStack` — seven slightly-rotated bills stacked at the
+    bottom; the topmost carries the $ seal. Rotations are frozen
+    on mount so the pile doesn't twitch.
+  - `FlyingBill` — one bill, three native-driver Animated.Values:
+    a sequenced parabolic Y trajectory (cubic-out up, cubic-in
+    down), linear X drift, linear rotation. Calls `onComplete(id)`
+    on finish so the parent drops it.
+  - `CashSwipeHUD` — title + earned + "N swipes left today."
+  - `EmptyCap` — out-of-swipes state with a live countdown to
+    local midnight ("Come back in 14h 22m").
+- **Why approximate physics, not real physics.** Real gravity needs
+  per-frame JS or Reanimated worklets; both add scope. The cubic
+  ease-out-up / ease-in-down sequence reads as gravity, ships on
+  native-driver Animated, and looks right at 60fps on Expo Go. We
+  can swap to Reanimated when it's added to the stack (CLAUDE.md §4
+  has it as a target dependency).
+- **Registered.** `appScreens.ts` now resolves the `cashswipe` app
+  id to `CashSwipeScreen`.
+- **Tests.** Updated 3 existing store tests for the new
+  `cashSwipe` field. Added 4 `swipeOnce` tests (credit on success,
+  no-op when capped, midnight-roll-then-spend, save/load
+  round-trip). Suite is now 7/7 green at **122 tests** (10 clock +
+  21 market + 16 store + 7 trade + 16 player-token + 22 bank + 22
+  cashSwipe + 8 misc).
+- No new runtime dependencies.
+- Verification: `npx tsc --noEmit --project tsconfig.json` exits 0;
+  `npm test` passes 122/122 (~5.6s). On-device gesture / physics
+  verification owed.
+- Outcome: Stage 4 cp 4.4 complete. CashSwipe is a real income
+  floor — the guaranteed-comeback path is live. Next (4.5, the
+  last of Stage 4): the Thursday 8pm Eastern unemployment check
+  with the `peakNetWorth` lifetime-peak save field.
+
 ## 2026-05-23 20:07 UTC — Stage 4, checkpoint 3: the CashSwipe engine
 - New `src/engine/economy/cashSwipe.ts` — pure TypeScript, no React
   imports. The engine half of the CashSwipe minigame: the income

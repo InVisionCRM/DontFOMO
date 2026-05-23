@@ -9,10 +9,12 @@ import { DAY_MS, dayNumber } from '../src/engine/time/clock';
 import { createMarket, createRandom } from '../src/engine/market';
 import {
   BILL_CYCLE_DAYS,
+  CASH_SWIPE_DAILY_CAP,
   LOAN_INSTALLMENT_DAYS,
   LOAN_TIERS,
   STARTING_BILLS,
   createBank,
+  createCashSwipe,
   loanWeeklyPayment,
   tokenLaunchCost,
 } from '../src/engine/economy';
@@ -48,6 +50,7 @@ describe('game store', () => {
     expect(state.playerTokens).toEqual([]);
     expect(state.bank.bills).toHaveLength(STARTING_BILLS.length);
     expect(state.bank.loan).toBeNull();
+    expect(state.cashSwipe.swipesUsed).toBe(0);
     expect(state.clock).toEqual({
       startedAt: 1_000,
       lastSeenAt: 1_000,
@@ -113,6 +116,7 @@ describe('game store', () => {
       holdings: { NEURA: 42 },
       playerTokens: [],
       bank: createBank(0),
+      cashSwipe: createCashSwipe(0),
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -124,6 +128,7 @@ describe('game store', () => {
     expect(state.playerTokens).toEqual([]);
     expect(state.bank.bills).toHaveLength(STARTING_BILLS.length);
     expect(state.bank.loan).toBeNull();
+    expect(state.cashSwipe).toBeDefined();
     expect(state.openAppId).toBeNull();
     expect(state.clock.now).toBe(DAY_MS * 3);
   });
@@ -135,6 +140,7 @@ describe('game store', () => {
     expect(Object.keys(saved).sort()).toEqual([
       'bank',
       'cash',
+      'cashSwipe',
       'clock',
       'followers',
       'handle',
@@ -283,6 +289,64 @@ describe('bank actions', () => {
     expect(
       restored.bank.bills.find((b) => b.id === 'rent')?.nextDueAt,
     ).toBe(now + BILL_CYCLE_DAYS * DAY_MS);
+  });
+});
+
+describe('swipeOnce', () => {
+  beforeEach(() => {
+    useGameStore.getState().newGame(1_000);
+  });
+
+  it('credits $1 cash and increments the swipe count', () => {
+    const beforeCash = useGameStore.getState().cash;
+    const now = useGameStore.getState().clock.now;
+    useGameStore.getState().swipeOnce(now);
+    const after = useGameStore.getState();
+    expect(after.cash).toBe(beforeCash + 1);
+    expect(after.cashSwipe.swipesUsed).toBe(1);
+  });
+
+  it('is a no-op once the daily cap is reached', () => {
+    const now = useGameStore.getState().clock.now;
+    // Force the cap.
+    useGameStore.setState((s) => ({
+      cashSwipe: { dayKey: s.cashSwipe.dayKey, swipesUsed: CASH_SWIPE_DAILY_CAP },
+    }));
+    const beforeCash = useGameStore.getState().cash;
+    useGameStore.getState().swipeOnce(now);
+    const after = useGameStore.getState();
+    expect(after.cash).toBe(beforeCash);
+    expect(after.cashSwipe.swipesUsed).toBe(CASH_SWIPE_DAILY_CAP);
+  });
+
+  it('refreshes the day before spending — a swipe after midnight pays $1', () => {
+    // Force a yesterday-capped state.
+    useGameStore.setState({
+      cashSwipe: { dayKey: '2026-05-23', swipesUsed: CASH_SWIPE_DAILY_CAP },
+    });
+    const beforeCash = useGameStore.getState().cash;
+    // Local midnight + 30 min on May 24.
+    const tomorrow = new Date(2026, 4, 24, 0, 30, 0, 0).getTime();
+    useGameStore.getState().swipeOnce(tomorrow);
+    const after = useGameStore.getState();
+    expect(after.cash).toBe(beforeCash + 1);
+    expect(after.cashSwipe.dayKey).toBe('2026-05-24');
+    expect(after.cashSwipe.swipesUsed).toBe(1);
+  });
+
+  it('round-trips through serialize / loadSaved', () => {
+    const now = useGameStore.getState().clock.now;
+    useGameStore.getState().swipeOnce(now);
+    useGameStore.getState().swipeOnce(now);
+    useGameStore.getState().swipeOnce(now);
+    const saved = serializeGame(useGameStore.getState());
+    expect(saved.cashSwipe.swipesUsed).toBe(3);
+
+    useGameStore.getState().newGame(2_000);
+    expect(useGameStore.getState().cashSwipe.swipesUsed).toBe(0);
+
+    useGameStore.getState().loadSaved(saved, now);
+    expect(useGameStore.getState().cashSwipe.swipesUsed).toBe(3);
   });
 });
 
