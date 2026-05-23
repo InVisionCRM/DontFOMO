@@ -112,7 +112,7 @@ export const fontWeight = {
 } as const;
 
 /** Apply to any Text showing numeric values (prices, balances, stats). */
-export const tabularNums = { fontVariant: ['tabular-nums'] as const };
+export const tabularNums = { fontVariant: ['tabular-nums' as const] };
 
 /**
  * Glass — widgets, dock, banners. React Native cannot do CSS
@@ -156,6 +156,24 @@ export const motion = {
   },
 } as const;
 
+/**
+ * Home-screen wallpaper — the dark purple→pink gradient plus three
+ * soft colour blobs, taken from the approved HomeScreen mockup. Blob
+ * `x`/`y`/`r` are fractions of the screen width (r) and width/height
+ * (x/y), so the wallpaper scales to any device.
+ */
+export const wallpaper = {
+  gradient: {
+    stops: ['#2B1D52', '#5A2D7E', '#93336F', '#C5526A'],
+    locations: [0, 0.46, 0.76, 1],
+  },
+  blobs: [
+    { color: '#FFC496', opacity: 0.55, x: 0.22, y: 0.16, r: 0.62 },
+    { color: '#637AFF', opacity: 0.55, x: 0.84, y: 0.88, r: 0.7 },
+    { color: '#FF78CD', opacity: 0.42, x: 0.8, y: 0.12, r: 0.55 },
+  ],
+} as const;
+
 /** The whole theme, bundled. Import `theme` for convenient access. */
 export const theme = {
   color,
@@ -168,6 +186,7 @@ export const theme = {
   glass,
   elevation,
   motion,
+  wallpaper,
 } as const;
 
 export type Theme = typeof theme;

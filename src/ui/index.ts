@@ -1,10 +1,15 @@
 /**
  * src/ui — reusable presentational components.
  * ------------------------------------------------------------------
- * React Native components: PhoneShell, AppIcon, Banner, and so on.
- * Their only jobs are to render what the store says and to send user
- * input back. NO business logic, NO math, NO timers in components.
- *
- * Empty for now — components arrive with their screens.
+ * React Native components. Their only jobs are to render what the
+ * store says and to send user input back. NO business logic, NO math,
+ * NO timers in components. See CLAUDE.md §5 and §7.
  */
-export {};
+export { PhoneShell } from './PhoneShell';
+export { Wallpaper } from './Wallpaper';
+export { PhoneStatusBar } from './PhoneStatusBar';
+export { HomeScreen } from './HomeScreen';
+export { HomeWidgets } from './HomeWidgets';
+export { Dock, DOCK_HEIGHT } from './Dock';
+export { AppIcon } from './AppIcon';
+export { GlassSurface } from './GlassSurface';

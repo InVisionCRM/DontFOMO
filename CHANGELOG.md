@@ -6,6 +6,29 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 04:09 UTC — Stage 2, checkpoint 1: the static phone shell
+- Built the in-game phone home screen as React Native, matching the
+  approved HomeScreen mockup and the interactive preview KG signed off.
+- New data file `src/data/apps.ts` — the 12-app catalogue (id, name,
+  SVG icon glyph, icon gradient, dock flag) as data (CLAUDE.md §5).
+- New theme token `theme.wallpaper` — wallpaper gradient + colour
+  blobs, so no colours are hardcoded in components.
+- New `src/ui/` components: `Wallpaper`, `GlassSurface` (frosted glass
+  via expo-blur), `AppIcon`, `PhoneStatusBar`, `HomeWidgets`, `Dock`,
+  `HomeScreen`, `PhoneShell`. `App.tsx` now mounts the shell with the
+  OS status bar hidden, so the simulated status bar is the only one.
+- New runtime dependencies (installed with `npx expo install`):
+  `expo-linear-gradient`, `react-native-svg`, `expo-blur`,
+  `react-native-safe-area-context` — all run inside Expo Go on SDK 54.
+- The status-bar clock and the widget values are placeholders captured
+  at launch; checkpoint 2 (time engine + Zustand store) makes the clock
+  tick and feeds real game state.
+- Verification: pure-TS files (theme, app catalogue, save interface)
+  type-check clean under strict mode. The `.tsx` components are
+  verified on device after the four packages install and a reload.
+- Outcome: checkpoint 1 code complete — the home screen renders with
+  wallpaper, widgets, app grid and dock once the packages are added.
+
 ## 2026-05-23 03:44 UTC — Pinned to Expo SDK 54 (Expo Go compatibility)
 - The scaffold installed SDK 56 (the current stable, ~2 weeks old).
   SDK 56 would not open in Expo Go on device. A first downgrade to
