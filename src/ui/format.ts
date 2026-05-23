@@ -52,3 +52,17 @@ export function formatTokenPrice(price: number): string {
 export function formatSignedPercent(percent: number): string {
   return `${percent > 0 ? '+' : ''}${percent.toFixed(1)}%`;
 }
+
+/**
+ * Format a token quantity — commas for large amounts, a few decimals
+ * for small ones. e.g. "19,400,000", "54.20", "0.000142".
+ */
+export function formatTokenAmount(amount: number): string {
+  if (amount >= 1000) {
+    return amount.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+  if (amount >= 1) {
+    return amount.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  }
+  return amount.toLocaleString('en-US', { maximumFractionDigits: 6 });
+}

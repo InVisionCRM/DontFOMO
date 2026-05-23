@@ -42,6 +42,8 @@ interface TokenDetailProps {
   /** The token to show; null = closed. */
   tokenId: string | null;
   onBack: () => void;
+  /** Open the trade sheet for this token in the given mode. */
+  onTrade: (tokenId: string, mode: 'buy' | 'sell') => void;
 }
 
 /** Timeframe tabs — each maps to a candle count over the kept history. */
@@ -65,10 +67,11 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function TokenDetail({ tokenId, onBack }: TokenDetailProps) {
+export function TokenDetail({ tokenId, onBack, onTrade }: TokenDetailProps) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const market = useGameStore((s) => s.market);
+  const holdings = useGameStore((s) => s.holdings);
 
   const [displayedId, setDisplayedId] = useState<string | null>(null);
   const [timeframe, setTimeframe] = useState(1); // index into TIMEFRAMES
@@ -104,6 +107,7 @@ export function TokenDetail({ tokenId, onBack }: TokenDetailProps) {
 
   const token = TOKEN_BY_ID[displayedId];
   const state = market.tokens[displayedId];
+  const owned = (holdings[displayedId] ?? 0) > 0;
   const change = dayChangePercent(state);
   const changeColor =
     change > 0 ? color.success : change < 0 ? color.danger : color.text.tertiary;
@@ -192,13 +196,20 @@ export function TokenDetail({ tokenId, onBack }: TokenDetailProps) {
 
       <View style={styles.tradeBar}>
         <Pressable
-          style={[styles.tradeBtn, styles.sellBtn]}
+          style={[
+            styles.tradeBtn,
+            styles.sellBtn,
+            !owned && styles.tradeBtnDisabled,
+          ]}
+          onPress={() => onTrade(displayedId, 'sell')}
+          disabled={!owned}
           accessibilityRole="button"
         >
           <Text style={styles.sellText}>Sell</Text>
         </Pressable>
         <Pressable
           style={[styles.tradeBtn, styles.buyBtn]}
+          onPress={() => onTrade(displayedId, 'buy')}
           accessibilityRole="button"
         >
           <Text style={styles.buyText}>Buy</Text>
@@ -343,6 +354,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     borderRadius: radius.lg,
+  },
+  tradeBtnDisabled: {
+    opacity: 0.4,
   },
   sellBtn: {
     backgroundColor: color.bg.elevated,

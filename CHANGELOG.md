@@ -6,6 +6,24 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 11:14 UTC — Stage 3, checkpoint 3b: the trading UI
+- Built the buy / sell trade sheet (`TradeSheet`) — slides up from the
+  Sell / Buy bar on a token's detail: quick-amount buttons, a live
+  "you receive" quote with the 0.3% exchange fee, and an in-sheet
+  confirmation.
+- Built the Portfolio tab — real holdings (`HoldingRow`) with live
+  values; the balance card's crypto total is now real (`holdingsValue`).
+- `TokenDetail`'s Buy / Sell buttons open the sheet; Sell is disabled
+  for a token you do not own.
+- Added the `formatTokenAmount` display formatter.
+- No new dependencies.
+- Verification: `format.ts` type-checks clean under strict mode; the
+  46 engine / store unit tests are unaffected (3b is UI only). The
+  trading flow is verified on device.
+- Outcome: trading works end to end — your $500 buys tokens, the
+  Portfolio tracks them, selling returns cash. Stage 3 checkpoints 1-3
+  are complete; checkpoint 4 (player token launches) remains.
+
 ## 2026-05-23 11:10 UTC — Stage 3, checkpoint 3a: the trade engine
 - New economy engine (`src/engine/economy/`) — `quoteBuy`, `quoteSell`
   (the 0.3% fee math) and `holdingsValue`. Pure TypeScript, 7 unit

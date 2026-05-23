@@ -2,11 +2,10 @@
  * ExchangeScreen.tsx — the Exchange app.
  * ------------------------------------------------------------------
  * The main screen — balance card, Markets / Portfolio segment, filter
- * chips, the live token list — plus the token detail screen, which
- * slides in over it when a token is tapped. Built to the approved
- * Exchange mockup.
+ * chips, the Sponsored ad, the live token list — plus the token detail
+ * screen and the buy / sell trade sheet layered over it.
  *
- * Trading and a real portfolio arrive in checkpoint 3.
+ * Built to the approved Exchange mockup.
  */
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -15,8 +14,16 @@ import { BalanceCard } from './BalanceCard';
 import { TokenRow } from './TokenRow';
 import { TokenDetail } from './TokenDetail';
 import { ExchangeAd } from './ExchangeAd';
+import { HoldingRow } from './HoldingRow';
+import { TradeSheet, type TradeRequest } from './TradeSheet';
 import { useGameStore } from '../../state/store';
-import { TOKENS, TOKEN_CATEGORIES, type TokenCategory } from '../../data/tokens';
+import { holdingsValue } from '../../engine/economy';
+import {
+  TOKENS,
+  TOKEN_BY_ID,
+  TOKEN_CATEGORIES,
+  type TokenCategory,
+} from '../../data/tokens';
 import { formatCurrency } from '../format';
 import {
   appAccent,
@@ -38,17 +45,19 @@ export function ExchangeScreen() {
   const insets = useSafeAreaInsets();
   const cash = useGameStore((s) => s.cash);
   const market = useGameStore((s) => s.market);
+  const holdings = useGameStore((s) => s.holdings);
 
   const [segment, setSegment] = useState<Segment>('markets');
   const [filter, setFilter] = useState<Filter>('All');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [tradeRequest, setTradeRequest] = useState<TradeRequest | null>(null);
 
-  // No holdings until trading lands in checkpoint 3.
-  const cryptoValue = 0;
+  const cryptoValue = holdingsValue(holdings, market);
   const total = cash + cryptoValue;
 
   const tokens =
     filter === 'All' ? TOKENS : TOKENS.filter((t) => t.category === filter);
+  const heldIds = Object.keys(holdings);
 
   return (
     <View style={styles.root}>
@@ -118,6 +127,21 @@ export function ExchangeScreen() {
               ))}
             </View>
           </>
+        ) : heldIds.length > 0 ? (
+          <View>
+            {heldIds.map((id) => (
+              <HoldingRow
+                key={id}
+                token={TOKEN_BY_ID[id]}
+                state={market.tokens[id]}
+                amount={holdings[id]}
+                onPress={(t) => setSelectedId(t.id)}
+              />
+            ))}
+            <Text style={styles.cashLine}>
+              {formatCurrency(cash)} cash available to trade
+            </Text>
+          </View>
         ) : (
           <View style={styles.portfolio}>
             <Text style={styles.emptyTitle}>No holdings yet</Text>
@@ -131,7 +155,16 @@ export function ExchangeScreen() {
         )}
       </ScrollView>
 
-      <TokenDetail tokenId={selectedId} onBack={() => setSelectedId(null)} />
+      <TokenDetail
+        tokenId={selectedId}
+        onBack={() => setSelectedId(null)}
+        onTrade={(id, mode) => setTradeRequest({ tokenId: id, mode })}
+      />
+
+      <TradeSheet
+        request={tradeRequest}
+        onClose={() => setTradeRequest(null)}
+      />
     </View>
   );
 }
@@ -221,6 +254,7 @@ const styles = StyleSheet.create({
   cashLine: {
     fontSize: fontSize.label,
     color: color.text.tertiary,
-    marginTop: spacing.md,
+    textAlign: 'center',
+    marginTop: spacing.lg,
   },
 });
