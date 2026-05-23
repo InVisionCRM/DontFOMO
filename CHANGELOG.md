@@ -6,6 +6,36 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 13:06 UTC — Stage 3, checkpoint 4b: player-token store integration
+- Wired the player-token engine into the live game store. New
+  `launchToken` action: it guards against the two-token cap, a ticker
+  that already exists in the market, and a launch the player cannot
+  afford; on success it charges the cost, adds the token to
+  `playerTokens`, and joins it to the live market so it ticks and
+  trades like any other token.
+- `tickMarket`, `resume` and `loadSaved` now feed the market a
+  follower-aware `paramsFor` lookup, so a player token's volatility
+  tracks the player's follower count (Bible §9).
+- Follower side-effects: buying your own token grows followers
+  (`followersFromPump`, diminishing returns); selling it costs
+  followers (`followersFromDump`, founder scrutiny). Catalogue-token
+  trades leave followers untouched.
+- `playerTokens` is now part of the saved game: added to `SavedGame`,
+  `freshGame`, `loadSaved` and `serializeGame`. `SAVE_VERSION` bumped
+  3 → 4 (v4 = player tokens) so older saves still load.
+- Updated `__tests__/store.test.ts` for the new field and added 6
+  `launchToken` tests (free first launch, paid second + third refused,
+  duplicate-ticker refused, pump grows followers, dump loses them,
+  save/load round-trip).
+- No new dependencies. UI is unchanged — this checkpoint is store-only.
+- Verification: the app/engine/store type-check clean under strict
+  mode; all 63 unit tests pass (10 clock + 21 market + 9 store +
+  7 trade + 9 player-token + the 6 new + 1 catalogue-trade test).
+- Outcome: a launched token is fully alive in the simulation. Next
+  (4c, the last of Stage 3): the launch screen UI — an emoji picker,
+  the "Launch your own token" card on the Portfolio tab, and player
+  tokens shown in the Exchange list and detail.
+
 ## 2026-05-23 12:50 UTC — Stage 3, checkpoint 4a: the player-token engine
 - Refactored the market engine so it can tick tokens created at
   runtime: `nextPrice` now takes generic `SimParams`, `tickMarket` /

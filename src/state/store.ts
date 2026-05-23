@@ -5,12 +5,13 @@
  * through actions; screens read from it with selectors. See CLAUDE.md
  * §5.
  *
- * Holds the clock, core stats, the market, the player's holdings, and
- * which app is open. Later stages add scams and so on.
+ * Holds the clock, core stats, the market, the player's holdings, the
+ * player's own launched tokens, and which app is open.
  */
 import { create } from 'zustand';
 import {
   createClock,
+  dayNumber,
   resumeClock,
   tickClock,
   type GameClock,
@@ -22,8 +23,20 @@ import {
   createRandom,
   tickMarket as tickMarketEngine,
   type MarketState,
+  type SimParams,
 } from '../engine/market';
-import { quoteBuy, quoteSell } from '../engine/economy';
+import {
+  MAX_PLAYER_TOKENS,
+  createPlayerToken,
+  followersFromDump,
+  followersFromPump,
+  playerTokenParams,
+  quoteBuy,
+  quoteSell,
+  tokenLaunchCost,
+  type PlayerTokenDef,
+} from '../engine/economy';
+import { TOKEN_BY_ID } from '../data/tokens';
 import type { AppId } from '../data/apps';
 
 /**
@@ -48,6 +61,17 @@ const DUST = 1e-8;
  */
 const marketRand = createRandom(Date.now());
 
+/** Identity of a launched player token. */
+export type { PlayerTokenDef };
+
+/** What `launchToken` needs to mint a token. */
+export interface LaunchTokenInput {
+  id: string;
+  name: string;
+  emoji: string;
+  gradient: readonly [string, string];
+}
+
 /**
  * The persistent slice of a game — exactly the fields written to disk.
  * Transient UI state (such as which app is open) is not saved.
@@ -58,8 +82,8 @@ export interface SavedGame {
   followers: number;
   handle: string;
   market: MarketState;
-  /** Token holdings — ticker → amount owned. */
   holdings: Record<string, number>;
+  playerTokens: PlayerTokenDef[];
 }
 
 export interface GameState {
@@ -75,6 +99,8 @@ export interface GameState {
   market: MarketState;
   /** Token holdings — ticker → amount owned. */
   holdings: Record<string, number>;
+  /** Tokens the player has launched (at most MAX_PLAYER_TOKENS). */
+  playerTokens: PlayerTokenDef[];
   /** Which in-game app is open; null = the home screen. */
   openAppId: AppId | null;
 
@@ -92,6 +118,8 @@ export interface GameState {
   buyToken: (tokenId: string, usd: number) => void;
   /** Sell `tokenAmount` of a token at the current price. */
   sellToken: (tokenId: string, tokenAmount: number) => void;
+  /** Launch a player-created token; no-op if the rules forbid it. */
+  launchToken: (input: LaunchTokenInput) => void;
   /** Open an in-game app. */
   openApp: (id: AppId) => void;
   /** Return to the home screen. */
@@ -101,7 +129,14 @@ export interface GameState {
 /** The fresh-game state slice (everything except the actions). */
 function freshGame(now: number): Pick<
   GameState,
-  'clock' | 'cash' | 'followers' | 'handle' | 'market' | 'holdings' | 'openAppId'
+  | 'clock'
+  | 'cash'
+  | 'followers'
+  | 'handle'
+  | 'market'
+  | 'holdings'
+  | 'playerTokens'
+  | 'openAppId'
 > {
   return {
     clock: createClock(now),
@@ -110,6 +145,7 @@ function freshGame(now: number): Pick<
     handle: DEFAULT_HANDLE,
     market: createMarket(createRandom(now)),
     holdings: {},
+    playerTokens: [],
     openAppId: null,
   };
 }
@@ -119,13 +155,32 @@ function catchUpTicks(elapsedMs: number): number {
   return Math.min(Math.floor(elapsedMs / MARKET_TICK_MS), MARKET_CATCHUP_CAP);
 }
 
+/**
+ * A sim-params lookup that knows the player's own tokens — their
+ * volatility scales with the player's followers (Design Bible §9).
+ */
+function paramsFor(
+  playerTokens: PlayerTokenDef[],
+  followers: number,
+): (id: string) => SimParams {
+  const owned = new Set(playerTokens.map((t) => t.id));
+  return (id) =>
+    owned.has(id) ? playerTokenParams(followers) : TOKEN_BY_ID[id];
+}
+
 export const useGameStore = create<GameState>()((set) => ({
   ...freshGame(Date.now()),
 
   newGame: (now) => set(freshGame(now)),
   tick: (now) => set((s) => ({ clock: tickClock(s.clock, now) })),
   tickMarket: () =>
-    set((s) => ({ market: tickMarketEngine(s.market, marketRand) })),
+    set((s) => ({
+      market: tickMarketEngine(
+        s.market,
+        marketRand,
+        paramsFor(s.playerTokens, s.followers),
+      ),
+    })),
   resume: (now) =>
     set((s) => {
       const resumed = resumeClock(s.clock, now);
@@ -135,6 +190,7 @@ export const useGameStore = create<GameState>()((set) => ({
           s.market,
           catchUpTicks(resumed.elapsedMs),
           marketRand,
+          paramsFor(s.playerTokens, s.followers),
         ),
       };
     }),
@@ -150,8 +206,10 @@ export const useGameStore = create<GameState>()((set) => ({
           saved.market,
           catchUpTicks(resumed.elapsedMs),
           marketRand,
+          paramsFor(saved.playerTokens, saved.followers),
         ),
         holdings: saved.holdings,
+        playerTokens: saved.playerTokens,
         openAppId: null,
       };
     }),
@@ -162,12 +220,17 @@ export const useGameStore = create<GameState>()((set) => ({
         return {};
       }
       const quote = quoteBuy(usd, token.price);
+      const isOwnToken = s.playerTokens.some((t) => t.id === tokenId);
       return {
         cash: s.cash - usd,
         holdings: {
           ...s.holdings,
           [tokenId]: (s.holdings[tokenId] ?? 0) + quote.tokenAmount,
         },
+        // Pumping your own token earns followers (Design Bible §9).
+        ...(isOwnToken
+          ? { followers: s.followers + followersFromPump(s.followers) }
+          : {}),
       };
     }),
   sellToken: (tokenId, tokenAmount) =>
@@ -186,7 +249,46 @@ export const useGameStore = create<GameState>()((set) => ({
       } else {
         delete holdings[tokenId];
       }
-      return { cash: s.cash + quote.usd, holdings };
+      const isOwnToken = s.playerTokens.some((t) => t.id === tokenId);
+      return {
+        cash: s.cash + quote.usd,
+        holdings,
+        // Dumping your own token costs you followers (Design Bible §9).
+        ...(isOwnToken
+          ? {
+              followers: Math.max(
+                0,
+                s.followers - followersFromDump(s.followers),
+              ),
+            }
+          : {}),
+      };
+    }),
+  launchToken: (input) =>
+    set((s) => {
+      if (s.playerTokens.length >= MAX_PLAYER_TOKENS) {
+        return {};
+      }
+      if (s.market.tokens[input.id]) {
+        return {}; // ticker already taken
+      }
+      const cost = tokenLaunchCost(
+        s.playerTokens.length + 1,
+        dayNumber(s.clock),
+      );
+      if (cost > s.cash) {
+        return {};
+      }
+      const { def, state } = createPlayerToken(
+        input,
+        dayNumber(s.clock),
+        marketRand,
+      );
+      return {
+        cash: s.cash - cost,
+        playerTokens: [...s.playerTokens, def],
+        market: { tokens: { ...s.market.tokens, [def.id]: state } },
+      };
     }),
   openApp: (id) => set({ openAppId: id }),
   closeApp: () => set({ openAppId: null }),
@@ -204,5 +306,6 @@ export function serializeGame(state: GameState): SavedGame {
     handle: state.handle,
     market: state.market,
     holdings: state.holdings,
+    playerTokens: state.playerTokens,
   };
 }
