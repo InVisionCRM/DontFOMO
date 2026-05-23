@@ -5,7 +5,8 @@
  * presentational — the parent ticks a clock and passes the remaining
  * milliseconds.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useGameStore } from '../../state/store';
 import { fontWeight, tabularNums } from '../../theme/theme';
 
 interface EmptyCapProps {
@@ -25,16 +26,29 @@ function formatCountdown(ms: number): string {
 }
 
 export function EmptyCap({ remainingMs }: EmptyCapProps) {
+  const resetCashSwipeToday = useGameStore((s) => s.resetCashSwipeToday);
   return (
-    <View style={styles.empty} pointerEvents="none">
-      <Text style={styles.title}>Out of swipes</Text>
-      <Text style={styles.text}>
-        You've earned your $1,000 for today. Come back in{' '}
-        <Text style={[styles.countdown, tabularNums]}>
-          {formatCountdown(remainingMs)}
+    <View style={styles.empty}>
+      <View pointerEvents="none">
+        <Text style={styles.title}>Out of swipes</Text>
+        <Text style={styles.text}>
+          You've earned your $1,000 for today. Come back in{' '}
+          <Text style={[styles.countdown, tabularNums]}>
+            {formatCountdown(remainingMs)}
+          </Text>
+          .
         </Text>
-        .
-      </Text>
+      </View>
+      {__DEV__ && (
+        <Pressable
+          style={styles.resetBtn}
+          onPress={() => resetCashSwipeToday(Date.now())}
+          accessibilityRole="button"
+          accessibilityLabel="Reset CashSwipe cap (dev)"
+        >
+          <Text style={styles.resetText}>Reset cap (dev)</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -54,6 +68,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: fontWeight.bold,
     color: TITLE_COLOR,
+    textAlign: 'center',
   },
   text: {
     fontSize: 14,
@@ -65,5 +80,20 @@ const styles = StyleSheet.create({
   countdown: {
     color: TITLE_COLOR,
     fontWeight: fontWeight.semibold,
+  },
+  resetBtn: {
+    marginTop: 28,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  resetText: {
+    fontSize: 12,
+    fontWeight: fontWeight.bold,
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 0.4,
   },
 });

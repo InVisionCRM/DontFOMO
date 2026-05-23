@@ -15,6 +15,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   GestureResponderEvent,
   PanResponder,
   StyleSheet,
@@ -37,8 +38,15 @@ import { fontWeight } from '../../theme/theme';
 
 /** Minimum upward drag (px) for the swipe to count as a fling. */
 const SWIPE_THRESHOLD = 30;
-/** Distance (px) the flying bill starts above the bottom of the screen. */
-const FLY_START_BOTTOM = 240;
+/** Distance (px) the flying bill starts above the bottom of the screen.
+ *  Tuned so bills emerge from the upper edge of the (clipped-bottom)
+ *  stack — bottom half hidden behind the wad at launch, top half
+ *  already visible. */
+const FLY_START_BOTTOM = 280;
+/** How much each swipe bumps the excitement value (0..1). */
+const EXCITEMENT_PER_SWIPE = 0.16;
+/** Idle time (ms) after the last swipe before the counter deflates. */
+const EXCITEMENT_DEFLATE_AFTER_MS = 2_000;
 
 interface FlyingBillSpec {
   id: number;
@@ -65,8 +73,43 @@ export function CashSwipeScreen() {
   const [flying, setFlying] = useState<FlyingBillSpec[]>([]);
   const nextId = useRef(0);
 
+  // Excitement: sustained-swipe energy that scales the earned number
+  // in the HUD. Held in a ref AND mirrored to an Animated.Value so
+  // the HUD's transform stays on the native thread.
+  const excitementRef = useRef(0);
+  const excitementAnim = useRef(new Animated.Value(0)).current;
+  const deflateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear the deflate timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (deflateTimerRef.current) clearTimeout(deflateTimerRef.current);
+    };
+  }, []);
+
   const removeFlying = (id: number): void => {
     setFlying((bs) => bs.filter((b) => b.id !== id));
+  };
+
+  const bumpExcitement = (): void => {
+    excitementRef.current = Math.min(1, excitementRef.current + EXCITEMENT_PER_SWIPE);
+    Animated.spring(excitementAnim, {
+      toValue: excitementRef.current,
+      useNativeDriver: true,
+      speed: 30,
+      bounciness: 10,
+    }).start();
+    // Debounced deflate: 2s after the latest swipe, snap back to 0.
+    if (deflateTimerRef.current) clearTimeout(deflateTimerRef.current);
+    deflateTimerRef.current = setTimeout(() => {
+      excitementRef.current = 0;
+      Animated.spring(excitementAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        speed: 8,
+        bounciness: 2,
+      }).start();
+    }, EXCITEMENT_DEFLATE_AFTER_MS);
   };
 
   const spawn = (centerX: number, velocity: number): void => {
@@ -76,6 +119,7 @@ export function CashSwipeScreen() {
     const id = nextId.current++;
     setFlying((bs) => [...bs, { id, centerX, velocity }]);
     setTick(Date.now()); // refresh HUD instantly
+    bumpExcitement();
   };
 
   const panResponder = useMemo(() => {
@@ -156,7 +200,12 @@ export function CashSwipeScreen() {
       )}
 
       {/* HUD on top — flying bills appear to fly behind its lifted panel. */}
-      <CashSwipeHUD earned={earned} remaining={remaining} capped={capped} />
+      <CashSwipeHUD
+        earned={earned}
+        remaining={remaining}
+        capped={capped}
+        excitement={excitementAnim}
+      />
     </View>
   );
 }
@@ -178,7 +227,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 360,
+    bottom: 500,
     alignItems: 'center',
   },
   hintArrow: {

@@ -6,6 +6,47 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 22:21 UTC — CashSwipe polish pass 2: bigger bills, glowing counter, dev reset
+- **Bills.** Stack bills now **220×530** (up from 160×386 ~~110×266~~).
+  The stack is slid 132px below the screen edge so ~1/4 of each bill
+  clips off — reads as a wad you're pulling singles off of, not a
+  fully-displayed pile. Stack-step (gap between bills in the pile)
+  dropped to **2px** — they sit nearly flush. Flying bills are now
+  deliberately small (56×135) for the visual contrast.
+- **Stack centring bug.** The stack was anchored at `left: '50%'`
+  AND given an explicit width, which placed its LEFT edge at the
+  midpoint and pushed everything into the right half. Replaced with
+  a full-width container that centres bills via their own
+  `left: '50%' + translateX(-W/2)`.
+- **"Swipe up" hint** moved up — `bottom: 360 → 500` — so it sits
+  in the free space between the HUD and the wad.
+- **Counter goes crazy on a streak.** New `excitement` Animated.Value
+  drives three native-driver effects on the earned amount:
+  - **Scale** — 1.0× → 1.8× as excitement rises.
+  - **Glow** — a layered gold Text behind the white number with a
+    24px gold text-shadow; opacity fades in past 0.25 excitement.
+    Halos around the digits when you're on a tear.
+  - **Shake** — a continuous ±1 loop multiplied by an
+    excitement-derived amplitude (0px at idle, ±7px at full). The
+    number wobbles when the streak is hot.
+- **Deflate is debounced**, not continuous: every swipe resets a
+  2-second timer; when it fires, scale/glow/shake all spring back
+  to baseline at once. No more constant tick-down decay.
+- **`__DEV__`-gated "Reset cap (dev)" pill** on the EmptyCap state
+  via new `resetCashSwipeToday(now)` store action. One tap returns
+  today's count to zero so testers don't have to wait for local
+  midnight. Compiled out of production builds.
+- **`FLY_START_BOTTOM` retuned** to 280 — bills emerge from near
+  the new (clipped-bottom) stack top.
+- Sound + `expo-haptics` buzz remain explicit polish-pass per
+  CLAUDE.md §9 — only visuals ship here.
+- No new runtime dependencies.
+- Verification: `npx tsc --noEmit` exits 0; `npm test` 152/152 green
+  (UI-only changes — engine + store tests untouched).
+- Outcome: CashSwipe now reads as a real coin-pusher-style minigame
+  — big satisfying wad, tiny zippy bills, a counter that lifts off
+  on a streak and snaps back when you stop. KG verified on Expo Go.
+
 ## 2026-05-23 21:17 UTC — Stage 4, checkpoint 5b: global banner + Stage 4 complete
 - Lifted the Bank-screen-inline banner to a **global, store-driven
   notification** mounted in `PhoneShell` (Bible §5). Any action can

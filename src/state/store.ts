@@ -187,6 +187,13 @@ export interface GameState {
   repayLoanInstallment: (now: number) => void;
   /** Spend one CashSwipe swipe; credits $1 when below the daily cap. */
   swipeOnce: (now: number) => void;
+  /**
+   * Dev affordance — reset today's CashSwipe counter to zero so a
+   * tester can keep swiping after hitting the cap. Wired through a
+   * `__DEV__`-gated button on the EmptyCap state; the production
+   * build never exposes this path.
+   */
+  resetCashSwipeToday: (now: number) => void;
   /** Show a top-edge banner notification. */
   postBanner: (title: string, body: string) => void;
   /** Clear the current banner if its id matches. */
@@ -496,6 +503,8 @@ export const useGameStore = create<GameState>()((set) => ({
       if (result.state === s.cashSwipe) return {};
       return { cashSwipe: result.state };
     }),
+  resetCashSwipeToday: (now) =>
+    set(() => ({ cashSwipe: createCashSwipe(now) })),
   postBanner: (title, body) => set({ banner: bannerOf(title, body) }),
   dismissBanner: (id) =>
     set((s) => (s.banner?.id === id ? { banner: null } : {})),

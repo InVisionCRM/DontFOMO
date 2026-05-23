@@ -19,7 +19,10 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, Image, StyleSheet } from 'react-native';
 
-/** Bill dimensions (W × H). Aspect matches the rotated source image. */
+/** Bill dimensions (W × H). Aspect matches the rotated source image.
+ *  Deliberately smaller than the stack bills — the contrast between
+ *  the big wad and the tiny zipping bills sells the swipe-and-fling
+ *  feel. */
 const BILL_WIDTH = 56;
 const BILL_HEIGHT = 135;
 
