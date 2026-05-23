@@ -42,17 +42,34 @@ export function AppView({ origin }: AppViewProps) {
   // after `openAppId` has already cleared.
   const [displayed, setDisplayed] = useState<AppDefinition | null>(null);
   const progress = useRef(new Animated.Value(0)).current;
+  // The iOS-style launch overlay — the icon's accent colour briefly
+  // fills the opening screen and fades to reveal the real UI. Gives
+  // dark screens (e.g. Bank) the same icon→screen visual continuity
+  // that bright screens already get for free. Only animates on open;
+  // snaps back to 0 on close so it doesn't reappear during the
+  // shrink-out.
+  const launchOverlay = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (openAppId) {
       setDisplayed(APP_BY_ID[openAppId]);
-      Animated.timing(progress, {
-        toValue: 1,
-        duration: motion.duration.slow,
-        easing: Easing.bezier(...motion.easing),
-        useNativeDriver: true,
-      }).start();
+      launchOverlay.setValue(1);
+      Animated.parallel([
+        Animated.timing(progress, {
+          toValue: 1,
+          duration: motion.duration.slow,
+          easing: Easing.bezier(...motion.easing),
+          useNativeDriver: true,
+        }),
+        Animated.timing(launchOverlay, {
+          toValue: 0,
+          duration: motion.duration.slow,
+          easing: Easing.bezier(...motion.easing),
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else if (displayed) {
+      launchOverlay.setValue(0); // no overlay on close
       Animated.timing(progress, {
         toValue: 0,
         duration: motion.duration.base,
@@ -65,7 +82,7 @@ export function AppView({ origin }: AppViewProps) {
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openAppId, progress]);
+  }, [openAppId, progress, launchOverlay]);
 
   if (!displayed) {
     return null;
@@ -122,6 +139,19 @@ export function AppView({ origin }: AppViewProps) {
             </Text>
           </View>
         </>
+      )}
+
+      {Screen && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor: displayed.gradient[0],
+              opacity: launchOverlay,
+            },
+          ]}
+        />
       )}
 
       <Pressable

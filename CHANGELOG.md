@@ -6,6 +6,28 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 20:03 UTC — AppView open animation: icon-colour launch overlay
+- The iOS-style zoom-open animation was technically running for every
+  app, but on screens whose first impression is dark (e.g. Bank's
+  deep-teal balance card on `bg.base`) the scale-up was invisible —
+  a dark rectangle growing on a dark background reads as a snap-in.
+  Bright screens (Exchange's blue card) hid the issue.
+- Fix in `src/ui/AppView.tsx`: a parallel `Animated.Value`
+  (`launchOverlay`) drives a full-screen overlay using the tapped
+  app's `gradient[0]` colour. It is fully opaque at the start of the
+  open animation and fades to 0 in parallel with the existing scale +
+  translate over `motion.duration.slow` (420ms). The overlay snaps
+  back to 0 on close so the shrink-out animation is unaffected.
+- The overlay is only rendered when a real `Screen` is present — the
+  placeholder branch keeps its existing accent strip, so the
+  "screen built in a later stage" visual is unchanged.
+- Universal effect: every app now gets the iOS launch-screen visual
+  continuity from icon to screen. Validated on device by KG against
+  Bank and Exchange.
+- No new dependencies; tsc clean.
+- Outcome: dark screens now feel native to open. Future dark screens
+  (Wallet, Settings, etc.) inherit the same behaviour automatically.
+
 ## 2026-05-23 19:49 UTC — Stage 4, checkpoint 2: the Bank UI
 - Built the Bank screen to the approved mockup, plus the store
   integration that drives it. The Bank app is now playable end to
