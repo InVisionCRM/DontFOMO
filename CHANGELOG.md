@@ -6,6 +6,29 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 12:50 UTC — Stage 3, checkpoint 4a: the player-token engine
+- Refactored the market engine so it can tick tokens created at
+  runtime: `nextPrice` now takes generic `SimParams`, `tickMarket` /
+  `advanceMarket` accept an optional `getParams` lookup, and
+  `seedTokenState` is extracted and exported. The static-token path and
+  existing behaviour are unchanged (the default `getParams` is the
+  catalogue), so no existing tests changed.
+- New `src/engine/economy/playerToken.ts` — the pure rules for
+  player-created tokens (Bible §9): `MAX_PLAYER_TOKENS`,
+  `tokenLaunchCost` (free first, rising second), `followerVolatility`
+  (a token's movement scales with followers), `followersFromPump` /
+  `followersFromDump` (the diminishing-returns and founder-scrutiny
+  curves), and `createPlayerToken`.
+- New `__tests__/playerToken.test.ts` — 9 tests; plus a market test
+  for the runtime-added-token path.
+- No new dependencies.
+- Verification: pure-TS files type-check clean under strict mode; all
+  56 unit tests pass (10 clock + 21 market + 9 store + 7 trade +
+  9 player-token).
+- Outcome: the player-token rules are engine-ready. Next (4b): the
+  store integration — `launchToken`, the token joining the market, and
+  the pump / dump follower effects.
+
 ## 2026-05-23 12:44 UTC — Token logos switched to emojis
 - Token logos are now bare emojis (no circle, no background), matching
   the original index.html prototype's identity and the satirical tone.

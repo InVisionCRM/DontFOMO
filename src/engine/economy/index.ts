@@ -3,3 +3,4 @@
  * Pure TypeScript. See CLAUDE.md §5.
  */
 export * from './trade';
+export * from './playerToken';

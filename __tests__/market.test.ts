@@ -14,7 +14,7 @@ import {
   tickMarket,
   toCandles,
 } from '../src/engine/market';
-import { TOKENS } from '../src/data/tokens';
+import { TOKEN_BY_ID, TOKENS } from '../src/data/tokens';
 
 describe('createRandom', () => {
   it('is deterministic for a given seed', () => {
@@ -185,5 +185,27 @@ describe('toCandles', () => {
         Math.min(candle.open, candle.close),
       );
     }
+  });
+});
+
+describe('tickMarket with a custom getParams', () => {
+  it('ticks a runtime-added token alongside the catalogue tokens', () => {
+    let market = createMarket(createRandom(1));
+    market = {
+      tokens: {
+        ...market.tokens,
+        MYTKN: { id: 'MYTKN', price: 0.001, history: [0.001], dayOpen: 0.001 },
+      },
+    };
+    const getParams = (id: string) =>
+      id === 'MYTKN'
+        ? { drift: 0.01, volatility: 0.05, isStable: false }
+        : TOKEN_BY_ID[id];
+
+    market = tickMarket(market, createRandom(9), getParams);
+
+    expect(market.tokens.MYTKN.history.length).toBe(2);
+    expect(market.tokens.MYTKN.price).toBeGreaterThan(0);
+    expect(market.tokens.NEURA).toBeDefined();
   });
 });

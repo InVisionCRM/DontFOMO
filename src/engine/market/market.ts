@@ -10,17 +10,22 @@
  * calendar clock, so charts stay alive within a session (Design Bible
  * §2).
  *
- * Every function is pure given the random generator passed in, so the
- * market can be fast-forwarded and unit-tested deterministically.
+ * The market ticks whatever tokens are in its state — the seven
+ * catalogue tokens, plus any player-created token added at runtime.
+ * Each token's sim parameters are supplied through `getParams`, so a
+ * player token (whose volatility depends on the player's followers)
+ * can be ticked without the engine knowing about followers.
+ *
+ * Every function is pure given the random generator passed in.
  */
-import { TOKENS, type TokenDefinition } from '../../data/tokens';
+import { TOKENS, TOKEN_BY_ID } from '../../data/tokens';
 import { gaussian } from './random';
 
 /** The smallest price a token may fall to. */
 const MIN_PRICE = 1e-9;
 /** How many recent prices to keep per token (sparklines + the chart). */
 const HISTORY_LENGTH = 150;
-/** How many prices of simulated past to seed a fresh market with. */
+/** How many prices of simulated past to seed a fresh token with. */
 const SEED_HISTORY = 60;
 
 /**
@@ -30,9 +35,19 @@ const SEED_HISTORY = 60;
  */
 export const MARKET_TICK_MS = 3000;
 
+/** The parameters that drive one token's price walk. */
+export interface SimParams {
+  /** Per-tick price drift — the gentle trend (may be negative). */
+  drift: number;
+  /** Per-tick volatility — the random-walk magnitude. */
+  volatility: number;
+  /** True for the stablecoin — uses the pegged-wobble price model. */
+  isStable: boolean;
+}
+
 /** The live simulated state of one token. */
 export interface TokenMarketState {
-  /** Ticker — matches a TokenDefinition id. */
+  /** Ticker — matches a token id. */
   id: string;
   /** Current price. */
   price: number;
@@ -50,59 +65,72 @@ export interface MarketState {
 
 /** Advance one token's price by a single tick. Pure given `rand`. */
 function nextPrice(
-  def: TokenDefinition,
+  params: SimParams,
   price: number,
   rand: () => number,
 ): number {
-  if (def.isStable) {
+  if (params.isStable) {
     // Pegged: re-settle near $1 each tick, never drifting away.
-    const wobble = gaussian(rand) * def.volatility;
+    const wobble = gaussian(rand) * params.volatility;
     return Math.min(1.03, Math.max(0.97, 1 + wobble));
   }
-  const change = def.drift + def.volatility * gaussian(rand);
+  const change = params.drift + params.volatility * gaussian(rand);
   return Math.max(MIN_PRICE, price * (1 + change));
 }
 
 /**
- * Create a fresh market — every token seeded with a short stretch of
- * simulated past so its chart looks alive from the first frame.
+ * Seed a fresh token state with a short stretch of simulated past, so
+ * its chart looks alive from the first frame. Used both to build the
+ * starting market and to mint a player-created token.
  */
+export function seedTokenState(
+  id: string,
+  params: SimParams,
+  basePrice: number,
+  rand: () => number,
+): TokenMarketState {
+  const history: number[] = [basePrice];
+  let price = basePrice;
+  for (let i = 1; i < SEED_HISTORY; i++) {
+    price = nextPrice(params, price, rand);
+    history.push(price);
+  }
+  return { id, price, history, dayOpen: history[0] };
+}
+
+/** Create a fresh market — every catalogue token seeded with a past. */
 export function createMarket(rand: () => number): MarketState {
   const tokens: Record<string, TokenMarketState> = {};
   for (const def of TOKENS) {
-    const history: number[] = [def.basePrice];
-    let price = def.basePrice;
-    for (let i = 1; i < SEED_HISTORY; i++) {
-      price = nextPrice(def, price, rand);
-      history.push(price);
-    }
-    tokens[def.id] = {
-      id: def.id,
-      price,
-      history,
-      dayOpen: history[0],
-    };
+    tokens[def.id] = seedTokenState(def.id, def, def.basePrice, rand);
   }
   return { tokens };
 }
 
+/** Default sim-params lookup — the static token catalogue. */
+function staticParams(id: string): SimParams {
+  return TOKEN_BY_ID[id];
+}
+
 /**
  * Advance the whole market by one tick. Pure given `rand` — returns a
- * new MarketState, never mutates the input.
+ * new MarketState, never mutates the input. `getParams` supplies each
+ * token's sim parameters (defaults to the static catalogue).
  */
 export function tickMarket(
   market: MarketState,
   rand: () => number,
+  getParams: (id: string) => SimParams = staticParams,
 ): MarketState {
   const tokens: Record<string, TokenMarketState> = {};
-  for (const def of TOKENS) {
-    const prev = market.tokens[def.id];
-    const price = nextPrice(def, prev.price, rand);
+  for (const id of Object.keys(market.tokens)) {
+    const prev = market.tokens[id];
+    const price = nextPrice(getParams(id), prev.price, rand);
     const history = [...prev.history, price];
     if (history.length > HISTORY_LENGTH) {
       history.shift();
     }
-    tokens[def.id] = { id: def.id, price, history, dayOpen: prev.dayOpen };
+    tokens[id] = { id, price, history, dayOpen: prev.dayOpen };
   }
   return { tokens };
 }
@@ -115,10 +143,11 @@ export function advanceMarket(
   market: MarketState,
   ticks: number,
   rand: () => number,
+  getParams: (id: string) => SimParams = staticParams,
 ): MarketState {
   let next = market;
   for (let i = 0; i < ticks; i++) {
-    next = tickMarket(next, rand);
+    next = tickMarket(next, rand, getParams);
   }
   return next;
 }
