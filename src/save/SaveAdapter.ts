@@ -17,9 +17,10 @@
 /**
  * Current save-schema version. Bump on any breaking shape change.
  * v2 added the market; v3 added holdings; v4 added player tokens;
- * v5 added the Bank (bills + loans); v6 added CashSwipe.
+ * v5 added the Bank (bills + loans); v6 added CashSwipe; v7 added
+ * peakNetWorth + lastUnemploymentCheckAt.
  */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 /**
  * The envelope every save is wrapped in. `version` lets the loader

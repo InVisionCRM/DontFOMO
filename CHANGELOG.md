@@ -6,6 +6,59 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 21:12 UTC — Stage 4, checkpoint 5a: unemployment-check engine + store
+- The Thursday 8pm Eastern unemployment check (Bible §14), engine
+  and store wiring. UI-side delivery (banner + buzz) is checkpoint
+  5b in the next commit; this one auto-credits silently so the
+  engine half is independently verifiable.
+- **Engine** (`src/engine/economy/unemploymentCheck.ts`): pure TS.
+  Eastern-time handling via `Intl.DateTimeFormat` (`America/New_York`)
+  — RN/Hermes ship full Intl, no extra deps. Exports:
+  - `easternHourAndDayOfWeek` / `easternDayKey` — primitives.
+  - `mostRecentThursday8pmEastern(now)` — the boundary anchor,
+    iterates back up to a week's worth of hours.
+  - `isCheckDue(lastCheckAt, now)` — true if a Thursday 8pm Eastern
+    boundary has passed AND no check has been credited since;
+    works for both live and offline-resume.
+  - `unemploymentAmount(peakNetWorth)` — floor $50, rate 4% of
+    lifetime peak, cap $25,000. Scales with the player's career
+    (Bible §14 examples), not their current balance.
+- **Store integration:**
+  - Added `peakNetWorth: number` and
+    `lastUnemploymentCheckAt: number` to `GameState` and
+    `SavedGame`. Seeded in `freshGame`: peak = `STARTING_CASH`
+    ($500), lastCheck = `now` so the first check fires on the
+    upcoming Thursday 8pm Eastern.
+  - `tick` extended: every calendar tick (20s) updates
+    `peakNetWorth` (running max of `cash + holdingsValue`) and
+    fires the check via `isCheckDue` / `unemploymentAmount`.
+  - `resume` and `loadSaved` apply the same peak update + due-check
+    logic, so an offline player who crossed a Thursday 8pm boundary
+    finds the check on their cash balance when they return.
+  - One check per Thursday — multiple missed Thursdays during a
+    long absence still credit just one. (Tunable later if KG wants
+    backlog stacking.)
+- **`SAVE_VERSION` bumped 6 → 7**, wiping any v6 saves (same
+  precedent). Migration framework remains Stage 7 work.
+- **Tests:**
+  - New `__tests__/unemploymentCheck.test.ts` — 17 tests covering
+    Eastern day-of-week / hour / day-key math (across both EDT and
+    EST), the boundary search, due-check logic (not yet, exactly,
+    after, offline-resume, no double-credit), and the amount
+    formula (floor, scale, cap, integer).
+  - Updated `__tests__/store.test.ts` for the new `SavedGame`
+    fields; added 6 store-level tests (peak rises with tick, peak
+    never falls, credit at boundary, no double-credit, floor for
+    zero peak, single credit on resume across an offline gap).
+- Net worth currently = `cash + holdingsValue(holdings, market)`.
+  Market-app assets (cars/watches/houses) join the formula when
+  Stage 5 lands them — a one-line edit to `netWorthOf`.
+- Verification: tsc clean, 8 suites / **146 tests** green (was 122).
+- Outcome: the safety-net half of Stage 4 is engine-ready. Next
+  (5b): lift the BankScreen's inline banner to a global store-driven
+  mount in PhoneShell, and post a banner from the unemployment
+  credit so the player actually sees the check arrive.
+
 ## 2026-05-23 21:04 UTC — CashSwipe polish: bill art, HUD lift, z-order
 - **Bill art.** KG dropped in the satirical "WORTHLESS PAPER NOTE /
   THE FORMERLY UNITED STATES OF DEBT / ONE IOU" bill — sad-clown

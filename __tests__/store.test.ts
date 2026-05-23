@@ -10,6 +10,7 @@ import { createMarket, createRandom } from '../src/engine/market';
 import {
   BILL_CYCLE_DAYS,
   CASH_SWIPE_DAILY_CAP,
+  CHECK_MIN_USD,
   LOAN_INSTALLMENT_DAYS,
   LOAN_TIERS,
   STARTING_BILLS,
@@ -17,6 +18,7 @@ import {
   createCashSwipe,
   loanWeeklyPayment,
   tokenLaunchCost,
+  unemploymentAmount,
 } from '../src/engine/economy';
 import {
   DEFAULT_HANDLE,
@@ -117,6 +119,8 @@ describe('game store', () => {
       playerTokens: [],
       bank: createBank(0),
       cashSwipe: createCashSwipe(0),
+      peakNetWorth: 50_000,
+      lastUnemploymentCheckAt: DAY_MS * 3, // future so loadSaved doesn't auto-credit
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -145,7 +149,9 @@ describe('game store', () => {
       'followers',
       'handle',
       'holdings',
+      'lastUnemploymentCheckAt',
       'market',
+      'peakNetWorth',
       'playerTokens',
     ]);
     expect(saved.cash).toBe(STARTING_CASH);
@@ -289,6 +295,90 @@ describe('bank actions', () => {
     expect(
       restored.bank.bills.find((b) => b.id === 'rent')?.nextDueAt,
     ).toBe(now + BILL_CYCLE_DAYS * DAY_MS);
+  });
+});
+
+describe('unemployment check (Thursday 8pm Eastern)', () => {
+  beforeEach(() => {
+    useGameStore.getState().newGame(1_000);
+  });
+
+  /** Thursday 2026-05-21 20:00 America/New_York = 2026-05-22 00:00 UTC. */
+  const THU_8PM_EDT_UTC = Date.UTC(2026, 4, 22, 0, 0, 0);
+
+  it('newGame initialises peakNetWorth to STARTING_CASH', () => {
+    expect(useGameStore.getState().peakNetWorth).toBe(STARTING_CASH);
+  });
+
+  it('tick raises peakNetWorth when net worth grows', () => {
+    useGameStore.setState({ cash: 5_000 });
+    useGameStore.getState().tick(2_000);
+    expect(useGameStore.getState().peakNetWorth).toBe(5_000);
+  });
+
+  it('tick never lowers peakNetWorth', () => {
+    useGameStore.setState({ cash: 5_000 });
+    useGameStore.getState().tick(2_000);
+    useGameStore.setState({ cash: 100 }); // lose almost all the cash
+    useGameStore.getState().tick(3_000);
+    expect(useGameStore.getState().peakNetWorth).toBe(5_000);
+  });
+
+  it('credits the unemployment check at the Thursday 8pm Eastern boundary', () => {
+    // Set the player up with a meaningful peak and a stale last-check.
+    useGameStore.setState({
+      cash: 1_000,
+      peakNetWorth: 100_000, // 4% of 100k = $4,000
+      lastUnemploymentCheckAt: THU_8PM_EDT_UTC - 7 * DAY_MS, // a week ago
+    });
+
+    useGameStore.getState().tick(THU_8PM_EDT_UTC);
+
+    const state = useGameStore.getState();
+    expect(state.cash).toBe(1_000 + unemploymentAmount(100_000));
+    expect(state.lastUnemploymentCheckAt).toBe(THU_8PM_EDT_UTC);
+  });
+
+  it('does not double-credit on the same Thursday', () => {
+    useGameStore.setState({
+      cash: 1_000,
+      peakNetWorth: 10_000,
+      lastUnemploymentCheckAt: THU_8PM_EDT_UTC - 7 * DAY_MS,
+    });
+
+    useGameStore.getState().tick(THU_8PM_EDT_UTC);
+    const cashAfterFirst = useGameStore.getState().cash;
+    // Another tick an hour later — still Thursday but already credited.
+    useGameStore.getState().tick(THU_8PM_EDT_UTC + 3_600_000);
+    expect(useGameStore.getState().cash).toBe(cashAfterFirst);
+  });
+
+  it('floors the check at CHECK_MIN_USD even with a zero peak', () => {
+    useGameStore.setState({
+      cash: 0,
+      peakNetWorth: 0,
+      lastUnemploymentCheckAt: THU_8PM_EDT_UTC - 7 * DAY_MS,
+    });
+    useGameStore.getState().tick(THU_8PM_EDT_UTC);
+    expect(useGameStore.getState().cash).toBe(CHECK_MIN_USD);
+  });
+
+  it('credits one check on resume across an offline Thursday', () => {
+    // Last check was a Wednesday two weeks ago; player returns the following Friday.
+    const wedBefore = Date.UTC(2026, 4, 13, 14, 0, 0); // Wed 2026-05-13 10am EDT
+    const friAfter = Date.UTC(2026, 4, 22, 18, 0, 0); // Fri 2026-05-22 2pm EDT
+    useGameStore.setState({
+      cash: 500,
+      peakNetWorth: 25_000,
+      lastUnemploymentCheckAt: wedBefore,
+      clock: { startedAt: 0, lastSeenAt: wedBefore, now: wedBefore },
+    });
+
+    useGameStore.getState().resume(friAfter);
+
+    const state = useGameStore.getState();
+    expect(state.cash).toBe(500 + unemploymentAmount(25_000));
+    expect(state.lastUnemploymentCheckAt).toBe(friAfter);
   });
 });
 

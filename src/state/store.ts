@@ -41,11 +41,14 @@ import {
   findLoanTier,
   followersFromDump,
   followersFromPump,
+  holdingsValue,
+  isCheckDue,
   nextInstallmentCost,
   playerTokenParams,
   quoteBuy,
   quoteSell,
   tokenLaunchCost,
+  unemploymentAmount,
   type BankState,
   type CashSwipeState,
   type PlayerTokenDef,
@@ -100,6 +103,10 @@ export interface SavedGame {
   playerTokens: PlayerTokenDef[];
   bank: BankState;
   cashSwipe: CashSwipeState;
+  /** Highest net worth (cash + crypto) the player has ever reached. */
+  peakNetWorth: number;
+  /** Last time an unemployment check was credited (epoch ms). */
+  lastUnemploymentCheckAt: number;
 }
 
 export interface GameState {
@@ -121,6 +128,10 @@ export interface GameState {
   bank: BankState;
   /** Daily swipe cap state for the CashSwipe minigame. */
   cashSwipe: CashSwipeState;
+  /** Lifetime peak net worth — the anchor for the unemployment check. */
+  peakNetWorth: number;
+  /** Last time an unemployment check was credited (epoch ms). */
+  lastUnemploymentCheckAt: number;
   /** Which in-game app is open; null = the home screen. */
   openAppId: AppId | null;
 
@@ -166,6 +177,8 @@ function freshGame(now: number): Pick<
   | 'playerTokens'
   | 'bank'
   | 'cashSwipe'
+  | 'peakNetWorth'
+  | 'lastUnemploymentCheckAt'
   | 'openAppId'
 > {
   return {
@@ -178,8 +191,23 @@ function freshGame(now: number): Pick<
     playerTokens: [],
     bank: createBank(now),
     cashSwipe: createCashSwipe(now),
+    peakNetWorth: STARTING_CASH,
+    // Anchor at game start — the first check fires the next Thursday 8pm Eastern.
+    lastUnemploymentCheckAt: now,
     openAppId: null,
   };
+}
+
+/**
+ * Compute net worth from a slice of state. Currently cash + crypto;
+ * Market-app assets (cars/watches/houses) will be added when they land.
+ */
+function netWorthOf(
+  cash: number,
+  holdings: Record<string, number>,
+  market: MarketState,
+): number {
+  return cash + holdingsValue(holdings, market);
 }
 
 /** Whole market ticks elapsed across an offline gap, capped. */
@@ -204,7 +232,22 @@ export const useGameStore = create<GameState>()((set) => ({
   ...freshGame(Date.now()),
 
   newGame: (now) => set(freshGame(now)),
-  tick: (now) => set((s) => ({ clock: tickClock(s.clock, now) })),
+  tick: (now) =>
+    set((s) => {
+      const clock = tickClock(s.clock, now);
+      const netWorth = netWorthOf(s.cash, s.holdings, s.market);
+      const peakNetWorth = Math.max(s.peakNetWorth, netWorth);
+      if (isCheckDue(s.lastUnemploymentCheckAt, now)) {
+        const amount = unemploymentAmount(peakNetWorth);
+        return {
+          clock,
+          peakNetWorth,
+          cash: s.cash + amount,
+          lastUnemploymentCheckAt: now,
+        };
+      }
+      return { clock, peakNetWorth };
+    }),
   tickMarket: () =>
     set((s) => ({
       market: tickMarketEngine(
@@ -219,15 +262,26 @@ export const useGameStore = create<GameState>()((set) => ({
       const loan = s.bank.loan
         ? accrueMissedInstallments(s.bank.loan, resumed.clock.now)
         : null;
+      const market = advanceMarket(
+        s.market,
+        catchUpTicks(resumed.elapsedMs),
+        marketRand,
+        paramsFor(s.playerTokens, s.followers),
+      );
+      const netWorth = netWorthOf(s.cash, s.holdings, market);
+      const peakNetWorth = Math.max(s.peakNetWorth, netWorth);
+      const due = isCheckDue(s.lastUnemploymentCheckAt, now);
       return {
         clock: resumed.clock,
-        market: advanceMarket(
-          s.market,
-          catchUpTicks(resumed.elapsedMs),
-          marketRand,
-          paramsFor(s.playerTokens, s.followers),
-        ),
+        market,
         bank: loan === s.bank.loan ? s.bank : { bills: s.bank.bills, loan },
+        peakNetWorth,
+        ...(due
+          ? {
+              cash: s.cash + unemploymentAmount(peakNetWorth),
+              lastUnemploymentCheckAt: now,
+            }
+          : {}),
       };
     }),
   loadSaved: (saved, now) =>
@@ -236,21 +290,27 @@ export const useGameStore = create<GameState>()((set) => ({
       const loan = saved.bank.loan
         ? accrueMissedInstallments(saved.bank.loan, resumed.clock.now)
         : null;
+      const market = advanceMarket(
+        saved.market,
+        catchUpTicks(resumed.elapsedMs),
+        marketRand,
+        paramsFor(saved.playerTokens, saved.followers),
+      );
+      const netWorth = netWorthOf(saved.cash, saved.holdings, market);
+      const peakNetWorth = Math.max(saved.peakNetWorth, netWorth);
+      const due = isCheckDue(saved.lastUnemploymentCheckAt, now);
       return {
         clock: resumed.clock,
-        cash: saved.cash,
+        cash: saved.cash + (due ? unemploymentAmount(peakNetWorth) : 0),
         followers: saved.followers,
         handle: saved.handle,
-        market: advanceMarket(
-          saved.market,
-          catchUpTicks(resumed.elapsedMs),
-          marketRand,
-          paramsFor(saved.playerTokens, saved.followers),
-        ),
+        market,
         holdings: saved.holdings,
         playerTokens: saved.playerTokens,
         bank: { bills: saved.bank.bills, loan },
         cashSwipe: saved.cashSwipe,
+        peakNetWorth,
+        lastUnemploymentCheckAt: due ? now : saved.lastUnemploymentCheckAt,
         openAppId: null,
       };
     }),
@@ -399,5 +459,7 @@ export function serializeGame(state: GameState): SavedGame {
     playerTokens: state.playerTokens,
     bank: state.bank,
     cashSwipe: state.cashSwipe,
+    peakNetWorth: state.peakNetWorth,
+    lastUnemploymentCheckAt: state.lastUnemploymentCheckAt,
   };
 }
