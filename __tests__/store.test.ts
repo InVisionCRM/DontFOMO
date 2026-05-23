@@ -122,6 +122,7 @@ describe('game store', () => {
       peakNetWorth: 50_000,
       lastUnemploymentCheckAt: DAY_MS * 3, // future so loadSaved doesn't auto-credit
       mail: [],
+      tunnel: [],
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -155,6 +156,7 @@ describe('game store', () => {
       'market',
       'peakNetWorth',
       'playerTokens',
+      'tunnel',
     ]);
     expect(saved.cash).toBe(STARTING_CASH);
     expect(saved.handle).toBe(DEFAULT_HANDLE);
@@ -361,6 +363,67 @@ describe('mail actions', () => {
     expect(
       useGameStore.getState().mail.find((m) => m.id === firstId)?.unread,
     ).toBe(false);
+  });
+});
+
+describe('tunnel actions', () => {
+  beforeEach(() => {
+    useGameStore.getState().newGame(1_000);
+  });
+
+  it('newGame seeds the tunnel chat list', () => {
+    const tunnel = useGameStore.getState().tunnel;
+    expect(tunnel.length).toBeGreaterThan(0);
+    expect(tunnel.some((c) => c.unreadCount > 0)).toBe(true);
+  });
+
+  it('openTunnelChat zeros the chat\'s unread count', () => {
+    const firstUnread = useGameStore
+      .getState()
+      .tunnel.find((c) => c.unreadCount > 0)!;
+    useGameStore.getState().openTunnelChat(firstUnread.id);
+    const after = useGameStore
+      .getState()
+      .tunnel.find((c) => c.id === firstUnread.id);
+    expect(after?.unreadCount).toBe(0);
+  });
+
+  it('pushTunnelMessage appends the message and bumps unread for incoming', () => {
+    const targetId = useGameStore.getState().tunnel[0].id;
+    const beforeLen = useGameStore
+      .getState()
+      .tunnel.find((c) => c.id === targetId)!.messages.length;
+    const beforeUnread = useGameStore
+      .getState()
+      .tunnel.find((c) => c.id === targetId)!.unreadCount;
+
+    useGameStore.getState().pushTunnelMessage(targetId, {
+      id: 'new-1',
+      sender: 'tester',
+      text: 'hi',
+      sentAt: 1_000,
+    });
+
+    const after = useGameStore
+      .getState()
+      .tunnel.find((c) => c.id === targetId)!;
+    expect(after.messages).toHaveLength(beforeLen + 1);
+    expect(after.unreadCount).toBe(beforeUnread + 1);
+  });
+
+  it('round-trips through serialize / loadSaved', () => {
+    const firstId = useGameStore.getState().tunnel[0].id;
+    useGameStore.getState().openTunnelChat(firstId);
+    const saved = serializeGame(useGameStore.getState());
+
+    useGameStore.getState().newGame(2_000);
+    expect(useGameStore.getState().tunnel.find((c) => c.id === firstId)?.unreadCount)
+      .toBeGreaterThan(0);
+
+    useGameStore.getState().loadSaved(saved, 2_000);
+    expect(
+      useGameStore.getState().tunnel.find((c) => c.id === firstId)?.unreadCount,
+    ).toBe(0);
   });
 });
 

@@ -59,8 +59,15 @@ import {
   markRead,
   type MailMessage,
 } from '../engine/mail';
+import {
+  addTunnelMessage,
+  markChatRead,
+  type TunnelChat,
+  type TunnelMessage,
+} from '../engine/tunnel';
 import { TOKEN_BY_ID } from '../data/tokens';
 import { createStartingMail } from '../data/mail';
+import { createStartingTunnel } from '../data/tunnel';
 import type { AppId } from '../data/apps';
 
 /**
@@ -142,6 +149,8 @@ export interface SavedGame {
   lastUnemploymentCheckAt: number;
   /** The Mail inbox — newest first. */
   mail: MailMessage[];
+  /** Tunnel chats — newest activity first. */
+  tunnel: TunnelChat[];
 }
 
 export interface GameState {
@@ -169,6 +178,8 @@ export interface GameState {
   lastUnemploymentCheckAt: number;
   /** The Mail inbox — newest first. */
   mail: MailMessage[];
+  /** Tunnel chats — newest activity first. */
+  tunnel: TunnelChat[];
   /** The top-edge banner currently being shown; null = none. */
   banner: BannerMessage | null;
   /** Which in-game app is open; null = the home screen. */
@@ -211,6 +222,10 @@ export interface GameState {
   deleteMailMessage: (id: string) => void;
   /** Push a new mail message into the inbox (newest first). */
   pushMailMessage: (msg: MailMessage) => void;
+  /** Open a Tunnel chat — zeroes its unread count. */
+  openTunnelChat: (chatId: string) => void;
+  /** Push a new message into a Tunnel chat. */
+  pushTunnelMessage: (chatId: string, msg: TunnelMessage) => void;
   /** Show a top-edge banner notification. */
   postBanner: (title: string, body: string) => void;
   /** Clear the current banner if its id matches. */
@@ -236,6 +251,7 @@ function freshGame(now: number): Pick<
   | 'peakNetWorth'
   | 'lastUnemploymentCheckAt'
   | 'mail'
+  | 'tunnel'
   | 'banner'
   | 'openAppId'
 > {
@@ -253,6 +269,7 @@ function freshGame(now: number): Pick<
     // Anchor at game start — the first check fires the next Thursday 8pm Eastern.
     lastUnemploymentCheckAt: now,
     mail: createStartingMail(now),
+    tunnel: createStartingTunnel(now),
     banner: null,
     openAppId: null,
   };
@@ -366,6 +383,7 @@ export const useGameStore = create<GameState>()((set) => ({
       const seededPeakNetWorth = saved.peakNetWorth ?? STARTING_CASH;
       const seededLastCheckAt = saved.lastUnemploymentCheckAt ?? now;
       const seededMail = saved.mail ?? createStartingMail(now);
+      const seededTunnel = saved.tunnel ?? createStartingTunnel(now);
 
       const resumed = resumeClock(saved.clock, now);
       const loan = bank.loan
@@ -394,6 +412,7 @@ export const useGameStore = create<GameState>()((set) => ({
         peakNetWorth,
         lastUnemploymentCheckAt: due ? now : seededLastCheckAt,
         mail: seededMail,
+        tunnel: seededTunnel,
         banner: due
           ? bannerOf(
               'Unemployment',
@@ -543,6 +562,10 @@ export const useGameStore = create<GameState>()((set) => ({
     set((s) => ({ mail: deleteMessage(s.mail ?? [], id) })),
   pushMailMessage: (msg) =>
     set((s) => ({ mail: addMessage(s.mail ?? [], msg) })),
+  openTunnelChat: (chatId) =>
+    set((s) => ({ tunnel: markChatRead(s.tunnel ?? [], chatId) })),
+  pushTunnelMessage: (chatId, msg) =>
+    set((s) => ({ tunnel: addTunnelMessage(s.tunnel ?? [], chatId, msg) })),
   postBanner: (title, body) => set({ banner: bannerOf(title, body) }),
   dismissBanner: (id) =>
     set((s) => (s.banner?.id === id ? { banner: null } : {})),
@@ -571,5 +594,6 @@ export function serializeGame(state: GameState): SavedGame {
     peakNetWorth: state.peakNetWorth ?? STARTING_CASH,
     lastUnemploymentCheckAt: state.lastUnemploymentCheckAt ?? state.clock.now,
     mail: state.mail ?? [],
+    tunnel: state.tunnel ?? [],
   };
 }

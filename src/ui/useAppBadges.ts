@@ -10,25 +10,29 @@
  */
 import { useGameStore } from '../state/store';
 import { unreadCount, type MailMessage } from '../engine/mail';
+import { totalUnreadCount, type TunnelChat } from '../engine/tunnel';
 import type { AppId } from '../data/apps';
 
 /**
- * Stable empty-array reference for the stale-state fallback. The
+ * Stable empty-array references for the stale-state fallback. Each
  * selector must return the SAME reference on every call when the
  * store value is missing, otherwise Zustand sees a fresh snapshot
  * each render and React loops on "Maximum update depth exceeded".
  */
 const EMPTY_MAIL: readonly MailMessage[] = [];
+const EMPTY_TUNNEL: readonly TunnelChat[] = [];
 
 /**
  * Returns a map of app id → badge count. Apps without a badge are
  * omitted (the AppIcon ignores undefined badges).
  */
 export function useAppBadges(): Partial<Record<AppId, number>> {
-  // Read raw; the fallback is applied OUTSIDE the selector so the
-  // selector's return is a stable reference. (See EMPTY_MAIL.)
+  // Read raw; the `?? ...` fallback is applied OUTSIDE the selector
+  // so the selector's return stays a stable reference.
   const mail = useGameStore((s) => s.mail) ?? EMPTY_MAIL;
+  const tunnel = useGameStore((s) => s.tunnel) ?? EMPTY_TUNNEL;
   return {
     mail: unreadCount(mail),
+    tunnel: totalUnreadCount(tunnel),
   };
 }

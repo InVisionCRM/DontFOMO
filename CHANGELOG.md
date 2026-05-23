@@ -6,6 +6,75 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 23:52 UTC — Stage 5, checkpoint 2: the Tunnel chat app
+- Second of Stage 5's comm apps. Telegram-style chat list inside the
+  in-game phone — channels + DMs, slide-in detail with bubbles, the
+  unread-badge pipeline extended.
+- **Engine** (`src/engine/tunnel/tunnel.ts`): pure-TS data model and
+  helpers. `TunnelChat` carries `id`, `name`, `avatarGradient`,
+  `kind` (`'channel' | 'dm'`), optional `memberCount` /
+  `onlineCount`, `verified` (blue check), `isSuspicious`
+  (phishing/duplicate-channel flag → red unread badge),
+  `pinned`, `messages: TunnelMessage[]`, `unreadCount`.
+  `TunnelMessage` carries `id`, optional `sender`/`outgoing`,
+  `text`, `sentAt`. Pure helpers: `totalUnreadCount`,
+  `findTunnelChat`, `lastMessage`, `markChatRead` (preserves the
+  same array reference when already read — keeps Zustand snapshot
+  stable), `addTunnelMessage` (bumps unread for incoming only),
+  `addTunnelChat`, `chatInitials`, deterministic `senderColour`
+  (Telegram-style coloured names hashed to a fixed 8-colour
+  palette).
+- **Data** (`src/data/tunnel.ts`): six starter chats —
+  MoonPig Community (verified channel, the open thread from the
+  mockup), MoonP1g Community (suspicious duplicate per Bible §11's
+  "spot the fake channel" primer), DeFi Degens (verified, big
+  unread), Tunnel Support (fake DM phish), Marcus + Sarah (friend
+  DMs).
+- **Store integration:**
+  - New `tunnel: TunnelChat[]` field on `GameState` and `SavedGame`.
+  - New actions: `openTunnelChat(chatId)` (zeros unread via
+    `markChatRead`), `pushTunnelMessage(chatId, msg)` (appends +
+    bumps unread for incoming).
+  - `freshGame` seeds via `createStartingTunnel(now)`; `loadSaved`
+    normalises a missing slice to fresh starter chats;
+    `serializeGame` carries the array through, with `?? []` defence.
+  - **`SAVE_VERSION` bumped 8 → 9.** Existing v8 saves wipe.
+- **UI** (`src/ui/tunnel/`):
+  - `TunnelScreen` — navy header (`Tunnel` title + decorative
+    search bar), flat list of `TunnelChatRow`s, slide-in
+    `TunnelChatDetail`. Uses the **stable empty-array fallback**
+    pattern (`?? EMPTY_TUNNEL` outside the selector) so Fast
+    Refresh schema bumps don't trip the snapshot-cache loop again.
+  - `TunnelChatRow` — gradient avatar, name + blue-checkmark SVG
+    badge for verified, last-message preview with `You:` / sender
+    prefix, time, unread badge (red tint when `isSuspicious`).
+  - `TunnelChatDetail` — slide-in from the right. Navy header
+    (back arrow + small avatar + name + members/online subtitle),
+    optional pinned-message bar (blue left border + pin icon),
+    auto-scrolls to the bottom on open, decorative composer at
+    the foot.
+  - `MessageBubble` — incoming bubbles align left with a coloured
+    sender name above; outgoing bubbles align right with lighter
+    blue background and no sender label.
+- **Badge pipeline extended:** `useAppBadges` now also reports the
+  total Tunnel unread (`totalUnreadCount(chats)`); the home-grid
+  Tunnel icon shows the red bubble alongside Mail's.
+- **Tests:**
+  - New `__tests__/tunnel.test.ts` — 18 engine tests covering
+    every helper (totals, markRead idempotency,
+    outgoing-vs-incoming unread, `senderColour` determinism, etc.).
+  - 4 new store tests for `openTunnelChat`, `pushTunnelMessage`,
+    seed presence, and a save/load round-trip.
+  - Suite is 10/10 green at **192 tests**.
+- No new runtime dependencies.
+- Verification: `npx tsc --noEmit` exits 0; `npm test` 192/192.
+  On-device walkthrough still owed (Tunnel home icon → chat list →
+  tap MoonPig → see bubbles + pinned bar).
+- Outcome: Stage 5 cp2 done. Two of five comm apps live; the
+  pattern (engine + data + slide-in detail + badge) is now well-
+  worn — Messages, Clout, and Market should each follow more
+  briskly.
+
 ## 2026-05-23 23:11 UTC — Fix: stable empty-array fallback in Mail selectors
 - The previous `?? []` fallback inside Zustand selectors created a
   brand-new empty array on every selector call whenever `s.mail`
