@@ -6,6 +6,48 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 16:33 UTC — Stage 4, checkpoint 1: the Bank engine
+- New `src/engine/economy/bank.ts` — pure TypeScript, no React imports.
+  Bills, loans and the per-tick mechanics that make them tick. Wired
+  into the economy barrel.
+- **Bills.** Fixed **7-day cycles** (KG, 2026-05-23) — every bill recurs
+  exactly one week after it is paid. Three starter bills seeded for
+  every new game (Rent $1200, Utilities $180, Phone plan $60), all due
+  one cycle out so a fresh player gets a full week to acclimate before
+  any pressure hits. When a bill is overdue, a late fee accrues at
+  **1% of the face amount per whole day overdue**, capped at **50%**.
+  Pure helpers: `daysUntilDue`, `daysOverdue`, `isOverdue`,
+  `billLateFee`, `billTotalDue`, `applyBillPayment`, `billsTotalDue`.
+- **Loans.** Three tiers exactly as shown in the Bank mockup —
+  `tier_1k` ($1,000 @ 8% APR / 4 weeks), `tier_5k` ($5,000 @ 14% / 8),
+  `tier_20k` ($20,000 @ 22% / 16). Flat-interest model: the player
+  receives the principal in cash and owes `principal + interest`,
+  repaid as equal weekly installments (`loanWeeklyPayment`,
+  `loanTotalCost`). `createLoan` returns the new loan + the cash
+  credit; `applyInstallment` clears one week and returns `null` when
+  the loan is fully paid; `accrueMissedInstallments` is the
+  offline-catch-up function — every full week past the due date
+  compounds a **2% missed-payment penalty** onto the remaining
+  balance and advances the due date. v1 supports one active loan at
+  a time.
+- Engine is store-free — `createLoan` returns the cash credit, the
+  caller deducts the cost from `nextInstallmentCost` / `billTotalDue`
+  before applying state. Mirrors the buyToken / sellToken pattern
+  from Stage 3.
+- New `__tests__/bank.test.ts` — 22 unit tests covering bill cycle
+  math, late-fee accrual + cap, payment advance, the weekly-payment
+  formula per tier, `applyInstallment` payoff + return-null, missed-
+  installment compounding, and purity (no input mutation).
+- No new runtime dependencies.
+- Verification: `npm test` runs 6 suites / **85 tests** green
+  (10 clock + 21 market + 9 store + 7 trade + 16 player-token +
+  22 bank). `npx tsc --noEmit --project tsconfig.json` exits 0.
+- Outcome: Stage 4's engine half for the Bank is feature-complete
+  and tested. Next (4.2): the Bank screen UI built to the approved
+  mockup — balance card, bills list with late styling, the loan
+  card, and the borrow-tier sheet. No store wiring yet (4.2 is UI;
+  store wiring happens alongside it).
+
 ## 2026-05-23 16:12 UTC — Test runner persisted in package.json
 - Prior sessions verified the 63 unit tests in an ad-hoc ts-jest harness,
   but `jest` / `ts-jest` / `@jest/globals` / `@types/jest` were never

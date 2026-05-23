@@ -4,3 +4,4 @@
  */
 export * from './trade';
 export * from './playerToken';
+export * from './bank';
