@@ -1,4 +1,4 @@
-# CryptoLife
+# DON'T FOMO
 
 A phone-simulator life game that teaches real crypto safety — spotting
 rug pulls, phishing, wallet drainers and impersonators — by letting the
@@ -6,7 +6,7 @@ player live a crypto life and feel the consequences.
 
 This folder is the **app** (Expo / React Native). The design documents
 live one level up in `/CryptoLife/`. The canonical references are
-`CLAUDE.md` (how the software is built) and `CryptoLife_Design_Bible.md`
+`CLAUDE.md` (how the software is built) and `DontFOMO_Design_Bible.md`
 (what the game is).
 
 ---
@@ -50,7 +50,7 @@ npx expo start     # starts the development server
 - **In a simulator:** press `i` for the iOS simulator (needs Xcode, Mac
   only) or `a` for the Android emulator (needs Android Studio).
 
-You should see a dark screen with the **CryptoLife** wordmark. That is
+You should see a dark screen with the **DON'T FOMO** wordmark. That is
 the boot screen — proof the scaffold runs. The real game is built on top
 of it stage by stage.
 

@@ -1,5 +1,5 @@
 /**
- * theme.ts — CryptoLife design tokens
+ * theme.ts — DON'T FOMO design tokens
  * ------------------------------------------------------------------
  * The single source of truth for every colour, size, font, radius and
  * motion value in the app. Components MUST read from here and never
@@ -41,7 +41,7 @@ export const color = {
   info: '#3B82F6', // neutral informational
 
   /** Brand. */
-  brand: '#7C5CFF', // CryptoLife's signature violet
+  brand: '#7C5CFF', // DON'T FOMO's signature violet
   brandSoft: 'rgba(124,92,255,0.16)', // translucent brand fill — selected states, tints
   brandText: '#CDBCFF', // light brand violet — brand-tinted text on dark
   brandGradient: ['#7C5CFF', '#D4537E'] as const, // hero / wallpaper gradient

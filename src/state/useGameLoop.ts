@@ -29,7 +29,7 @@ export function useGameLoop(): void {
     const save = (): void => {
       saveAdapter
         .save<SavedGame>(serializeGame(useGameStore.getState()))
-        .catch((error) => console.warn('[CryptoLife] save failed:', error));
+        .catch((error) => console.warn('[DontFOMO] save failed:', error));
     };
 
     // Load a saved game (if any), then catch up to real time.
@@ -39,14 +39,14 @@ export function useGameLoop(): void {
         if (cancelled) return;
         if (envelope && envelope.version === SAVE_VERSION) {
           useGameStore.getState().loadSaved(envelope.data, Date.now());
-          console.log('[CryptoLife] save loaded.');
+          console.log('[DontFOMO] save loaded.');
         } else {
           if (envelope) {
             console.warn(
-              `[CryptoLife] unsupported save version ${envelope.version} — starting fresh.`,
+              `[DontFOMO] unsupported save version ${envelope.version} — starting fresh.`,
             );
           } else {
-            console.log('[CryptoLife] no save found — starting a fresh game.');
+            console.log('[DontFOMO] no save found — starting a fresh game.');
           }
           useGameStore.getState().resume(Date.now());
         }
@@ -54,7 +54,7 @@ export function useGameLoop(): void {
       })
       .catch((error) => {
         console.warn(
-          '[CryptoLife] save load failed — starting fresh:',
+          '[DontFOMO] save load failed — starting fresh:',
           error,
         );
         if (!cancelled) useGameStore.getState().resume(Date.now());

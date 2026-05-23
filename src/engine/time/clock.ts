@@ -3,7 +3,7 @@
  * ------------------------------------------------------------------
  * Pure TypeScript. No React, no React Native imports (CLAUDE.md §5).
  *
- * CryptoLife runs on a real-time calendar (Design Bible §2): one
+ * DON'T FOMO runs on a real-time calendar (Design Bible §2): one
  * in-game day = one real day, and the in-game date IS the real date.
  * The clock therefore just tracks two anchors — when the game began
  * and when the engine last saw the player — and derives everything

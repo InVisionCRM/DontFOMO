@@ -1,10 +1,60 @@
-# CHANGELOG — CryptoLife
+# CHANGELOG — DON'T FOMO
 
 Most recent first. Every entry: a UTC timestamp, a one-line summary, and
 what changed / why / outcome. See CLAUDE.md §10 — updating this file
 after any coding work is mandatory.
 
 ---
+
+## 2026-05-23 19:33 UTC — Project renamed: CryptoLife → DON'T FOMO
+- KG locked the new product name. **`CryptoLife` → `DON'T FOMO`** across
+  every user-facing surface, with the code identifier `dontfomo`
+  (matching the GitHub repo handle `DontFOMO`).
+- **app.json:** `expo.name` `CryptoLife` → `DON'T FOMO` (the on-device
+  app label under the icon); `expo.slug` `cryptolife` → `dontfomo`
+  (Expo's URL-safe identifier).
+- **package.json:** `name` `cryptolife` → `dontfomo`. The package-lock
+  still references the old name; it'll regenerate on the next
+  `npm install`.
+- **Source comments and log namespaces:** the `[CryptoLife]` console
+  prefix in `useGameLoop.ts` and `AsyncStorageSaveAdapter.ts` is now
+  `[DontFOMO]` (no apostrophe — clean for a log tag). Comments in
+  `theme.ts`, `clock.ts`, `PhoneStatusBar.tsx` updated to the new
+  product name.
+- **Save namespace deliberately preserved.** `STORAGE_KEY` stays as
+  `'cryptolife.save'` so the rename does not orphan any on-device
+  saves from prior testing. A new comment in the file explains why
+  and points future migrations at the `SaveAdapter` interface.
+- **Folders deliberately preserved.** Per KG, the on-disk paths stay
+  as `/Users/kyle/CryptoLife/` (design docs) and
+  `/Users/kyle/CryptoLife/cryptolife/` (the app). Folder names are
+  invisible to users and renaming them would break shell aliases,
+  IDE workspaces, and this session's cwd. Path references in docs
+  were caught and reverted from a bulk substitution that wrongly
+  swept them.
+- **Design docs renamed (outside this repo):** the 25 design-doc files
+  in the parent directory — Bible, Migration Plan, Milestones, the
+  refreshed Scam Library, plus all 14 `*_Mockup.html` files, the
+  Brand Naming Board, the Connected Prototype, and the prototype
+  bridge — were filename-renamed from `CryptoLife_*` to `DontFOMO_*`
+  and content-swept. They live in an untracked dir; KG will commit
+  them when he initializes a separate repo for the design docs.
+- **Excluded from the rename:** `index.html` (CLAUDE.md §2 marks it
+  preservation-only as the original prototype behavioural reference)
+  and `DontFOMO_prototype_bridge.js` (prototype-adjacent).
+- **One mockup string fix:** the Mail mockup's bank-brand strings
+  (`'Bank of DON'T FOMO'`, `'DON'T FOMO Weekly'`) switched from
+  single to double quotes — the apostrophe in the new name was
+  terminating the JS strings.
+- Verification: `npx tsc --noEmit` exits 0; `npm test` runs 6 suites
+  / 85 tests green; grep audit confirms every remaining `CryptoLife`
+  / `cryptolife` reference is intentional (filesystem path, folder
+  identifier, save key, or honest history in older changelog
+  entries).
+- Outcome: the app is now DON'T FOMO everywhere it shows.
+  Engineering identifiers (`dontfomo`) and the GitHub repo handle
+  (`DontFOMO`) are aligned. Ready for the first push to
+  `InVisionCRM/DontFOMO`.
 
 ## 2026-05-23 16:33 UTC — Stage 4, checkpoint 1: the Bank engine
 - New `src/engine/economy/bank.ts` — pure TypeScript, no React imports.
@@ -428,8 +478,8 @@ after any coding work is mandatory.
   `ui/` documenting each layer's rules. They keep the folders in git and
   state the architecture contract.
 - Reshaped `App.tsx` into a minimal dark boot screen that renders the
-  CryptoLife wordmark using the theme tokens. Set `userInterfaceStyle`
-  to `dark` and the display name to `CryptoLife` in `app.json`.
+  DON'T FOMO wordmark using the theme tokens. Set `userInterfaceStyle`
+  to `dark` and the display name to `DON'T FOMO` in `app.json`.
 - Added this `CHANGELOG.md` and a plain-language `README.md`.
 - Verification: `tsc --noEmit` run on the pure-TS files (theme,
   SaveAdapter, index files) — compiles clean under strict mode, no `any`.

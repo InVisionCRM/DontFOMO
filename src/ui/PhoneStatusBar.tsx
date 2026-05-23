@@ -6,7 +6,7 @@
  * inset so it sits beside the real notch / Dynamic Island.
  *
  * Connected to the game store — it reads the live clock, so the time
- * ticks forward as real time passes (CryptoLife runs on a real-time
+ * ticks forward as real time passes (DON'T FOMO runs on a real-time
  * calendar, Design Bible §2).
  */
 import { StyleSheet, Text, View } from 'react-native';

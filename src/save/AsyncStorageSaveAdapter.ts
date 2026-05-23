@@ -17,7 +17,15 @@ import {
   type SaveEnvelope,
 } from './SaveAdapter';
 
-/** The single AsyncStorage key the whole save lives under. */
+/**
+ * The single AsyncStorage key the whole save lives under.
+ *
+ * Intentionally kept as the legacy `cryptolife.save` namespace — the
+ * project was renamed to DON'T FOMO in May 2026, but on-device saves
+ * from the old name still load. Switching the key would orphan every
+ * existing save; if we ever migrate, do it through a versioned
+ * migration in `SaveAdapter`, not by changing this string.
+ */
 const STORAGE_KEY = 'cryptolife.save';
 
 export class AsyncStorageSaveAdapter implements SaveAdapter {
@@ -32,7 +40,7 @@ export class AsyncStorageSaveAdapter implements SaveAdapter {
       // Corrupt save data — recover by treating it as no save rather
       // than crashing. A genuine I/O failure above is left to throw.
       console.warn(
-        '[CryptoLife] save data was unreadable, ignoring it:',
+        '[DontFOMO] save data was unreadable, ignoring it:',
         error,
       );
       return null;
