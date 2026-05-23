@@ -6,6 +6,42 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 21:04 UTC — CashSwipe polish: bill art, HUD lift, z-order
+- **Bill art.** KG dropped in the satirical "WORTHLESS PAPER NOTE /
+  THE FORMERLY UNITED STATES OF DEBT / ONE IOU" bill — sad-clown
+  portrait — as `assets/bill.png` (1584 × 656 landscape). I created
+  a pre-rotated portrait copy at `assets/bill-portrait.png` via
+  `sips -r 90` (656 × 1584), because RN's `transform: rotate` does
+  not change layout bounds and a CSS-style rotation would have left
+  the layout in landscape. Rotating the asset once is the clean
+  fix.
+- **FlyingBill + BillStack** swapped their hand-drawn green tile
+  (gradient + inner border + corner "100"s + `$` seal) for the real
+  bill image. Container aspect now matches the source (0.414 : 1),
+  so the image fills with no letterboxing or stretching:
+  - Stack bills: **110 × 266**, seven stacked with 18px steps —
+    reads as a real wad of cash.
+  - Flying bills: **56 × 135** — small enough to feel zippy,
+    readable mid-flight.
+- **HUD lifted onto a 3D-feeling panel** (`CashSwipeHUD.tsx`):
+  moved from `top: 70` to `top: 108`, wrapped in a dark glass-ish
+  slab with a heavy drop shadow (offset 14, radius 26, opacity
+  0.55) and a 1px top-edge highlight. Numbers grew: title 13 → 14,
+  earned 52 → 64, "left" 13 → 14.
+- **Z-order fix** (`CashSwipeScreen.tsx`): the flying-bills layer
+  now renders BEFORE the HUD in JSX, so bills pass *behind* the
+  lifted HUD panel. The panel has `pointerEvents="none"` so it
+  doesn't intercept swipes.
+- **Stronger bill shadows.** FlyingBill: opacity 0.3 → 0.6, offset
+  4 → 6, radius 10 → 14. BillStack: opacity 0.25 → 0.5, offset
+  -3 → -5, radius 8 → 12 (still negative-Y so the pile reads as
+  bills resting on each other).
+- No new dependencies; tsc clean; 122/122 tests still green
+  (CashSwipe tests are engine-only, untouched by this UI polish).
+- Outcome: CashSwipe now feels like the satirical money game it
+  always wanted to be — the sad-clown bill is the bill. Stage 4 is
+  one checkpoint from done.
+
 ## 2026-05-23 20:14 UTC — Stage 4, checkpoint 4: the CashSwipe UI
 - Built the CashSwipe screen to the approved mockup, plus the store
   wiring that drives it. The minigame is now playable: swipe up,

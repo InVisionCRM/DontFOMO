@@ -8,19 +8,22 @@
  * `onComplete(id)` so the parent can drop it from the live set.
  *
  * The "physics" is approximated, not simulated — close to the
- * original mockup's feel without needing per-frame JS work or
- * Reanimated. All animations stay on the native thread.
+ * original mockup's feel without per-frame JS work or Reanimated.
+ * All animations stay on the native thread.
+ *
+ * Visual: the satirical "WORTHLESS PAPER NOTE" bill, pre-rotated
+ * to portrait at the asset level (`assets/bill-portrait.png`). The
+ * image aspect (~0.414 : 1) sets the container dimensions so it
+ * fills cleanly with no letterboxing.
  */
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Animated, Easing, Image, StyleSheet } from 'react-native';
 
-const BILL_WIDTH = 66;
-const BILL_HEIGHT = 104;
-const BG = ['#54B97E', '#2F8F54'] as const;
-const BORDER = '#173E29';
-const INNER_BORDER = 'rgba(255,255,255,0.32)';
-const CORNER_TEXT = 'rgba(255,255,255,0.8)';
+/** Bill dimensions (W × H). Aspect matches the rotated source image. */
+const BILL_WIDTH = 56;
+const BILL_HEIGHT = 135;
+
+const BILL_SOURCE = require('../../../assets/bill-portrait.png');
 
 export interface FlyingBillProps {
   id: number;
@@ -45,7 +48,6 @@ export function FlyingBill({
   const rotation = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Trajectory shape — peak roughly scales with launch velocity.
     const peakHeight = Math.max(180, velocity * 22);
     const upDuration = 460;
     const fallDuration = 1_700;
@@ -112,18 +114,7 @@ export function FlyingBill({
         },
       ]}
     >
-      <LinearGradient
-        colors={BG}
-        start={{ x: 0.15, y: 0 }}
-        end={{ x: 0.85, y: 1 }}
-        style={[StyleSheet.absoluteFill, { borderRadius: 7 }]}
-      />
-      <View style={styles.innerBorder} />
-      <Text style={[styles.corner, styles.cornerTL]}>100</Text>
-      <View style={styles.seal}>
-        <Text style={styles.sealText}>$</Text>
-      </View>
-      <Text style={[styles.corner, styles.cornerBR]}>100</Text>
+      <Image source={BILL_SOURCE} style={styles.image} resizeMode="cover" />
     </Animated.View>
   );
 }
@@ -133,50 +124,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: BILL_WIDTH,
     height: BILL_HEIGHT,
-    borderRadius: 7,
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-  },
-  innerBorder: {
-    position: 'absolute',
-    top: 4,
-    bottom: 4,
-    left: 4,
-    right: 4,
     borderRadius: 4,
-    borderWidth: 1,
-    borderColor: INNER_BORDER,
+    overflow: 'hidden',
+    // Lifted-from-the-screen shadow — sells the in-flight feel.
+    shadowColor: '#000',
+    shadowOpacity: 0.6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 14,
+    elevation: 6,
   },
-  seal: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    width: 26,
-    height: 26,
-    marginLeft: -13,
-    marginTop: -13,
-    borderRadius: 13,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  image: {
+    width: '100%',
+    height: '100%',
   },
-  sealText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#EAFBF0',
-  },
-  corner: {
-    position: 'absolute',
-    fontSize: 9,
-    fontWeight: '800',
-    color: CORNER_TEXT,
-  },
-  cornerTL: { top: 5, left: 7 },
-  cornerBR: { bottom: 5, right: 7 },
 });

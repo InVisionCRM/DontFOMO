@@ -121,9 +121,7 @@ export function CashSwipeScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      <CashSwipeHUD earned={earned} remaining={remaining} capped={capped} />
-
-      {/* Flying bills layer — sits above the stack, below the HUD. */}
+      {/* Flying bills layer — rendered first so they pass BEHIND the HUD. */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         {flying.map((b) => (
           <FlyingBill
@@ -137,6 +135,7 @@ export function CashSwipeScreen() {
         ))}
       </View>
 
+      {/* Bottom area — the swipe stack or the empty state. */}
       {capped ? (
         <EmptyCap remainingMs={msUntilLocalMidnight(tick)} />
       ) : (
@@ -155,6 +154,9 @@ export function CashSwipeScreen() {
           )}
         </View>
       )}
+
+      {/* HUD on top — flying bills appear to fly behind its lifted panel. */}
+      <CashSwipeHUD earned={earned} remaining={remaining} capped={capped} />
     </View>
   );
 }
