@@ -6,6 +6,37 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 23:07 UTC — Fix: full stale-state defence — store actions, loadSaved, serialize
+- The prior fix patched the read selectors but missed three other
+  attack surfaces, which produced new crashes when KG hot-reloaded
+  past the v8 bump:
+  1. **Three mail actions** (`openMailMessage`, `deleteMailMessage`,
+     `pushMailMessage`) feed `s.mail` straight into `markRead` /
+     `deleteMessage` / `addMessage`, which iterate the input. If
+     `s.mail` was undefined (stale state), they threw the same
+     `Cannot convert undefined value to object`.
+  2. **`serializeGame`** would persist an undefined field as
+     missing JSON, which on next load came back as undefined and
+     poisoned the freshly-launched store too.
+  3. **`loadSaved`** never normalised the loaded shape — a partial
+     save (from any prior poisoning) would override the fresh
+     `freshGame` defaults with undefineds.
+- Patches:
+  - Mail actions now `?? []` their input.
+  - `serializeGame` guards every nullable / collection field with
+    `??` defaults (`holdings`, `playerTokens`, `bank`, `cashSwipe`,
+    `peakNetWorth`, `lastUnemploymentCheckAt`, `mail`).
+  - `loadSaved` reads every restored slice through a normaliser
+    that backstops a missing field with `freshGame`-equivalent
+    defaults (`createBank(now)`, `createCashSwipe(now)`,
+    `createStartingMail(now)`, etc.). A partial save can no longer
+    poison the next load.
+- Proper save migrations remain Stage 7 work per the Migration
+  Plan — this is just enough defence to survive Fast Refresh and
+  recover from any saves that were poisoned during the v7→v8
+  bump.
+- Verification: tsc clean; npm test 170/170.
+
 ## 2026-05-23 22:38 UTC — Fix: guard Mail selectors against stale hot-reload state
 - KG hit a "Cannot convert undefined value to object" crash at
   `unreadCount` (`mail.ts:55`) right after the v7 → v8 schema bump.

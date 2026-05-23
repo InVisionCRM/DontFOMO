@@ -355,19 +355,31 @@ export const useGameStore = create<GameState>()((set) => ({
     }),
   loadSaved: (saved, now) =>
     set(() => {
+      // Normalize the loaded shape — any field missing because of a
+      // partial save (e.g. one persisted from a stale hot-reload
+      // state pre-schema-bump) gets a sensible default so we never
+      // re-poison the store. Proper migrations are Stage 7.
+      const holdings = saved.holdings ?? {};
+      const playerTokens = saved.playerTokens ?? [];
+      const bank = saved.bank ?? createBank(now);
+      const cashSwipe = saved.cashSwipe ?? createCashSwipe(now);
+      const seededPeakNetWorth = saved.peakNetWorth ?? STARTING_CASH;
+      const seededLastCheckAt = saved.lastUnemploymentCheckAt ?? now;
+      const seededMail = saved.mail ?? createStartingMail(now);
+
       const resumed = resumeClock(saved.clock, now);
-      const loan = saved.bank.loan
-        ? accrueMissedInstallments(saved.bank.loan, resumed.clock.now)
+      const loan = bank.loan
+        ? accrueMissedInstallments(bank.loan, resumed.clock.now)
         : null;
       const market = advanceMarket(
         saved.market,
         catchUpTicks(resumed.elapsedMs),
         marketRand,
-        paramsFor(saved.playerTokens, saved.followers),
+        paramsFor(playerTokens, saved.followers),
       );
-      const netWorth = netWorthOf(saved.cash, saved.holdings, market);
-      const peakNetWorth = Math.max(saved.peakNetWorth, netWorth);
-      const due = isCheckDue(saved.lastUnemploymentCheckAt, now);
+      const netWorth = netWorthOf(saved.cash, holdings, market);
+      const peakNetWorth = Math.max(seededPeakNetWorth, netWorth);
+      const due = isCheckDue(seededLastCheckAt, now);
       const amount = due ? unemploymentAmount(peakNetWorth) : 0;
       return {
         clock: resumed.clock,
@@ -375,13 +387,13 @@ export const useGameStore = create<GameState>()((set) => ({
         followers: saved.followers,
         handle: saved.handle,
         market,
-        holdings: saved.holdings,
-        playerTokens: saved.playerTokens,
-        bank: { bills: saved.bank.bills, loan },
-        cashSwipe: saved.cashSwipe,
+        holdings,
+        playerTokens,
+        bank: { bills: bank.bills, loan },
+        cashSwipe,
         peakNetWorth,
-        lastUnemploymentCheckAt: due ? now : saved.lastUnemploymentCheckAt,
-        mail: saved.mail,
+        lastUnemploymentCheckAt: due ? now : seededLastCheckAt,
+        mail: seededMail,
         banner: due
           ? bannerOf(
               'Unemployment',
@@ -526,11 +538,11 @@ export const useGameStore = create<GameState>()((set) => ({
   resetCashSwipeToday: (now) =>
     set(() => ({ cashSwipe: createCashSwipe(now) })),
   openMailMessage: (id) =>
-    set((s) => ({ mail: markRead(s.mail, id) })),
+    set((s) => ({ mail: markRead(s.mail ?? [], id) })),
   deleteMailMessage: (id) =>
-    set((s) => ({ mail: deleteMessage(s.mail, id) })),
+    set((s) => ({ mail: deleteMessage(s.mail ?? [], id) })),
   pushMailMessage: (msg) =>
-    set((s) => ({ mail: addMessage(s.mail, msg) })),
+    set((s) => ({ mail: addMessage(s.mail ?? [], msg) })),
   postBanner: (title, body) => set({ banner: bannerOf(title, body) }),
   dismissBanner: (id) =>
     set((s) => (s.banner?.id === id ? { banner: null } : {})),
@@ -543,18 +555,21 @@ export const useGameStore = create<GameState>()((set) => ({
  * system to write the game to disk.
  */
 export function serializeGame(state: GameState): SavedGame {
+  // Defensive `??` on the optional/nullable slices: if a stale
+  // hot-reload left a field undefined, we'd otherwise persist that
+  // undefined and poison every future load.
   return {
     clock: state.clock,
     cash: state.cash,
     followers: state.followers,
     handle: state.handle,
     market: state.market,
-    holdings: state.holdings,
-    playerTokens: state.playerTokens,
+    holdings: state.holdings ?? {},
+    playerTokens: state.playerTokens ?? [],
     bank: state.bank,
     cashSwipe: state.cashSwipe,
-    peakNetWorth: state.peakNetWorth,
-    lastUnemploymentCheckAt: state.lastUnemploymentCheckAt,
-    mail: state.mail,
+    peakNetWorth: state.peakNetWorth ?? STARTING_CASH,
+    lastUnemploymentCheckAt: state.lastUnemploymentCheckAt ?? state.clock.now,
+    mail: state.mail ?? [],
   };
 }
