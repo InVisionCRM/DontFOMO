@@ -32,10 +32,16 @@ If you know React but not mobile, here's the short version:
 You need **Node.js** installed on your computer. Then, in a terminal:
 
 ```sh
-cd cryptolife
+cd /Users/kyle/CryptoLife/cryptolife
 npm install        # downloads the libraries — only needed once (and after dependency changes)
 npx expo start     # starts the development server
 ```
+
+> **Heads up — two folders, almost the same name.** The project root is
+> `/Users/kyle/CryptoLife/` (design docs). The Expo app is one level
+> deeper: `/Users/kyle/CryptoLife/cryptolife/`. macOS treats the two
+> names as identical, so always `cd` into the **full path above** — that
+> is the only folder with a `package.json`.
 
 `npx expo start` prints a **QR code** in the terminal. To see the app:
 
