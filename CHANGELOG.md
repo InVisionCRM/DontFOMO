@@ -6,6 +6,29 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 07:37 UTC — Stage 3, checkpoint 1b: the Exchange screen
+- Wired the market into the game: the store now holds the `MarketState`,
+  ticks it (`tickMarket`), fast-forwards it on the offline catch-up,
+  and saves / loads it. `useGameLoop` runs a fast market tick (every
+  3s) alongside the 20s calendar tick.
+- Save format bumped to v2 (the save now includes the market). Older
+  v1 saves are discarded gracefully to a fresh game on first launch.
+- Built the Exchange app screen (`src/ui/exchange/`): `ExchangeScreen`
+  (balance card, Markets / Portfolio segment, filter chips, the live
+  token list), `BalanceCard`, `TokenRow`, plus a reusable `Sparkline`.
+  Built to the approved Exchange mockup, themed with the design tokens.
+- Added an app-screen registry (`appScreens.ts`); `AppView` now renders
+  a real screen when one exists, the placeholder otherwise — so tapping
+  the Exchange icon opens the real app.
+- Added `formatTokenPrice` / `formatSignedPercent` display formatters.
+- No new dependencies.
+- Verification: pure-TS files type-check clean under strict mode; all
+  31 unit tests pass (10 clock + 15 market + 6 store). The Exchange UI
+  is verified on device.
+- Outcome: the Exchange opens to a live market — seven tokens with
+  prices moving every few seconds. Next (checkpoint 2): the token
+  detail screen and candlestick chart.
+
 ## 2026-05-23 07:27 UTC — Stage 3, checkpoint 1a: the market engine
 - Built the market simulation engine (`src/engine/market/`) — pure
   TypeScript, no React imports.

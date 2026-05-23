@@ -23,6 +23,13 @@ const HISTORY_LENGTH = 150;
 /** How many prices of simulated past to seed a fresh market with. */
 const SEED_HISTORY = 60;
 
+/**
+ * How often the market advances, in milliseconds. The market ticks
+ * faster than the calendar clock so charts stay lively within a
+ * session (Design Bible §2). A tuning value.
+ */
+export const MARKET_TICK_MS = 3000;
+
 /** The live simulated state of one token. */
 export interface TokenMarketState {
   /** Ticker — matches a TokenDefinition id. */

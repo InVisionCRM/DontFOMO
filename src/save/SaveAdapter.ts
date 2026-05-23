@@ -14,8 +14,11 @@
  * Pure types and constants — no React, no React Native imports.
  */
 
-/** Current save-schema version. Bump on any breaking shape change. */
-export const SAVE_VERSION = 1;
+/**
+ * Current save-schema version. Bump on any breaking shape change.
+ * v2 added the market state to the saved game (Stage 3).
+ */
+export const SAVE_VERSION = 2;
 
 /**
  * The envelope every save is wrapped in. `version` lets the loader

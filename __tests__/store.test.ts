@@ -6,6 +6,7 @@
  */
 import { beforeEach, describe, expect, it } from '@jest/globals';
 import { DAY_MS } from '../src/engine/time/clock';
+import { createMarket, createRandom } from '../src/engine/market';
 import {
   DEFAULT_HANDLE,
   STARTING_CASH,
@@ -30,6 +31,8 @@ describe('game store', () => {
       lastSeenAt: 1_000,
       now: 1_000,
     });
+    expect(state.market.tokens.USDX).toBeDefined();
+    expect(state.market.tokens.USDX.price).toBeGreaterThan(0);
   });
 
   it('tick advances the clock', () => {
@@ -37,9 +40,16 @@ describe('game store', () => {
     expect(useGameStore.getState().clock.now).toBe(9_000);
   });
 
+  it('tickMarket advances the market by one step', () => {
+    const before = useGameStore.getState().market.tokens.MOONP.history.length;
+    useGameStore.getState().tickMarket();
+    const after = useGameStore.getState().market.tokens.MOONP.history.length;
+    expect(after).toBe(before + 1);
+  });
+
   it('openApp and closeApp set which app is open', () => {
-    useGameStore.getState().openApp('wallet');
-    expect(useGameStore.getState().openAppId).toBe('wallet');
+    useGameStore.getState().openApp('exchange');
+    expect(useGameStore.getState().openAppId).toBe('exchange');
     useGameStore.getState().closeApp();
     expect(useGameStore.getState().openAppId).toBeNull();
   });
@@ -50,6 +60,7 @@ describe('game store', () => {
       cash: 12_345,
       followers: 678,
       handle: '@whale',
+      market: createMarket(createRandom(1)),
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -61,9 +72,10 @@ describe('game store', () => {
     expect(state.clock.startedAt).toBe(0);
     expect(state.clock.now).toBe(DAY_MS * 3);
     expect(state.clock.lastSeenAt).toBe(DAY_MS * 3);
+    expect(state.market.tokens.USDX).toBeDefined();
   });
 
-  it('serializeGame extracts only the four persistent fields', () => {
+  it('serializeGame extracts only the persistent fields', () => {
     useGameStore.getState().openApp('news');
     const saved = serializeGame(useGameStore.getState());
 
@@ -72,6 +84,7 @@ describe('game store', () => {
       'clock',
       'followers',
       'handle',
+      'market',
     ]);
     expect(saved.cash).toBe(STARTING_CASH);
     expect(saved.handle).toBe(DEFAULT_HANDLE);

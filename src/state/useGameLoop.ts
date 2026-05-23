@@ -3,7 +3,8 @@
  * ------------------------------------------------------------------
  * The game's main loop, mounted exactly once at the app root:
  *  - on mount: load any saved game, then catch up to real time;
- *  - while open: tick the clock, and autosave on an interval;
+ *  - while open: tick the calendar clock, tick the market faster, and
+ *    autosave on an interval;
  *  - on focus change: catch up when refocused, save when backgrounded.
  *
  * This is wiring between the engine, the store and the device — not a
@@ -13,9 +14,10 @@ import { useEffect } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { serializeGame, useGameStore, type SavedGame } from './store';
 import { SAVE_VERSION, saveAdapter } from '../save';
+import { MARKET_TICK_MS } from '../engine/market';
 
-/** How often the clock ticks while the app is in the foreground (ms). */
-const TICK_INTERVAL_MS = 20_000;
+/** How often the calendar clock ticks in the foreground (ms). */
+const CLOCK_TICK_MS = 20_000;
 /** How often the game autosaves while open (ms). */
 const SAVE_INTERVAL_MS = 30_000;
 
@@ -48,7 +50,6 @@ export function useGameLoop(): void {
           }
           useGameStore.getState().resume(Date.now());
         }
-        // Ensure a current save exists on disk from here on.
         save();
       })
       .catch((error) => {
@@ -59,10 +60,15 @@ export function useGameLoop(): void {
         if (!cancelled) useGameStore.getState().resume(Date.now());
       });
 
-    // Foreground tick + periodic autosave.
-    const tickInterval = setInterval(
+    // Foreground tick loops: the calendar clock, the faster market,
+    // and the periodic autosave.
+    const clockInterval = setInterval(
       () => useGameStore.getState().tick(Date.now()),
-      TICK_INTERVAL_MS,
+      CLOCK_TICK_MS,
+    );
+    const marketInterval = setInterval(
+      () => useGameStore.getState().tickMarket(),
+      MARKET_TICK_MS,
     );
     const saveInterval = setInterval(save, SAVE_INTERVAL_MS);
 
@@ -77,7 +83,8 @@ export function useGameLoop(): void {
 
     return () => {
       cancelled = true;
-      clearInterval(tickInterval);
+      clearInterval(clockInterval);
+      clearInterval(marketInterval);
       clearInterval(saveInterval);
       subscription.remove();
       save();
