@@ -298,6 +298,54 @@ describe('bank actions', () => {
   });
 });
 
+describe('banner notifications', () => {
+  beforeEach(() => {
+    useGameStore.getState().newGame(1_000);
+  });
+
+  it('starts with no banner', () => {
+    expect(useGameStore.getState().banner).toBeNull();
+  });
+
+  it('postBanner sets a banner with the given text', () => {
+    useGameStore.getState().postBanner('Bank', 'Paid Rent');
+    const b = useGameStore.getState().banner;
+    expect(b).not.toBeNull();
+    expect(b!.title).toBe('Bank');
+    expect(b!.body).toBe('Paid Rent');
+  });
+
+  it('dismissBanner clears the banner when the id matches', () => {
+    useGameStore.getState().postBanner('Bank', 'X');
+    const id = useGameStore.getState().banner!.id;
+    useGameStore.getState().dismissBanner(id);
+    expect(useGameStore.getState().banner).toBeNull();
+  });
+
+  it('dismissBanner is a no-op when the id does not match', () => {
+    useGameStore.getState().postBanner('Bank', 'X');
+    const before = useGameStore.getState().banner;
+    useGameStore.getState().dismissBanner(999_999);
+    expect(useGameStore.getState().banner).toBe(before);
+  });
+
+  it('payBill posts a Bank banner with the cost', () => {
+    useGameStore.setState({ cash: 50_000 });
+    const now = useGameStore.getState().clock.now;
+    useGameStore.getState().payBill('rent', now);
+    const b = useGameStore.getState().banner;
+    expect(b?.title).toBe('Bank');
+    expect(b?.body).toContain('Rent');
+    expect(b?.body).toContain('1,200.00');
+  });
+
+  it('serializeGame does NOT include the transient banner slot', () => {
+    useGameStore.getState().postBanner('Bank', 'X');
+    const saved = serializeGame(useGameStore.getState());
+    expect((saved as Partial<{ banner: unknown }>).banner).toBeUndefined();
+  });
+});
+
 describe('unemployment check (Thursday 8pm Eastern)', () => {
   beforeEach(() => {
     useGameStore.getState().newGame(1_000);

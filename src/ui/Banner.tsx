@@ -1,21 +1,18 @@
 /**
- * BankBanner.tsx — the top-edge banner notification.
+ * Banner.tsx — the global top-edge banner.
  * ------------------------------------------------------------------
- * The "dry banner + buzz" feedback pattern from Design Bible §5. A
- * meaningful action (paid bill, repaid loan, borrowed cash) posts a
- * banner here. It slides in from the top, sits for a moment, and
- * slides back out. No success modal; the screen update is the real
- * confirmation.
+ * Reads the `banner` slot from the store; when it changes, slides in,
+ * sits for a moment, slides out, and clears itself. Sits above every
+ * screen (mounted in PhoneShell after AppView), so any action — Bank,
+ * unemployment check, future Mail / Tunnel events — can post one with
+ * `useGameStore.getState().postBanner(title, body)`.
  *
- * Inline to the Bank screen for v1. When Stage 5 adds more screens
- * that need banners we can lift this into a global mount + a store
- * notification queue.
- *
- * (Sound and `expo-haptics` are explicitly polish-pass work per
- * CLAUDE.md §9 — only the visual banner ships here.)
+ * Sound + `expo-haptics` buzz are explicit polish-pass per CLAUDE.md
+ * §9 — only the visual slide ships here.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { useGameStore, type BannerMessage } from '../state/store';
 import {
   color,
   fontSize,
@@ -24,37 +21,22 @@ import {
   motion,
   radius,
   spacing,
-} from '../../theme/theme';
+} from '../theme/theme';
 
-export interface BannerMessage {
-  /** Fresh id per post — animates a re-show when the same text repeats. */
-  id: number;
-  title: string;
-  body: string;
-}
+/** How long the banner stays fully visible before sliding out. */
+const VISIBLE_MS = 2_900;
 
-interface BankBannerProps {
-  /** The currently-showing banner, or null. */
-  message: BannerMessage | null;
-  /** Called when the banner's display window ends. */
-  onDismiss: () => void;
-  /** How many ms the banner stays fully visible. */
-  visibleMs?: number;
-}
-
-const VISIBLE_MS_DEFAULT = 2_900;
-
-export function BankBanner({
-  message,
-  onDismiss,
-  visibleMs = VISIBLE_MS_DEFAULT,
-}: BankBannerProps) {
+export function Banner() {
+  const banner = useGameStore((s) => s.banner);
+  const dismissBanner = useGameStore((s) => s.dismissBanner);
+  const [displayed, setDisplayed] = useState<BannerMessage | null>(null);
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!message) return;
-    let cancelled = false;
-
+    if (!banner) return;
+    // Always reflect the newest posted banner; replace any in-flight one.
+    setDisplayed(banner);
+    progress.setValue(0);
     Animated.timing(progress, {
       toValue: 1,
       duration: motion.duration.slow,
@@ -69,38 +51,32 @@ export function BankBanner({
         easing: Easing.bezier(...motion.easing),
         useNativeDriver: true,
       }).start(({ finished }) => {
-        if (finished && !cancelled) onDismiss();
+        if (finished) dismissBanner(banner.id);
       });
-    }, visibleMs);
+    }, VISIBLE_MS);
 
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [message, onDismiss, progress, visibleMs]);
+    return () => clearTimeout(timer);
+  }, [banner, dismissBanner, progress]);
 
-  if (!message) {
-    return null;
-  }
+  if (!displayed) return null;
 
   const translateY = progress.interpolate({
     inputRange: [0, 1],
     outputRange: [-120, 0],
   });
-  const opacity = progress;
 
   return (
     <Animated.View
       pointerEvents="none"
       style={[
         styles.banner,
-        { transform: [{ translateY }], opacity },
+        { transform: [{ translateY }], opacity: progress },
       ]}
     >
       <View style={styles.text}>
-        <Text style={styles.title}>{message.title}</Text>
+        <Text style={styles.title}>{displayed.title}</Text>
         <Text style={styles.body} numberOfLines={2}>
-          {message.body}
+          {displayed.body}
         </Text>
       </View>
     </Animated.View>
@@ -122,6 +98,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
+    // Lift it off the surface so it floats above app screens.
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowOffset: { width: 0, height: 10 },
+    shadowRadius: 30,
+    elevation: 10,
   },
   text: {
     flex: 1,

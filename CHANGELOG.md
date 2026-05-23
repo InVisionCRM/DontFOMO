@@ -6,6 +6,57 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 21:17 UTC — Stage 4, checkpoint 5b: global banner + Stage 4 complete
+- Lifted the Bank-screen-inline banner to a **global, store-driven
+  notification** mounted in `PhoneShell` (Bible §5). Any action can
+  now fire one via `useGameStore.getState().postBanner(title, body)`
+  and the banner floats above whichever app is open.
+- **Store:**
+  - New `banner: BannerMessage | null` slot on `GameState`
+    (transient — NOT in `SavedGame`, so it never persists across
+    launches).
+  - Two new actions: `postBanner(title, body)` and
+    `dismissBanner(id)`. The id is fresh per post, so the same
+    banner text re-animates if posted twice.
+  - `payBill`, `takeLoan`, `repayLoanInstallment` now set the
+    banner in their reducer (one set call per action — no chained
+    side effects). The Bible §5 contract says the action *is* the
+    banner-worthy event, so the action owns the notification.
+  - `tick`, `resume`, `loadSaved` set the banner alongside the
+    unemployment-check credit, so the player sees `"Unemployment:
+    your check for $X arrived."` whenever it fires — live or on
+    return from an offline gap.
+- **New global mount:** `src/ui/Banner.tsx` — slides in from the
+  top, sits ~2.9s, slides out, then calls `dismissBanner(id)`. A
+  newer posted banner immediately replaces an in-flight one
+  (last-write-wins; queueing can come later if Stage 5 needs it).
+- **PhoneShell.tsx** mounts `<Banner />` last in the tree so it
+  overlays both the home screen AND the open app.
+- **BankScreen.tsx** dropped its inline-banner state machine and
+  the `post()` helper — the store actions now own the
+  notification. Affordability guards stay in the screen so we
+  don't even attempt actions that would no-op.
+- **`src/ui/bank/BankBanner.tsx` deleted** — its job is done by
+  the global Banner.
+- **Tests:** 6 new banner tests covering `postBanner` /
+  `dismissBanner` (initial null, set/clear, id-mismatch no-op,
+  payBill fires "Paid Rent $1,200.00", serializeGame does NOT
+  include the transient banner). Suite is now 8/8 green at **152
+  tests**.
+- Sound + `expo-haptics` buzz remain explicit polish-pass per
+  CLAUDE.md §9 — only the visual slide ships here.
+- No new runtime dependencies.
+- Verification: `npx tsc --noEmit` exits 0; `npm test` 152/152
+  (~9s). On-device verification of the Bank actions firing banners
+  and the unemployment-check banner is owed (the latter needs a
+  Thursday 8pm Eastern moment, or a system-clock shift to trigger).
+- **Outcome: Stage 4 (Survival & money pressure) is complete.**
+  Bank with bills + loans + late fees, CashSwipe with daily cap +
+  swipe-up gesture + bill physics, the Thursday unemployment check,
+  and a global banner pipeline. The pressure layer the Scam
+  Director (Stage 6) will exploit is live; players can now feel
+  real consequences.
+
 ## 2026-05-23 21:12 UTC — Stage 4, checkpoint 5a: unemployment-check engine + store
 - The Thursday 8pm Eastern unemployment check (Bible §14), engine
   and store wiring. UI-side delivery (banner + buzz) is checkpoint

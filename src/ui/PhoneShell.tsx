@@ -18,6 +18,7 @@ import { PhoneStatusBar } from './PhoneStatusBar';
 import { HomeScreen } from './HomeScreen';
 import { Dock, DOCK_HEIGHT } from './Dock';
 import { AppView } from './AppView';
+import { Banner } from './Banner';
 import type { IconRect } from './AppIcon';
 import { useGameStore } from '../state/store';
 import type { AppDefinition } from '../data/apps';
@@ -56,6 +57,9 @@ export function PhoneShell() {
       <View style={styles.homeIndicator} />
 
       <AppView origin={origin} />
+
+      {/* Global banner — sits above the open app and the home screen. */}
+      <Banner />
     </View>
   );
 }

@@ -90,6 +90,32 @@ export interface LaunchTokenInput {
 }
 
 /**
+ * A top-edge banner notification (Bible §5). Lives transiently in the
+ * store so any action can fire one and the global `<Banner />` mount
+ * can show it; the component dismisses it after a short visible
+ * window. The `id` is unique per post so re-posting the same text
+ * still re-animates.
+ */
+export interface BannerMessage {
+  id: number;
+  title: string;
+  body: string;
+}
+
+/** USD formatter used in banner text. Inlined so the store does not depend on UI. */
+function fmtUSD(n: number): string {
+  return `$${n.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/** Build a fresh BannerMessage with a unique id. */
+function bannerOf(title: string, body: string): BannerMessage {
+  return { id: Date.now() + Math.random(), title, body };
+}
+
+/**
  * The persistent slice of a game — exactly the fields written to disk.
  * Transient UI state (such as which app is open) is not saved.
  */
@@ -132,6 +158,8 @@ export interface GameState {
   peakNetWorth: number;
   /** Last time an unemployment check was credited (epoch ms). */
   lastUnemploymentCheckAt: number;
+  /** The top-edge banner currently being shown; null = none. */
+  banner: BannerMessage | null;
   /** Which in-game app is open; null = the home screen. */
   openAppId: AppId | null;
 
@@ -159,6 +187,10 @@ export interface GameState {
   repayLoanInstallment: (now: number) => void;
   /** Spend one CashSwipe swipe; credits $1 when below the daily cap. */
   swipeOnce: (now: number) => void;
+  /** Show a top-edge banner notification. */
+  postBanner: (title: string, body: string) => void;
+  /** Clear the current banner if its id matches. */
+  dismissBanner: (id: number) => void;
   /** Open an in-game app. */
   openApp: (id: AppId) => void;
   /** Return to the home screen. */
@@ -179,6 +211,7 @@ function freshGame(now: number): Pick<
   | 'cashSwipe'
   | 'peakNetWorth'
   | 'lastUnemploymentCheckAt'
+  | 'banner'
   | 'openAppId'
 > {
   return {
@@ -194,6 +227,7 @@ function freshGame(now: number): Pick<
     peakNetWorth: STARTING_CASH,
     // Anchor at game start — the first check fires the next Thursday 8pm Eastern.
     lastUnemploymentCheckAt: now,
+    banner: null,
     openAppId: null,
   };
 }
@@ -244,6 +278,10 @@ export const useGameStore = create<GameState>()((set) => ({
           peakNetWorth,
           cash: s.cash + amount,
           lastUnemploymentCheckAt: now,
+          banner: bannerOf(
+            'Unemployment',
+            `Your check for ${fmtUSD(amount)} arrived.`,
+          ),
         };
       }
       return { clock, peakNetWorth };
@@ -271,6 +309,7 @@ export const useGameStore = create<GameState>()((set) => ({
       const netWorth = netWorthOf(s.cash, s.holdings, market);
       const peakNetWorth = Math.max(s.peakNetWorth, netWorth);
       const due = isCheckDue(s.lastUnemploymentCheckAt, now);
+      const amount = due ? unemploymentAmount(peakNetWorth) : 0;
       return {
         clock: resumed.clock,
         market,
@@ -278,8 +317,12 @@ export const useGameStore = create<GameState>()((set) => ({
         peakNetWorth,
         ...(due
           ? {
-              cash: s.cash + unemploymentAmount(peakNetWorth),
+              cash: s.cash + amount,
               lastUnemploymentCheckAt: now,
+              banner: bannerOf(
+                'Unemployment',
+                `Your check for ${fmtUSD(amount)} arrived.`,
+              ),
             }
           : {}),
       };
@@ -299,9 +342,10 @@ export const useGameStore = create<GameState>()((set) => ({
       const netWorth = netWorthOf(saved.cash, saved.holdings, market);
       const peakNetWorth = Math.max(saved.peakNetWorth, netWorth);
       const due = isCheckDue(saved.lastUnemploymentCheckAt, now);
+      const amount = due ? unemploymentAmount(peakNetWorth) : 0;
       return {
         clock: resumed.clock,
-        cash: saved.cash + (due ? unemploymentAmount(peakNetWorth) : 0),
+        cash: saved.cash + amount,
         followers: saved.followers,
         handle: saved.handle,
         market,
@@ -311,6 +355,12 @@ export const useGameStore = create<GameState>()((set) => ({
         cashSwipe: saved.cashSwipe,
         peakNetWorth,
         lastUnemploymentCheckAt: due ? now : saved.lastUnemploymentCheckAt,
+        banner: due
+          ? bannerOf(
+              'Unemployment',
+              `Your check for ${fmtUSD(amount)} arrived.`,
+            )
+          : null,
         openAppId: null,
       };
     }),
@@ -406,6 +456,7 @@ export const useGameStore = create<GameState>()((set) => ({
           ),
           loan: s.bank.loan,
         },
+        banner: bannerOf('Bank', `Paid ${def.name} ${fmtUSD(cost)}`),
       };
     }),
   takeLoan: (tierId, now) =>
@@ -417,6 +468,10 @@ export const useGameStore = create<GameState>()((set) => ({
       return {
         cash: s.cash + cashCredit,
         bank: { bills: s.bank.bills, loan },
+        banner: bannerOf(
+          'Bank',
+          `Borrowed ${fmtUSD(cashCredit)} — funds added to cash`,
+        ),
       };
     }),
   repayLoanInstallment: (now) =>
@@ -428,6 +483,7 @@ export const useGameStore = create<GameState>()((set) => ({
       return {
         cash: s.cash - cost,
         bank: { bills: s.bank.bills, loan: nextLoan },
+        banner: bannerOf('Bank', `Repaid ${fmtUSD(cost)} toward your loan`),
       };
     }),
   swipeOnce: (now) =>
@@ -440,6 +496,9 @@ export const useGameStore = create<GameState>()((set) => ({
       if (result.state === s.cashSwipe) return {};
       return { cashSwipe: result.state };
     }),
+  postBanner: (title, body) => set({ banner: bannerOf(title, body) }),
+  dismissBanner: (id) =>
+    set((s) => (s.banner?.id === id ? { banner: null } : {})),
   openApp: (id) => set({ openAppId: id }),
   closeApp: () => set({ openAppId: null }),
 }));

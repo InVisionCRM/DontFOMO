@@ -15,13 +15,11 @@ import { BankBalanceCard } from './BankBalanceCard';
 import { BillRow } from './BillRow';
 import { LoanCard } from './LoanCard';
 import { LoanBorrowSheet } from './LoanBorrowSheet';
-import { BankBanner, type BannerMessage } from './BankBanner';
 import { useGameStore } from '../../state/store';
 import {
   STARTING_BILLS,
   billTotalDue,
   findBillDefinition,
-  findLoanTier,
   nextInstallmentCost,
 } from '../../engine/economy';
 import { formatCurrency } from '../format';
@@ -47,17 +45,6 @@ export function BankScreen() {
   const repayLoanAction = useGameStore((s) => s.repayLoanInstallment);
 
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [banner, setBanner] = useState<BannerMessage | null>(null);
-  const [bannerSeq, setBannerSeq] = useState(0);
-
-  /** Post a fresh banner — a new id each time so a repeat retriggers. */
-  const post = (title: string, body: string): void => {
-    setBannerSeq((n) => {
-      const next = n + 1;
-      setBanner({ id: next, title, body });
-      return next;
-    });
-  };
 
   const billsTotal = useMemo(() => {
     return bank.bills.reduce((sum, bill) => {
@@ -66,29 +53,25 @@ export function BankScreen() {
     }, 0);
   }, [bank.bills, clockNow]);
 
+  // The store actions now post their own banners — the screen just
+  // dispatches them. Affordability guards still happen here so we
+  // never even attempt an action we know will no-op.
   const handlePayBill = (billId: string): void => {
     const bill = bank.bills.find((b) => b.id === billId);
     const def = findBillDefinition(STARTING_BILLS, billId);
     if (!bill || !def) return;
-    const cost = billTotalDue(def, bill, clockNow);
-    if (cost > cash) return;
+    if (billTotalDue(def, bill, clockNow) > cash) return;
     payBillAction(billId, clockNow);
-    post('Bank', `Paid ${def.name} ${formatCurrency(cost)}`);
   };
 
   const handleRepay = (): void => {
     if (!bank.loan) return;
-    const cost = nextInstallmentCost(bank.loan);
-    if (cost > cash) return;
+    if (nextInstallmentCost(bank.loan) > cash) return;
     repayLoanAction(clockNow);
-    post('Bank', `Repaid ${formatCurrency(cost)} toward your loan`);
   };
 
   const handleBorrow = (tierId: string): void => {
-    const tier = findLoanTier(tierId);
-    if (!tier) return;
     takeLoanAction(tierId, clockNow);
-    post('Bank', `Borrowed ${formatCurrency(tier.principal)} — funds added to cash`);
   };
 
   return (
@@ -146,8 +129,6 @@ export function BankScreen() {
         onClose={() => setSheetOpen(false)}
         onSelect={handleBorrow}
       />
-
-      <BankBanner message={banner} onDismiss={() => setBanner(null)} />
     </View>
   );
 }
