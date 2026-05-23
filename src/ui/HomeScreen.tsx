@@ -8,6 +8,7 @@
 import { StyleSheet, View } from 'react-native';
 import { HomeWidgets } from './HomeWidgets';
 import { AppIcon, type IconRect } from './AppIcon';
+import { useAppBadges } from './useAppBadges';
 import { GRID_APPS, type AppDefinition } from '../data/apps';
 import { spacing } from '../theme/theme';
 
@@ -19,6 +20,7 @@ interface HomeScreenProps {
 }
 
 export function HomeScreen({ bottomReserve, onAppPress }: HomeScreenProps) {
+  const badges = useAppBadges();
   return (
     <View style={[styles.container, { paddingBottom: bottomReserve }]}>
       <HomeWidgets />
@@ -26,7 +28,7 @@ export function HomeScreen({ bottomReserve, onAppPress }: HomeScreenProps) {
       <View style={styles.grid}>
         {GRID_APPS.map((app) => (
           <View key={app.id} style={styles.cell}>
-            <AppIcon app={app} onPress={onAppPress} />
+            <AppIcon app={app} badge={badges[app.id]} onPress={onAppPress} />
           </View>
         ))}
       </View>

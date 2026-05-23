@@ -10,9 +10,11 @@ import type { AppId } from '../data/apps';
 import { ExchangeScreen } from './exchange/ExchangeScreen';
 import { BankScreen } from './bank/BankScreen';
 import { CashSwipeScreen } from './cashSwipe/CashSwipeScreen';
+import { MailScreen } from './mail/MailScreen';
 
 export const APP_SCREENS: Partial<Record<AppId, ComponentType>> = {
   exchange: ExchangeScreen,
   bank: BankScreen,
   cashswipe: CashSwipeScreen,
+  mail: MailScreen,
 };

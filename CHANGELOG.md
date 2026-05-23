@@ -6,6 +6,74 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 22:31 UTC — Stage 5, checkpoint 1: the Mail app + app-icon badges
+- First of Stage 5's communication apps (Mail, Tunnel, Messages,
+  Clout, Market). Sets the inbox / read-state / detail pattern the
+  other comm apps will reuse.
+- **Engine** (`src/engine/mail/mail.ts`): pure-TS message model and
+  helpers. `MailMessage` carries `id`, `from`, `fromAddress`,
+  `subject`, `preview`, `body`, `arrivedAt`, `unread`, optional
+  `isSuspicious` (drives the SUSPICIOUS tag), optional in-body
+  `action` button (kind: phish / safe / info — inert in v1; wired
+  by the Scam Director in Stage 6). Pure helpers: `unreadCount`,
+  `markRead`, `addMessage`, `deleteMessage`, `findMessage`,
+  `senderInitials`.
+- **Data** (`src/data/mail.ts`): `createStartingMail(now)` seeds
+  five flavour messages — a welcome from the DON'T FOMO Team, an
+  early-game phishing primer (so the player meets the
+  SUSPICIOUS-tag pattern from minute one, Bible §11), a bank
+  statement, the DON'T FOMO Weekly newsletter, and a friend tip.
+  Three of the five are unread on game start.
+- **Store integration:**
+  - New `mail: MailMessage[]` field on `GameState` and `SavedGame`.
+  - New actions: `openMailMessage(id)` (flips unread → read),
+    `deleteMailMessage(id)`, `pushMailMessage(msg)`.
+  - `freshGame` seeds via `createStartingMail(now)`; `loadSaved`
+    and `serializeGame` carry the inbox through save/load.
+  - **`SAVE_VERSION` bumped 7 → 8.** Existing v7 saves wipe — same
+    precedent.
+- **UI** (`src/ui/mail/`):
+  - `MailScreen` — inbox: large "Inbox" title + `N unread` line,
+    decorative search bar, the MailRow list, the slide-in detail
+    overlay.
+  - `MailRow` — blue unread dot, sender + SUSPICIOUS tag, relative
+    time (h:mm / Yesterday / weekday / month day), subject,
+    one-line preview. Tap fires `openMailMessage` AND opens detail.
+  - `MailDetail` — slides in from the right (TokenDetail pattern).
+    Avatar with sender initials in a sender-derived gradient
+    (suspicious senders get red), email address (red when
+    suspicious), big subject, body split on `\n\n` into paragraphs,
+    optional kind-coloured action button.
+  - Registered in `appScreens.ts` — tapping the Mail icon opens
+    the real screen.
+- **App-icon badges** (Bible §5: "rewards stay quiet and pull-based
+  — app-icon badges, a counter ticking"):
+  - `AppIcon` accepts an optional `badge?: number` and renders a
+    small red bubble at top-right (with a hairline dark border so
+    it pops on any tile gradient). "99+" cap for very large counts.
+  - New `useAppBadges()` hook subscribes to the store and returns a
+    per-app count map. Currently feeds only `mail` (unread count);
+    Tunnel/Clout/Messages will plug in here as they land.
+  - `HomeScreen` and `Dock` both use `useAppBadges()` and forward
+    the badge to their icons.
+- **Relative-time formatter** added to `src/ui/format.ts`
+  (`formatRelativeTime(at, now)`) — used by MailRow.
+- **Tests:**
+  - New `__tests__/mail.test.ts` — 13 engine tests
+    (`unreadCount`, `markRead`, `addMessage`, `deleteMessage`,
+    `findMessage`, `senderInitials` edge cases).
+  - 5 new store tests covering the three mail actions and a
+    save/load round-trip.
+  - One existing test updated for the new `SavedGame` field.
+  - Suite is 9/9 green at **170 tests** (was 152).
+- No new runtime dependencies.
+- Verification: `npx tsc --noEmit --project tsconfig.json` exits 0;
+  `npm test` passes 170/170. On-device tap-through still owed.
+- Outcome: Stage 5 cp1 complete — Mail is playable end to end. The
+  unread badge on the home screen ticks down as you open messages.
+  Next (5.2): Tunnel (chat channels + DMs) — reuses the MailDetail
+  slide pattern and the badge pipeline.
+
 ## 2026-05-23 22:21 UTC — CashSwipe polish pass 2: bigger bills, glowing counter, dev reset
 - **Bills.** Stack bills now **220×530** (up from 160×386 ~~110×266~~).
   The stack is slid 132px below the screen edge so ~1/4 of each bill

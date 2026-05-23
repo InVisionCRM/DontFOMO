@@ -30,6 +30,8 @@ interface AppIconProps {
   size?: number;
   /** Show the name label below the tile. */
   showLabel?: boolean;
+  /** Unread / attention count to render as a red badge at top-right. */
+  badge?: number;
   /** Called on tap, with the icon's measured on-screen rectangle. */
   onPress?: (app: AppDefinition, rect: IconRect) => void;
 }
@@ -38,6 +40,7 @@ export function AppIcon({
   app,
   size = 62,
   showLabel = true,
+  badge,
   onPress,
 }: AppIconProps) {
   const tileRadius = size * 0.24;
@@ -45,6 +48,8 @@ export function AppIcon({
   // Ref on the un-transformed box so its measurement is never skewed
   // by the press-scale on the tile inside it.
   const boxRef = useRef<View>(null);
+  const showBadge = typeof badge === 'number' && badge > 0;
+  const badgeLabel = showBadge && badge > 99 ? '99+' : String(badge ?? '');
 
   const handlePress = () => {
     const report = onPress;
@@ -103,6 +108,11 @@ export function AppIcon({
                 />
               </Svg>
             </View>
+            {showBadge && (
+              <View style={[styles.badge, badge > 9 && styles.badgeWide]} pointerEvents="none">
+                <Text style={styles.badgeText}>{badgeLabel}</Text>
+              </View>
+            )}
           </View>
           {showLabel && (
             <Text style={styles.label} numberOfLines={1}>
@@ -139,5 +149,27 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.45)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 999,
+    backgroundColor: '#EA3943',
+    borderWidth: 1.5,
+    borderColor: '#0C0D12',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeWide: {
+    minWidth: 24,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: fontWeight.bold,
+    color: '#FFFFFF',
   },
 });

@@ -53,7 +53,14 @@ import {
   type CashSwipeState,
   type PlayerTokenDef,
 } from '../engine/economy';
+import {
+  addMessage,
+  deleteMessage,
+  markRead,
+  type MailMessage,
+} from '../engine/mail';
 import { TOKEN_BY_ID } from '../data/tokens';
+import { createStartingMail } from '../data/mail';
 import type { AppId } from '../data/apps';
 
 /**
@@ -133,6 +140,8 @@ export interface SavedGame {
   peakNetWorth: number;
   /** Last time an unemployment check was credited (epoch ms). */
   lastUnemploymentCheckAt: number;
+  /** The Mail inbox — newest first. */
+  mail: MailMessage[];
 }
 
 export interface GameState {
@@ -158,6 +167,8 @@ export interface GameState {
   peakNetWorth: number;
   /** Last time an unemployment check was credited (epoch ms). */
   lastUnemploymentCheckAt: number;
+  /** The Mail inbox — newest first. */
+  mail: MailMessage[];
   /** The top-edge banner currently being shown; null = none. */
   banner: BannerMessage | null;
   /** Which in-game app is open; null = the home screen. */
@@ -194,6 +205,12 @@ export interface GameState {
    * build never exposes this path.
    */
   resetCashSwipeToday: (now: number) => void;
+  /** Open a mail message — flips its unread state to read. */
+  openMailMessage: (id: string) => void;
+  /** Delete a mail message by id. */
+  deleteMailMessage: (id: string) => void;
+  /** Push a new mail message into the inbox (newest first). */
+  pushMailMessage: (msg: MailMessage) => void;
   /** Show a top-edge banner notification. */
   postBanner: (title: string, body: string) => void;
   /** Clear the current banner if its id matches. */
@@ -218,6 +235,7 @@ function freshGame(now: number): Pick<
   | 'cashSwipe'
   | 'peakNetWorth'
   | 'lastUnemploymentCheckAt'
+  | 'mail'
   | 'banner'
   | 'openAppId'
 > {
@@ -234,6 +252,7 @@ function freshGame(now: number): Pick<
     peakNetWorth: STARTING_CASH,
     // Anchor at game start — the first check fires the next Thursday 8pm Eastern.
     lastUnemploymentCheckAt: now,
+    mail: createStartingMail(now),
     banner: null,
     openAppId: null,
   };
@@ -362,6 +381,7 @@ export const useGameStore = create<GameState>()((set) => ({
         cashSwipe: saved.cashSwipe,
         peakNetWorth,
         lastUnemploymentCheckAt: due ? now : saved.lastUnemploymentCheckAt,
+        mail: saved.mail,
         banner: due
           ? bannerOf(
               'Unemployment',
@@ -505,6 +525,12 @@ export const useGameStore = create<GameState>()((set) => ({
     }),
   resetCashSwipeToday: (now) =>
     set(() => ({ cashSwipe: createCashSwipe(now) })),
+  openMailMessage: (id) =>
+    set((s) => ({ mail: markRead(s.mail, id) })),
+  deleteMailMessage: (id) =>
+    set((s) => ({ mail: deleteMessage(s.mail, id) })),
+  pushMailMessage: (msg) =>
+    set((s) => ({ mail: addMessage(s.mail, msg) })),
   postBanner: (title, body) => set({ banner: bannerOf(title, body) }),
   dismissBanner: (id) =>
     set((s) => (s.banner?.id === id ? { banner: null } : {})),
@@ -529,5 +555,6 @@ export function serializeGame(state: GameState): SavedGame {
     cashSwipe: state.cashSwipe,
     peakNetWorth: state.peakNetWorth,
     lastUnemploymentCheckAt: state.lastUnemploymentCheckAt,
+    mail: state.mail,
   };
 }

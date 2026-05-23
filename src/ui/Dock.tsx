@@ -7,6 +7,7 @@
 import { StyleSheet } from 'react-native';
 import { GlassSurface } from './GlassSurface';
 import { AppIcon, type IconRect } from './AppIcon';
+import { useAppBadges } from './useAppBadges';
 import { DOCK_APPS, type AppDefinition } from '../data/apps';
 import { radius, spacing } from '../theme/theme';
 
@@ -19,6 +20,7 @@ interface DockProps {
 }
 
 export function Dock({ onAppPress }: DockProps) {
+  const badges = useAppBadges();
   return (
     <GlassSurface radius={radius.xl} style={styles.dock}>
       {DOCK_APPS.map((app) => (
@@ -27,6 +29,7 @@ export function Dock({ onAppPress }: DockProps) {
           app={app}
           size={58}
           showLabel={false}
+          badge={badges[app.id]}
           onPress={onAppPress}
         />
       ))}

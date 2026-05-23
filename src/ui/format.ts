@@ -66,3 +66,24 @@ export function formatTokenAmount(amount: number): string {
   }
   return amount.toLocaleString('en-US', { maximumFractionDigits: 6 });
 }
+
+/**
+ * Inbox-style relative time: same-day → "h:mm", yesterday →
+ * "Yesterday", within a week → short weekday ("Mon"), older → short
+ * month/day ("May 21").
+ */
+export function formatRelativeTime(at: number, now: number): string {
+  const a = new Date(at);
+  const n = new Date(now);
+  if (a.toDateString() === n.toDateString()) {
+    return formatTime(at);
+  }
+  const yesterday = new Date(n);
+  yesterday.setDate(n.getDate() - 1);
+  if (a.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  const daysAgo = Math.floor((n.getTime() - a.getTime()) / 86_400_000);
+  if (daysAgo < 7) {
+    return a.toLocaleDateString('en-US', { weekday: 'short' });
+  }
+  return a.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}

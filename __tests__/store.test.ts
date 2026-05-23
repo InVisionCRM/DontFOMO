@@ -121,6 +121,7 @@ describe('game store', () => {
       cashSwipe: createCashSwipe(0),
       peakNetWorth: 50_000,
       lastUnemploymentCheckAt: DAY_MS * 3, // future so loadSaved doesn't auto-credit
+      mail: [],
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -150,6 +151,7 @@ describe('game store', () => {
       'handle',
       'holdings',
       'lastUnemploymentCheckAt',
+      'mail',
       'market',
       'peakNetWorth',
       'playerTokens',
@@ -295,6 +297,70 @@ describe('bank actions', () => {
     expect(
       restored.bank.bills.find((b) => b.id === 'rent')?.nextDueAt,
     ).toBe(now + BILL_CYCLE_DAYS * DAY_MS);
+  });
+});
+
+describe('mail actions', () => {
+  beforeEach(() => {
+    useGameStore.getState().newGame(1_000);
+  });
+
+  it('newGame seeds the inbox with starter messages', () => {
+    const inbox = useGameStore.getState().mail;
+    expect(inbox.length).toBeGreaterThan(0);
+    expect(inbox.some((m) => m.unread)).toBe(true);
+  });
+
+  it('openMailMessage flips unread → read', () => {
+    const firstUnread = useGameStore
+      .getState()
+      .mail.find((m) => m.unread)!;
+    useGameStore.getState().openMailMessage(firstUnread.id);
+    const after = useGameStore
+      .getState()
+      .mail.find((m) => m.id === firstUnread.id);
+    expect(after?.unread).toBe(false);
+  });
+
+  it('deleteMailMessage removes by id', () => {
+    const before = useGameStore.getState().mail;
+    const targetId = before[0].id;
+    useGameStore.getState().deleteMailMessage(targetId);
+    const after = useGameStore.getState().mail;
+    expect(after).toHaveLength(before.length - 1);
+    expect(after.find((m) => m.id === targetId)).toBeUndefined();
+  });
+
+  it('pushMailMessage prepends — newest first', () => {
+    const before = useGameStore.getState().mail.length;
+    useGameStore.getState().pushMailMessage({
+      id: 'test-001',
+      from: 'Tester',
+      fromAddress: 't@test',
+      subject: 'New',
+      preview: 'p',
+      body: 'b',
+      arrivedAt: 5_000,
+      unread: true,
+    });
+    const after = useGameStore.getState().mail;
+    expect(after).toHaveLength(before + 1);
+    expect(after[0].id).toBe('test-001');
+  });
+
+  it('round-trips the inbox through serialize / loadSaved', () => {
+    const firstId = useGameStore.getState().mail[0].id;
+    useGameStore.getState().openMailMessage(firstId);
+    const saved = serializeGame(useGameStore.getState());
+
+    useGameStore.getState().newGame(2_000);
+    expect(useGameStore.getState().mail.find((m) => m.id === firstId)?.unread)
+      .toBe(true); // fresh game — back to unread
+
+    useGameStore.getState().loadSaved(saved, 2_000);
+    expect(
+      useGameStore.getState().mail.find((m) => m.id === firstId)?.unread,
+    ).toBe(false);
   });
 });
 
