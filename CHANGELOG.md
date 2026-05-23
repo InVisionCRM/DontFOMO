@@ -6,6 +6,27 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 16:12 UTC — Test runner persisted in package.json
+- Prior sessions verified the 63 unit tests in an ad-hoc ts-jest harness,
+  but `jest` / `ts-jest` / `@jest/globals` / `@types/jest` were never
+  saved to `devDependencies`. As a result `npm test` failed on a clean
+  install and `tsc --noEmit` flagged the test files for missing
+  `@jest/globals` types — a Definition-of-Done §12 violation.
+- Pinned the jest-29 line for ts-jest 29.4.x compatibility:
+  `jest@29.7.0`, `@jest/globals@29.7.0`, `@types/jest@29.5.14`,
+  `ts-jest@29.4.11`. Installed as devDependencies; no runtime deps
+  changed.
+- Verification: `npm test` runs all 5 suites green from a clean state
+  (10 clock + 21 market + 9 store + 7 trade + 16 player-token = 63
+  tests, ~11.7s). `npx tsc --noEmit --project tsconfig.json` exits 0
+  with no errors.
+- Note: `npm install` reports 11 moderate-severity advisories in
+  jest 29's transitive deps. Known to the jest team and only resolved
+  by moving to jest 30 — that move requires a ts-jest 30 release, so
+  leaving as-is for now.
+- Outcome: tests and type-check are reproducible from a fresh clone.
+  Stage 3 is back to a clean DoD state; Stage 4 unblocked.
+
 ## 2026-05-23 13:39 UTC — Stage 3, checkpoint 4c: the token-launch UI
 - Built the player token-launch flow — the last piece of Stage 3.
 - New `LaunchWizard` — a three-step, slide-in flow: pick a logo from a
