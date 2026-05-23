@@ -2,13 +2,16 @@
  * HomeWidgets.tsx — the two home-screen glass widgets.
  * ------------------------------------------------------------------
  * The Portfolio widget and the Clout widget that sit above the app
- * grid. Both are presentational glass cards driven entirely by props.
- * Checkpoint 1 feeds them placeholder values; checkpoint 2 wires them
- * to the live game store.
+ * grid. Connected to the game store — they read live cash, followers,
+ * handle, the date and the day number, and re-render only when those
+ * actually change (not on every clock tick).
  */
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Path, Polyline } from 'react-native-svg';
 import { GlassSurface } from './GlassSurface';
+import { formatCurrency, formatDate } from './format';
+import { useGameStore } from '../state/store';
+import { dayNumber } from '../engine/time/clock';
 import { color, fontSize, fontWeight, radius, spacing, tabularNums } from '../theme/theme';
 
 /** Widget-specific layout metrics (not part of the global type scale). */
@@ -19,26 +22,13 @@ const VALUE_SIZE = 26;
 const FLAME =
   'M12 12c2 -2.96 0 -7 -1 -8c0 3.038 -1.773 4.741 -3 6c-1.226 1.26 -2 3.24 -2 5a6 6 0 1 0 12 0c0 -1.532 -1.056 -3.94 -2 -5c-1.786 3 -2.791 3 -4 2z';
 
-interface HomeWidgetsProps {
-  /** Portfolio value, pre-formatted as currency. */
-  portfolioValue: string;
-  /** Today's in-game date, e.g. "Fri, May 22". */
-  dateLabel: string;
-  /** Follower count, pre-formatted. */
-  followers: string;
-  /** The player's Clout handle, e.g. "@degen_kyle". */
-  handle: string;
-  /** Day-streak label, e.g. "Day 1". */
-  dayLabel: string;
-}
+export function HomeWidgets() {
+  const cash = useGameStore((s) => s.cash);
+  const followers = useGameStore((s) => s.followers);
+  const handle = useGameStore((s) => s.handle);
+  const dateLabel = useGameStore((s) => formatDate(s.clock.now));
+  const day = useGameStore((s) => dayNumber(s.clock));
 
-export function HomeWidgets({
-  portfolioValue,
-  dateLabel,
-  followers,
-  handle,
-  dayLabel,
-}: HomeWidgetsProps) {
   return (
     <View style={styles.row}>
       <GlassSurface radius={radius.lg} style={styles.card}>
@@ -46,7 +36,7 @@ export function HomeWidgets({
           <Text style={styles.label}>Portfolio</Text>
           <Text style={styles.sub}>{dateLabel}</Text>
         </View>
-        <Text style={[styles.value, tabularNums]}>{portfolioValue}</Text>
+        <Text style={[styles.value, tabularNums]}>{formatCurrency(cash)}</Text>
         <Svg
           width="100%"
           height={28}
@@ -72,7 +62,9 @@ export function HomeWidgets({
           <Text style={styles.label}>Clout</Text>
           <Text style={styles.sub}>{handle}</Text>
         </View>
-        <Text style={[styles.value, tabularNums]}>{followers}</Text>
+        <Text style={[styles.value, tabularNums]}>
+          {followers.toLocaleString('en-US')}
+        </Text>
         <Text style={styles.sub}>followers</Text>
         <View style={styles.flameRow}>
           <Svg width={14} height={14} viewBox="0 0 24 24">
@@ -85,7 +77,7 @@ export function HomeWidgets({
               strokeLinejoin="round"
             />
           </Svg>
-          <Text style={styles.dayText}>{dayLabel}</Text>
+          <Text style={styles.dayText}>{`Day ${day}`}</Text>
         </View>
       </GlassSurface>
     </View>

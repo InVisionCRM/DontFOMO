@@ -1,8 +1,9 @@
 /**
  * HomeScreen.tsx — the home screen contents.
  * ------------------------------------------------------------------
- * The two widgets, the app grid, and the page dots. Presentational —
- * it renders the apps from data and reports taps via onAppPress.
+ * The two widgets, the app grid, and the page dots. The widgets are
+ * connected to the store themselves; this component just lays out the
+ * structure and renders the app grid from data.
  */
 import { StyleSheet, View } from 'react-native';
 import { HomeWidgets } from './HomeWidgets';
@@ -11,34 +12,15 @@ import { GRID_APPS, type AppDefinition } from '../data/apps';
 import { spacing } from '../theme/theme';
 
 interface HomeScreenProps {
-  portfolioValue: string;
-  dateLabel: string;
-  followers: string;
-  handle: string;
-  dayLabel: string;
   /** Bottom padding reserved for the dock, set by PhoneShell. */
   bottomReserve: number;
   onAppPress?: (app: AppDefinition) => void;
 }
 
-export function HomeScreen({
-  portfolioValue,
-  dateLabel,
-  followers,
-  handle,
-  dayLabel,
-  bottomReserve,
-  onAppPress,
-}: HomeScreenProps) {
+export function HomeScreen({ bottomReserve, onAppPress }: HomeScreenProps) {
   return (
     <View style={[styles.container, { paddingBottom: bottomReserve }]}>
-      <HomeWidgets
-        portfolioValue={portfolioValue}
-        dateLabel={dateLabel}
-        followers={followers}
-        handle={handle}
-        dayLabel={dayLabel}
-      />
+      <HomeWidgets />
 
       <View style={styles.grid}>
         {GRID_APPS.map((app) => (

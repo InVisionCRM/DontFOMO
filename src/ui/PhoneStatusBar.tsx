@@ -5,32 +5,24 @@
  * wifi / battery on the right. It fills the device's top safe-area
  * inset so it sits beside the real notch / Dynamic Island.
  *
- * Presentational. The clock is real time (CryptoLife runs on a
- * real-time calendar). For checkpoint 1 `now` is captured once at
- * launch; checkpoint 2's time engine makes it tick live.
+ * Connected to the game store — it reads the live clock, so the time
+ * ticks forward as real time passes (CryptoLife runs on a real-time
+ * calendar, Design Bible §2).
  */
 import { StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import { useGameStore } from '../state/store';
+import { formatTime } from './format';
 import { color, fontSize, fontWeight, tabularNums } from '../theme/theme';
 
-interface PhoneStatusBarProps {
-  now: Date;
-  /** Device top safe-area inset — the bar fills this to clear the notch. */
-  topInset: number;
-}
+export function PhoneStatusBar() {
+  const insets = useSafeAreaInsets();
+  const time = useGameStore((s) => formatTime(s.clock.now));
 
-/** Format a Date as a 12-hour clock, e.g. "9:41". */
-function formatClock(now: Date): string {
-  const h = now.getHours();
-  const m = now.getMinutes();
-  const hour12 = h % 12 === 0 ? 12 : h % 12;
-  return `${hour12}:${m < 10 ? `0${m}` : m}`;
-}
-
-export function PhoneStatusBar({ now, topInset }: PhoneStatusBarProps) {
   return (
-    <View style={[styles.row, { height: Math.max(topInset, 44) }]}>
-      <Text style={[styles.time, tabularNums]}>{formatClock(now)}</Text>
+    <View style={[styles.row, { height: Math.max(insets.top, 44) }]}>
+      <Text style={[styles.time, tabularNums]}>{time}</Text>
 
       <View style={styles.right}>
         <View style={styles.signal}>

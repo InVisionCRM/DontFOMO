@@ -10,7 +10,5 @@
  * offline simulation (the world advances while the app is closed).
  *
  * Subfolders: time/ · market/ · economy/ · scam-director/ · social/
- *
- * Empty for now — Stage 2 of the migration plan fills it in.
  */
-export {};
+export * from './time';

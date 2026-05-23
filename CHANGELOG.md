@@ -6,6 +6,33 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 04:24 UTC — Stage 2, checkpoint 2: live clock + game store
+- Built the time engine `src/engine/time/clock.ts` — pure functions for
+  the real-time game clock: `createClock`, `dayNumber`, `tickClock`,
+  and `resumeClock` (the offline catch-up that later fast-forwards the
+  world). No React / React Native imports.
+- Built the central game store `src/state/store.ts` (Zustand) — holds
+  the clock, cash, followers, handle, and which app is open. Actions:
+  `newGame`, `tick`, `resume`, `openApp`, `closeApp`.
+- Built `src/state/useGameLoop.ts` — drives the store from real time: a
+  20-second foreground tick plus an `AppState` listener that runs the
+  offline catch-up when the app refocuses. Mounted once in `App.tsx`.
+- Added `src/ui/format.ts` — display formatters (time, date, currency).
+- Connected the UI to the store: `PhoneStatusBar` shows the live
+  ticking clock; `HomeWidgets` read cash / followers / handle / date /
+  day from the store. `PhoneShell` is now purely structural.
+- Testing: added `jest.config.js` (ts-jest preset) and
+  `__tests__/clock.test.ts` — 10 unit tests covering `createClock`,
+  `dayNumber`, `tickClock` and `resumeClock`, including immutability
+  and a backwards-device-clock clamp.
+- New dependency: `zustand` (runtime). New test dependencies: `jest`,
+  `ts-jest`.
+- Verification: pure-TS engine files type-check clean under strict
+  mode; all 10 clock tests pass (run in an isolated ts-jest harness).
+  The store / UI wiring is verified on device after `zustand` installs.
+- Outcome: checkpoint 2 code complete — the clock ticks live and the
+  widgets show real game state once `zustand` is installed.
+
 ## 2026-05-23 04:09 UTC — Stage 2, checkpoint 1: the static phone shell
 - Built the in-game phone home screen as React Native, matching the
   approved HomeScreen mockup and the interactive preview KG signed off.
