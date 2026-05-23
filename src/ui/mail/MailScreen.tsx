@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MailRow } from './MailRow';
 import { MailDetail } from './MailDetail';
 import { useGameStore } from '../../state/store';
-import { findMessage, unreadCount } from '../../engine/mail';
+import { findMessage, unreadCount, type MailMessage } from '../../engine/mail';
 import {
   color,
   fontSize,
@@ -25,12 +25,20 @@ import {
 
 const TOP_PAD = 52;
 
+/**
+ * Stable empty-array reference for the stale-state fallback — see
+ * the matching note in useAppBadges.ts. A selector that returns a
+ * fresh `[]` each call triggers Zustand's "getSnapshot should be
+ * cached" warning and React's infinite-render guard.
+ */
+const EMPTY_MAIL: readonly MailMessage[] = [];
+
 export function MailScreen() {
   const insets = useSafeAreaInsets();
-  // `?? []` guards against a stale hot-reload store where this field
-  // hasn't been seeded yet — fixes the "cannot convert undefined to
-  // object" crash on Fast Refresh right after the schema bump.
-  const mail = useGameStore((s) => s.mail ?? []);
+  // Read raw, then fall back OUTSIDE the selector so its return is a
+  // stable reference — otherwise Zustand sees a fresh `[]` each call
+  // and the render loops.
+  const mail = useGameStore((s) => s.mail) ?? EMPTY_MAIL;
   const clockNow = useGameStore((s) => s.clock.now);
   const openMailMessage = useGameStore((s) => s.openMailMessage);
 

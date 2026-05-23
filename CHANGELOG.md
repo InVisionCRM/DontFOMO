@@ -6,6 +6,23 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 23:11 UTC — Fix: stable empty-array fallback in Mail selectors
+- The previous `?? []` fallback inside Zustand selectors created a
+  brand-new empty array on every selector call whenever `s.mail`
+  was undefined. Zustand uses the selector's return for change
+  detection, so the constant-new reference looked like fresh data
+  every render — React tripped "The result of getSnapshot should be
+  cached to avoid an infinite loop" and then "Maximum update depth
+  exceeded" (per KG's redbox screenshots).
+- Fix: pull the empty-array fallback OUT of the selector to a
+  module-level `EMPTY_MAIL` constant. The selector returns the live
+  value or `undefined`; the `?? EMPTY_MAIL` resolution happens once
+  on the result. Same array reference each call → stable snapshot →
+  no loop.
+- Applied to both `useAppBadges.ts` and `MailScreen.tsx`.
+- Verification: tsc clean; npm test 170/170. Awaiting on-device
+  confirmation.
+
 ## 2026-05-23 23:07 UTC — Fix: full stale-state defence — store actions, loadSaved, serialize
 - The prior fix patched the read selectors but missed three other
   attack surfaces, which produced new crashes when KG hot-reloaded

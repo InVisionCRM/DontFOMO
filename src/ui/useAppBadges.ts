@@ -9,18 +9,25 @@
  * channel for "you have something to look at here."
  */
 import { useGameStore } from '../state/store';
-import { unreadCount } from '../engine/mail';
+import { unreadCount, type MailMessage } from '../engine/mail';
 import type { AppId } from '../data/apps';
+
+/**
+ * Stable empty-array reference for the stale-state fallback. The
+ * selector must return the SAME reference on every call when the
+ * store value is missing, otherwise Zustand sees a fresh snapshot
+ * each render and React loops on "Maximum update depth exceeded".
+ */
+const EMPTY_MAIL: readonly MailMessage[] = [];
 
 /**
  * Returns a map of app id → badge count. Apps without a badge are
  * omitted (the AppIcon ignores undefined badges).
  */
 export function useAppBadges(): Partial<Record<AppId, number>> {
-  // The `?? []` guards against a stale Zustand store mid-Fast-Refresh
-  // where a schema bump has added a new field that the in-memory
-  // state hasn't been re-seeded with yet.
-  const mail = useGameStore((s) => s.mail ?? []);
+  // Read raw; the fallback is applied OUTSIDE the selector so the
+  // selector's return is a stable reference. (See EMPTY_MAIL.)
+  const mail = useGameStore((s) => s.mail) ?? EMPTY_MAIL;
   return {
     mail: unreadCount(mail),
   };
