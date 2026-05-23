@@ -17,7 +17,10 @@ import type { AppId } from '../data/apps';
  * omitted (the AppIcon ignores undefined badges).
  */
 export function useAppBadges(): Partial<Record<AppId, number>> {
-  const mail = useGameStore((s) => s.mail);
+  // The `?? []` guards against a stale Zustand store mid-Fast-Refresh
+  // where a schema bump has added a new field that the in-memory
+  // state hasn't been re-seeded with yet.
+  const mail = useGameStore((s) => s.mail ?? []);
   return {
     mail: unreadCount(mail),
   };

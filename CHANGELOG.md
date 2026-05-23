@@ -6,6 +6,25 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 22:38 UTC — Fix: guard Mail selectors against stale hot-reload state
+- KG hit a "Cannot convert undefined value to object" crash at
+  `unreadCount` (`mail.ts:55`) right after the v7 → v8 schema bump.
+  Cause: Zustand's store instance survives Metro Fast Refresh, so
+  immediately after a schema bump the in-memory state can be missing
+  the newly-added field — `s.mail` reads back undefined, and the
+  `for (const m of messages)` loop in `unreadCount` throws.
+- A full app reload (Expo Go shake → Reload, or `r` in the Metro
+  terminal) clears it, because the store re-initialises via
+  `freshGame`. But we shouldn't crash mid-refresh either.
+- Added `?? []` guards on both `useAppBadges` and `MailScreen`'s
+  selector for `s.mail`. The selectors now safely degrade to an
+  empty inbox during the brief window where stale state lacks the
+  field. The crash is fully prevented; the next full reload seeds
+  the real mail.
+- No behavioural change in production builds (where Fast Refresh
+  isn't in play).
+- Verification: tsc clean.
+
 ## 2026-05-23 22:31 UTC — Stage 5, checkpoint 1: the Mail app + app-icon badges
 - First of Stage 5's communication apps (Mail, Tunnel, Messages,
   Clout, Market). Sets the inbox / read-state / detail pattern the

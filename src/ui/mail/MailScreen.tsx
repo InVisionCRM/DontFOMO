@@ -27,7 +27,10 @@ const TOP_PAD = 52;
 
 export function MailScreen() {
   const insets = useSafeAreaInsets();
-  const mail = useGameStore((s) => s.mail);
+  // `?? []` guards against a stale hot-reload store where this field
+  // hasn't been seeded yet — fixes the "cannot convert undefined to
+  // object" crash on Fast Refresh right after the schema bump.
+  const mail = useGameStore((s) => s.mail ?? []);
   const clockNow = useGameStore((s) => s.clock.now);
   const openMailMessage = useGameStore((s) => s.openMailMessage);
 
