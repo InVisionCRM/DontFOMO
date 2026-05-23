@@ -6,6 +6,52 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 06:38 UTC — Stage 2, checkpoint 3b: apps open & close
+- Apps now open and close. Tapping an icon opens it with an iOS-style
+  zoom that grows from the icon's exact on-screen position; tapping the
+  home bar zooms it back out.
+- New `AppView` component (`src/ui/`) — the full-screen opened-app
+  overlay. Reads `openAppId` from the store, renders a per-app
+  placeholder screen, and runs the zoom in / out animation.
+- The zoom uses React Native's built-in `Animated` (native-driver
+  scale + fade). CLAUDE.md §4 lists Reanimated for app-open
+  transitions; `Animated` was chosen here for zero setup risk on a
+  simple triggered animation — Reanimated remains the stack choice for
+  the later gesture-driven work (e.g. the swipe minigame).
+- `AppIcon` now measures its on-screen rect on tap (`measureInWindow`)
+  and reports it, so the zoom starts from the real icon position.
+  Added the `APP_BY_ID` lookup to the app catalogue.
+- `PhoneShell` wires icon taps to `openApp` plus the zoom origin, and
+  renders the `AppView` overlay above the home screen.
+- No new dependencies — `Animated` is part of React Native core.
+- Verification: pure-TS files type-check clean under strict mode; the
+  15 engine / store unit tests still pass. The animation is verified
+  on device.
+- Outcome: **Stage 2 complete** — a playable empty phone. Time flows,
+  the game persists across a quit, and apps open and close.
+
+## 2026-05-23 06:12 UTC — Stage 2, checkpoint 3a: save / load
+- Built `AsyncStorageSaveAdapter` (`src/save/`) — the v1 `SaveAdapter`
+  implementation, persisting the game with AsyncStorage (Expo Go
+  compatible). Versioned save envelopes; corrupt data recovers
+  gracefully to a fresh game; a genuine I/O failure still throws.
+- Added the save-layer barrel `src/save/index.ts` exporting the shared
+  `saveAdapter` instance.
+- Store: added the `SavedGame` type, the `loadSaved` action (applies a
+  save, then runs the offline catch-up), and the `serializeGame`
+  helper.
+- `useGameLoop` now also handles persistence: loads any save on launch,
+  autosaves every 30 seconds, and saves when the app is backgrounded.
+  The offline catch-up runs on every refocus.
+- Added `__tests__/store.test.ts` — 5 unit tests for the store actions
+  and `serializeGame`.
+- New dependency: `@react-native-async-storage/async-storage`.
+- Verification: all 15 unit tests pass (10 clock + 5 store) in an
+  isolated ts-jest harness; pure engine files type-check clean under
+  strict mode.
+- Outcome: the game now persists — it survives a quit and reload.
+  Checkpoint 3b (apps open / close with the iOS zoom) is next.
+
 ## 2026-05-23 04:24 UTC — Stage 2, checkpoint 2: live clock + game store
 - Built the time engine `src/engine/time/clock.ts` — pure functions for
   the real-time game clock: `createClock`, `dayNumber`, `tickClock`,

@@ -138,3 +138,8 @@ export const DOCK_APPS: readonly AppDefinition[] = APPS.filter((a) => a.inDock);
 
 /** Apps shown in the home grid, in order. */
 export const GRID_APPS: readonly AppDefinition[] = APPS.filter((a) => !a.inDock);
+
+/** Every app keyed by its id, for quick lookup. */
+export const APP_BY_ID: Record<AppId, AppDefinition> = Object.fromEntries(
+  APPS.map((app) => [app.id, app]),
+) as Record<AppId, AppDefinition>;

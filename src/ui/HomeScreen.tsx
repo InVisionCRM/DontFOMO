@@ -2,19 +2,20 @@
  * HomeScreen.tsx — the home screen contents.
  * ------------------------------------------------------------------
  * The two widgets, the app grid, and the page dots. The widgets are
- * connected to the store themselves; this component just lays out the
- * structure and renders the app grid from data.
+ * connected to the store themselves; this component lays out the
+ * structure, renders the app grid from data, and forwards icon taps.
  */
 import { StyleSheet, View } from 'react-native';
 import { HomeWidgets } from './HomeWidgets';
-import { AppIcon } from './AppIcon';
+import { AppIcon, type IconRect } from './AppIcon';
 import { GRID_APPS, type AppDefinition } from '../data/apps';
 import { spacing } from '../theme/theme';
 
 interface HomeScreenProps {
   /** Bottom padding reserved for the dock, set by PhoneShell. */
   bottomReserve: number;
-  onAppPress?: (app: AppDefinition) => void;
+  /** Called when a grid app is tapped, with its measured rectangle. */
+  onAppPress?: (app: AppDefinition, rect: IconRect) => void;
 }
 
 export function HomeScreen({ bottomReserve, onAppPress }: HomeScreenProps) {
