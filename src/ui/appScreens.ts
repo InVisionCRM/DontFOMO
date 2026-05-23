@@ -8,7 +8,9 @@
 import type { ComponentType } from 'react';
 import type { AppId } from '../data/apps';
 import { ExchangeScreen } from './exchange/ExchangeScreen';
+import { BankScreen } from './bank/BankScreen';
 
 export const APP_SCREENS: Partial<Record<AppId, ComponentType>> = {
   exchange: ExchangeScreen,
+  bank: BankScreen,
 };

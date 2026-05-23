@@ -59,7 +59,7 @@ export const appAccent = {
   theWire: '#EF4444',
   mail: '#2F8FFF',
   flex: '#EC4899',
-  fiatAndCo: '#2DD4BF',
+  bank: '#2DD4BF',
   cashSwipe: '#22C55E',
   clipboard: '#94A3B8',
   settings: '#8E8E93',

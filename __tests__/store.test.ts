@@ -7,7 +7,15 @@
 import { beforeEach, describe, expect, it } from '@jest/globals';
 import { DAY_MS, dayNumber } from '../src/engine/time/clock';
 import { createMarket, createRandom } from '../src/engine/market';
-import { tokenLaunchCost } from '../src/engine/economy';
+import {
+  BILL_CYCLE_DAYS,
+  LOAN_INSTALLMENT_DAYS,
+  LOAN_TIERS,
+  STARTING_BILLS,
+  createBank,
+  loanWeeklyPayment,
+  tokenLaunchCost,
+} from '../src/engine/economy';
 import {
   DEFAULT_HANDLE,
   STARTING_CASH,
@@ -38,6 +46,8 @@ describe('game store', () => {
     expect(state.openAppId).toBeNull();
     expect(state.holdings).toEqual({});
     expect(state.playerTokens).toEqual([]);
+    expect(state.bank.bills).toHaveLength(STARTING_BILLS.length);
+    expect(state.bank.loan).toBeNull();
     expect(state.clock).toEqual({
       startedAt: 1_000,
       lastSeenAt: 1_000,
@@ -102,6 +112,7 @@ describe('game store', () => {
       market: createMarket(createRandom(1)),
       holdings: { NEURA: 42 },
       playerTokens: [],
+      bank: createBank(0),
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -111,6 +122,8 @@ describe('game store', () => {
     expect(state.handle).toBe('@whale');
     expect(state.holdings).toEqual({ NEURA: 42 });
     expect(state.playerTokens).toEqual([]);
+    expect(state.bank.bills).toHaveLength(STARTING_BILLS.length);
+    expect(state.bank.loan).toBeNull();
     expect(state.openAppId).toBeNull();
     expect(state.clock.now).toBe(DAY_MS * 3);
   });
@@ -120,6 +133,7 @@ describe('game store', () => {
     const saved = serializeGame(useGameStore.getState());
 
     expect(Object.keys(saved).sort()).toEqual([
+      'bank',
       'cash',
       'clock',
       'followers',
@@ -130,6 +144,145 @@ describe('game store', () => {
     ]);
     expect(saved.cash).toBe(STARTING_CASH);
     expect(saved.handle).toBe(DEFAULT_HANDLE);
+  });
+});
+
+describe('bank actions', () => {
+  beforeEach(() => {
+    useGameStore.getState().newGame(1_000);
+    useGameStore.setState({ cash: 50_000 }); // enough to cover bills and loans
+  });
+
+  it('payBill deducts cash and advances the bill due-date by one cycle', () => {
+    const now = useGameStore.getState().clock.now + 3 * DAY_MS; // pay mid-cycle
+
+    useGameStore.getState().payBill('rent', now);
+
+    const after = useGameStore.getState();
+    expect(after.cash).toBe(50_000 - 1_200); // rent is $1,200, not overdue
+    const billAfter = after.bank.bills.find((b) => b.id === 'rent')!;
+    // Paying mid-cycle resets the clock — next due is `now + 1 cycle`.
+    expect(billAfter.nextDueAt).toBe(now + BILL_CYCLE_DAYS * DAY_MS);
+  });
+
+  it('payBill refuses when cash is short and leaves the bill alone', () => {
+    useGameStore.setState({ cash: 10 });
+    const before = useGameStore.getState();
+    useGameStore.getState().payBill('rent', before.clock.now);
+    const after = useGameStore.getState();
+    expect(after.cash).toBe(10);
+    expect(after.bank.bills.find((b) => b.id === 'rent')?.nextDueAt).toBe(
+      before.bank.bills.find((b) => b.id === 'rent')?.nextDueAt,
+    );
+  });
+
+  it('payBill on a late bill charges the accrued late fee', () => {
+    const now = useGameStore.getState().clock.now;
+    // Force rent into a 4-day overdue state.
+    useGameStore.setState((s) => ({
+      bank: {
+        bills: s.bank.bills.map((b) =>
+          b.id === 'rent' ? { ...b, nextDueAt: now - 4 * DAY_MS } : b,
+        ),
+        loan: s.bank.loan,
+      },
+    }));
+    useGameStore.getState().payBill('rent', now);
+    // Rent $1,200 + 4 days * 1% = $1,200 + $48 = $1,248
+    expect(useGameStore.getState().cash).toBeCloseTo(50_000 - 1_248, 4);
+  });
+
+  it('takeLoan credits the principal in cash and opens a loan', () => {
+    const tier = LOAN_TIERS[1]; // 5k tier
+    const now = useGameStore.getState().clock.now;
+    useGameStore.getState().takeLoan(tier.id, now);
+    const after = useGameStore.getState();
+    expect(after.cash).toBe(50_000 + tier.principal);
+    expect(after.bank.loan).not.toBeNull();
+    expect(after.bank.loan!.tierId).toBe(tier.id);
+    expect(after.bank.loan!.weeklyPayment).toBeCloseTo(
+      loanWeeklyPayment(tier),
+      6,
+    );
+    expect(after.bank.loan!.nextPaymentDueAt).toBe(
+      now + LOAN_INSTALLMENT_DAYS * DAY_MS,
+    );
+  });
+
+  it('takeLoan refuses a second loan while one is active', () => {
+    const now = useGameStore.getState().clock.now;
+    useGameStore.getState().takeLoan('tier_1k', now);
+    const cashAfterFirst = useGameStore.getState().cash;
+    useGameStore.getState().takeLoan('tier_5k', now);
+    expect(useGameStore.getState().cash).toBe(cashAfterFirst);
+    expect(useGameStore.getState().bank.loan?.tierId).toBe('tier_1k');
+  });
+
+  it('takeLoan with an unknown tier is a no-op', () => {
+    const before = useGameStore.getState();
+    useGameStore.getState().takeLoan('tier_999k', before.clock.now);
+    expect(useGameStore.getState().cash).toBe(before.cash);
+    expect(useGameStore.getState().bank.loan).toBeNull();
+  });
+
+  it('repayLoanInstallment deducts the weekly payment and advances the due date', () => {
+    const now = useGameStore.getState().clock.now;
+    useGameStore.getState().takeLoan('tier_5k', now);
+    const cashAfterTake = useGameStore.getState().cash;
+    const loan = useGameStore.getState().bank.loan!;
+
+    useGameStore.getState().repayLoanInstallment(now + DAY_MS);
+
+    const after = useGameStore.getState();
+    expect(after.cash).toBeCloseTo(cashAfterTake - loan.weeklyPayment, 4);
+    expect(after.bank.loan!.totalRemaining).toBeCloseTo(
+      loan.totalRemaining - loan.weeklyPayment,
+      4,
+    );
+    expect(after.bank.loan!.nextPaymentDueAt).toBe(
+      now + DAY_MS + LOAN_INSTALLMENT_DAYS * DAY_MS,
+    );
+  });
+
+  it('repayLoanInstallment paying off the last installment clears the loan', () => {
+    const now = useGameStore.getState().clock.now;
+    useGameStore.getState().takeLoan('tier_1k', now); // 4-week loan
+    for (let i = 0; i < 4; i++) {
+      useGameStore.getState().repayLoanInstallment(now + (i + 1) * DAY_MS);
+    }
+    expect(useGameStore.getState().bank.loan).toBeNull();
+  });
+
+  it('repayLoanInstallment with no loan is a no-op', () => {
+    const before = useGameStore.getState();
+    useGameStore.getState().repayLoanInstallment(before.clock.now);
+    expect(useGameStore.getState().cash).toBe(before.cash);
+  });
+
+  it('repayLoanInstallment refuses when cash is short of the installment', () => {
+    const now = useGameStore.getState().clock.now;
+    useGameStore.getState().takeLoan('tier_5k', now);
+    useGameStore.setState({ cash: 1 });
+    useGameStore.getState().repayLoanInstallment(now + DAY_MS);
+    expect(useGameStore.getState().cash).toBe(1);
+    expect(useGameStore.getState().bank.loan).not.toBeNull();
+  });
+
+  it('round-trips the bank through serialize and loadSaved', () => {
+    const now = useGameStore.getState().clock.now;
+    useGameStore.getState().takeLoan('tier_5k', now);
+    useGameStore.getState().payBill('rent', now);
+    const saved = serializeGame(useGameStore.getState());
+
+    useGameStore.getState().newGame(2_000); // wipe
+    expect(useGameStore.getState().bank.loan).toBeNull();
+
+    useGameStore.getState().loadSaved(saved, now);
+    const restored = useGameStore.getState();
+    expect(restored.bank.loan?.tierId).toBe('tier_5k');
+    expect(
+      restored.bank.bills.find((b) => b.id === 'rent')?.nextDueAt,
+    ).toBe(now + BILL_CYCLE_DAYS * DAY_MS);
   });
 });
 

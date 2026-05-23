@@ -6,6 +6,74 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 19:49 UTC — Stage 4, checkpoint 2: the Bank UI
+- Built the Bank screen to the approved mockup, plus the store
+  integration that drives it. The Bank app is now playable end to
+  end: pay bills, take loans, repay weekly installments.
+- **Store integration.** Added `bank: BankState` to `GameState` and
+  `SavedGame`. New actions:
+  - `payBill(billId, now)` — guards against insufficient cash, then
+    charges face amount + accrued late fee and advances the bill's
+    due date by one 7-day cycle.
+  - `takeLoan(tierId, now)` — refuses if a loan is already active or
+    the tier is unknown; otherwise credits the principal to cash
+    and opens a new `LoanState`.
+  - `repayLoanInstallment(now)` — pays the next weekly installment,
+    advances the due date, and clears the loan when the balance
+    reaches zero.
+- **Offline catch-up.** `resume` and `loadSaved` now call
+  `accrueMissedInstallments` on the active loan, so a player who is
+  away for several weeks comes back to a correctly-compounded
+  balance and an advanced due date.
+- **SAVE_VERSION bumped 4 → 5.** Existing v4 saves on device will
+  be wiped to a fresh game on first launch — the same behaviour as
+  the prior v2/v3/v4 bumps. A proper migration framework remains a
+  Stage 7 deliverable per the Migration Plan.
+- **New `src/ui/bank/`.** Six focused components, matching the
+  approved mockup:
+  - `BankScreen` — top-level layout; balance card, bills section
+    (with running total), loan section, and the borrow-sheet
+    overlay. Wires the three store actions and posts a banner on
+    each success.
+  - `BankBalanceCard` — the deep-teal gradient "Cash on hand" card,
+    using `expo-linear-gradient`.
+  - `BillRow` — one bill with overdue styling (red tint + border),
+    the "Due in N days" / "Overdue by N days" line, the live total
+    (face amount + late fee), and a Pay button that disables when
+    cash is short.
+  - `LoanCard` — two modes: active loan (balance, APR, next-payment
+    line, Repay + Borrow-more buttons) or empty ("Borrow when you
+    need cash").
+  - `LoanBorrowSheet` — the bottom-sheet of loan tiers; slide-in
+    animation mirrors Stage 3's `TradeSheet`.
+  - `BankBanner` — the dry top-edge confirmation banner. Inline to
+    Bank for v1; will lift to a global notification slot in Stage 5
+    when more screens need it. Per CLAUDE.md §9, sound and
+    `expo-haptics` are explicitly polish-pass and not wired here —
+    only the visual slide-in.
+- **Registered.** `appScreens.ts` now resolves the `bank` app id to
+  `BankScreen`; tapping the Bank icon on the home grid opens the
+  real screen.
+- **Theme.** Renamed the unused `appAccent.fiatAndCo` token to
+  `appAccent.bank` to match the locked app name (no consumer
+  changed; the legacy `coinDeck` key still in use is a separate
+  polish job).
+- **Tests.** Updated 3 existing store tests for the new `bank`
+  field. Added 11 new tests covering `payBill` (success, refusal,
+  late-fee accrual), `takeLoan` (success, one-at-a-time guard,
+  unknown tier), `repayLoanInstallment` (success, payoff, no-loan
+  no-op, insufficient-cash refusal), and a bank save/load
+  round-trip. Suite is now 6/6 green at **96 tests**.
+- No new runtime dependencies.
+- Verification: `npx tsc --noEmit --project tsconfig.json` exits 0;
+  `npm test` passes 96/96 (~4s). On-device visual / tap-through
+  verification needed on Expo Go.
+- Outcome: Stage 4 cp 4.2 complete. The Bank is real, the money-
+  pressure layer is live, and the player can run low on cash, owe
+  bills, take loans, repay them, and feel the consequences. Next
+  (4.3): the CashSwipe engine — the daily cap (1000 swipes / $1000)
+  with the local-midnight reset.
+
 ## 2026-05-23 19:33 UTC — Project renamed: CryptoLife → DON'T FOMO
 - KG locked the new product name. **`CryptoLife` → `DON'T FOMO`** across
   every user-facing surface, with the code identifier `dontfomo`

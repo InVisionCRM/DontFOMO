@@ -27,13 +27,24 @@ import {
 } from '../engine/market';
 import {
   MAX_PLAYER_TOKENS,
+  STARTING_BILLS,
+  accrueMissedInstallments,
+  applyBillPayment,
+  applyInstallment,
+  billTotalDue,
+  createBank,
+  createLoan,
   createPlayerToken,
+  findBillDefinition,
+  findLoanTier,
   followersFromDump,
   followersFromPump,
+  nextInstallmentCost,
   playerTokenParams,
   quoteBuy,
   quoteSell,
   tokenLaunchCost,
+  type BankState,
   type PlayerTokenDef,
 } from '../engine/economy';
 import { TOKEN_BY_ID } from '../data/tokens';
@@ -84,6 +95,7 @@ export interface SavedGame {
   market: MarketState;
   holdings: Record<string, number>;
   playerTokens: PlayerTokenDef[];
+  bank: BankState;
 }
 
 export interface GameState {
@@ -101,6 +113,8 @@ export interface GameState {
   holdings: Record<string, number>;
   /** Tokens the player has launched (at most MAX_PLAYER_TOKENS). */
   playerTokens: PlayerTokenDef[];
+  /** Bills and loans — the Bank app's persistent state. */
+  bank: BankState;
   /** Which in-game app is open; null = the home screen. */
   openAppId: AppId | null;
 
@@ -120,6 +134,12 @@ export interface GameState {
   sellToken: (tokenId: string, tokenAmount: number) => void;
   /** Launch a player-created token; no-op if the rules forbid it. */
   launchToken: (input: LaunchTokenInput) => void;
+  /** Pay a bill in full (face amount + any accrued late fee). */
+  payBill: (billId: string, now: number) => void;
+  /** Take out a new loan; no-op if one is already active. */
+  takeLoan: (tierId: string, now: number) => void;
+  /** Pay one weekly installment on the active loan. */
+  repayLoanInstallment: (now: number) => void;
   /** Open an in-game app. */
   openApp: (id: AppId) => void;
   /** Return to the home screen. */
@@ -136,6 +156,7 @@ function freshGame(now: number): Pick<
   | 'market'
   | 'holdings'
   | 'playerTokens'
+  | 'bank'
   | 'openAppId'
 > {
   return {
@@ -146,6 +167,7 @@ function freshGame(now: number): Pick<
     market: createMarket(createRandom(now)),
     holdings: {},
     playerTokens: [],
+    bank: createBank(now),
     openAppId: null,
   };
 }
@@ -184,6 +206,9 @@ export const useGameStore = create<GameState>()((set) => ({
   resume: (now) =>
     set((s) => {
       const resumed = resumeClock(s.clock, now);
+      const loan = s.bank.loan
+        ? accrueMissedInstallments(s.bank.loan, resumed.clock.now)
+        : null;
       return {
         clock: resumed.clock,
         market: advanceMarket(
@@ -192,11 +217,15 @@ export const useGameStore = create<GameState>()((set) => ({
           marketRand,
           paramsFor(s.playerTokens, s.followers),
         ),
+        bank: loan === s.bank.loan ? s.bank : { bills: s.bank.bills, loan },
       };
     }),
   loadSaved: (saved, now) =>
     set(() => {
       const resumed = resumeClock(saved.clock, now);
+      const loan = saved.bank.loan
+        ? accrueMissedInstallments(saved.bank.loan, resumed.clock.now)
+        : null;
       return {
         clock: resumed.clock,
         cash: saved.cash,
@@ -210,6 +239,7 @@ export const useGameStore = create<GameState>()((set) => ({
         ),
         holdings: saved.holdings,
         playerTokens: saved.playerTokens,
+        bank: { bills: saved.bank.bills, loan },
         openAppId: null,
       };
     }),
@@ -290,6 +320,45 @@ export const useGameStore = create<GameState>()((set) => ({
         market: { tokens: { ...s.market.tokens, [def.id]: state } },
       };
     }),
+  payBill: (billId, now) =>
+    set((s) => {
+      const bill = s.bank.bills.find((b) => b.id === billId);
+      const def = bill && findBillDefinition(STARTING_BILLS, billId);
+      if (!bill || !def) return {};
+      const cost = billTotalDue(def, bill, now);
+      if (cost > s.cash) return {};
+      return {
+        cash: s.cash - cost,
+        bank: {
+          bills: s.bank.bills.map((b) =>
+            b.id === billId ? applyBillPayment(b, now) : b,
+          ),
+          loan: s.bank.loan,
+        },
+      };
+    }),
+  takeLoan: (tierId, now) =>
+    set((s) => {
+      if (s.bank.loan) return {}; // one loan at a time
+      const tier = findLoanTier(tierId);
+      if (!tier) return {};
+      const { loan, cashCredit } = createLoan(tier, now);
+      return {
+        cash: s.cash + cashCredit,
+        bank: { bills: s.bank.bills, loan },
+      };
+    }),
+  repayLoanInstallment: (now) =>
+    set((s) => {
+      if (!s.bank.loan) return {};
+      const cost = nextInstallmentCost(s.bank.loan);
+      if (cost > s.cash) return {};
+      const nextLoan = applyInstallment(s.bank.loan, now);
+      return {
+        cash: s.cash - cost,
+        bank: { bills: s.bank.bills, loan: nextLoan },
+      };
+    }),
   openApp: (id) => set({ openAppId: id }),
   closeApp: () => set({ openAppId: null }),
 }));
@@ -307,5 +376,6 @@ export function serializeGame(state: GameState): SavedGame {
     market: state.market,
     holdings: state.holdings,
     playerTokens: state.playerTokens,
+    bank: state.bank,
   };
 }
