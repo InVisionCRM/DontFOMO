@@ -18,8 +18,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { resolveTokenDefinition } from './playerTokenView';
 import { useGameStore } from '../../state/store';
-import { TOKEN_BY_ID } from '../../data/tokens';
 import { quoteBuy, quoteSell } from '../../engine/economy';
 import { formatCurrency, formatTokenAmount } from '../format';
 import {
@@ -49,6 +49,7 @@ export function TradeSheet({ request, onClose }: TradeSheetProps) {
   const market = useGameStore((s) => s.market);
   const cash = useGameStore((s) => s.cash);
   const holdings = useGameStore((s) => s.holdings);
+  const playerTokens = useGameStore((s) => s.playerTokens);
   const buyToken = useGameStore((s) => s.buyToken);
   const sellToken = useGameStore((s) => s.sellToken);
 
@@ -92,8 +93,12 @@ export function TradeSheet({ request, onClose }: TradeSheetProps) {
   }
 
   const { tokenId, mode } = displayed;
-  const token = TOKEN_BY_ID[tokenId];
-  const price = market.tokens[tokenId].price;
+  const token = resolveTokenDefinition(tokenId, playerTokens);
+  const marketState = market.tokens[tokenId];
+  if (!token || !marketState) {
+    return null;
+  }
+  const price = marketState.price;
   const owned = holdings[tokenId] ?? 0;
   const available = mode === 'buy' ? cash : owned * price;
 

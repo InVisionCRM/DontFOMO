@@ -6,6 +6,37 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 13:39 UTC — Stage 3, checkpoint 4c: the token-launch UI
+- Built the player token-launch flow — the last piece of Stage 3.
+- New `LaunchWizard` — a three-step, slide-in flow: pick a logo from a
+  curated emoji grid; name the token and choose a ticker (validated
+  live — 3–6 letters, must not collide with a listed ticker); review
+  the cost and launch. On launch it drives `launchToken`, then opens
+  the new token's detail screen as the confirmation (Design Bible §5,
+  no success toast).
+- New `LaunchTokenCard` — the entry point on the Portfolio tab. Shows
+  the next launch's cost (the first is free), and switches to a quiet
+  disabled state once both lifetime launches are used.
+- New `OwnBadge` — the inline "YOURS" pill. `TokenRow`, `HoldingRow`
+  and `TokenDetail` show it on a token the player launched.
+- Player tokens now trade like any catalogue token: `playerTokenView`
+  widens a `PlayerTokenDef` into a display `TokenDefinition`, so player
+  tokens flow through the Markets list, the detail screen and the trade
+  sheet unchanged. `ExchangeScreen`, `TokenDetail` and `TradeSheet`
+  resolve any token id — catalogue or player.
+- New `src/data/launch.ts` — the 24-emoji curated set and the player-
+  token "about" blurb, as data (CLAUDE.md §5).
+- Added `brandSoft` / `brandText` brand tints to the theme so the
+  launch flow's violet accents stay token-driven (no hardcoded colour).
+- New content files only — no new dependencies.
+- Verification: the whole project type-checks clean under strict mode;
+  all 63 unit tests still pass (cp4c is UI-only — it touches no engine
+  or store code). Visual / tap-through behaviour needs an Expo Go run
+  on device.
+- Outcome: Stage 3 is feature-complete — the Exchange now supports
+  launching, trading and tracking the player's own tokens. Next: a
+  full Stage 3 verification pass, then Stage 4.
+
 ## 2026-05-23 13:06 UTC — Stage 3, checkpoint 4b: player-token store integration
 - Wired the player-token engine into the live game store. New
   `launchToken` action: it guards against the two-token cap, a ticker

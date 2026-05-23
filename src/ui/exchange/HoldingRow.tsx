@@ -6,6 +6,7 @@
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { TokenBadge } from './TokenBadge';
+import { OwnBadge } from './OwnBadge';
 import { formatCurrency, formatSignedPercent, formatTokenAmount } from '../format';
 import { dayChangePercent, type TokenMarketState } from '../../engine/market';
 import type { TokenDefinition } from '../../data/tokens';
@@ -22,10 +23,18 @@ interface HoldingRowProps {
   state: TokenMarketState;
   /** Amount of the token owned. */
   amount: number;
+  /** True for a token the player launched — shows the YOURS badge. */
+  isOwn?: boolean;
   onPress?: (token: TokenDefinition) => void;
 }
 
-export function HoldingRow({ token, state, amount, onPress }: HoldingRowProps) {
+export function HoldingRow({
+  token,
+  state,
+  amount,
+  isOwn,
+  onPress,
+}: HoldingRowProps) {
   const value = amount * state.price;
   const change = dayChangePercent(state);
   const changeColor =
@@ -41,9 +50,12 @@ export function HoldingRow({ token, state, amount, onPress }: HoldingRowProps) {
       <TokenBadge emoji={token.emoji} size={40} />
 
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
-          {token.name}
-        </Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.name} numberOfLines={1}>
+            {token.name}
+          </Text>
+          {isOwn && <OwnBadge />}
+        </View>
         <Text style={styles.meta} numberOfLines={1}>
           {formatTokenAmount(amount)} {token.id}
         </Text>
@@ -72,10 +84,16 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
   name: {
     fontSize: fontSize.body,
     fontWeight: fontWeight.semibold,
     color: color.text.primary,
+    flexShrink: 1,
   },
   meta: {
     fontSize: fontSize.caption,

@@ -42,6 +42,8 @@ export const color = {
 
   /** Brand. */
   brand: '#7C5CFF', // CryptoLife's signature violet
+  brandSoft: 'rgba(124,92,255,0.16)', // translucent brand fill — selected states, tints
+  brandText: '#CDBCFF', // light brand violet — brand-tinted text on dark
   brandGradient: ['#7C5CFF', '#D4537E'] as const, // hero / wallpaper gradient
 } as const;
 

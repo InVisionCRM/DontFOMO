@@ -16,14 +16,15 @@ import { TokenDetail } from './TokenDetail';
 import { ExchangeAd } from './ExchangeAd';
 import { HoldingRow } from './HoldingRow';
 import { TradeSheet, type TradeRequest } from './TradeSheet';
+import { LaunchTokenCard } from './LaunchTokenCard';
+import { LaunchWizard } from './LaunchWizard';
+import {
+  playerTokenToDefinition,
+  resolveTokenDefinition,
+} from './playerTokenView';
 import { useGameStore } from '../../state/store';
 import { holdingsValue } from '../../engine/economy';
-import {
-  TOKENS,
-  TOKEN_BY_ID,
-  TOKEN_CATEGORIES,
-  type TokenCategory,
-} from '../../data/tokens';
+import { TOKENS, TOKEN_CATEGORIES, type TokenCategory } from '../../data/tokens';
 import { formatCurrency } from '../format';
 import {
   appAccent,
@@ -46,17 +47,24 @@ export function ExchangeScreen() {
   const cash = useGameStore((s) => s.cash);
   const market = useGameStore((s) => s.market);
   const holdings = useGameStore((s) => s.holdings);
+  const playerTokens = useGameStore((s) => s.playerTokens);
 
   const [segment, setSegment] = useState<Segment>('markets');
   const [filter, setFilter] = useState<Filter>('All');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tradeRequest, setTradeRequest] = useState<TradeRequest | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const cryptoValue = holdingsValue(holdings, market);
   const total = cash + cryptoValue;
 
+  // Player-launched tokens trade alongside the catalogue tokens.
+  const ownIds = new Set(playerTokens.map((p) => p.id));
+  const allTokens = [...TOKENS, ...playerTokens.map(playerTokenToDefinition)];
   const tokens =
-    filter === 'All' ? TOKENS : TOKENS.filter((t) => t.category === filter);
+    filter === 'All'
+      ? allTokens
+      : allTokens.filter((t) => t.category === filter);
   const heldIds = Object.keys(holdings);
 
   return (
@@ -122,38 +130,54 @@ export function ExchangeScreen() {
                   key={token.id}
                   token={token}
                   state={market.tokens[token.id]}
+                  isOwn={ownIds.has(token.id)}
                   onPress={(t) => setSelectedId(t.id)}
                 />
               ))}
             </View>
           </>
-        ) : heldIds.length > 0 ? (
-          <View>
-            {heldIds.map((id) => (
-              <HoldingRow
-                key={id}
-                token={TOKEN_BY_ID[id]}
-                state={market.tokens[id]}
-                amount={holdings[id]}
-                onPress={(t) => setSelectedId(t.id)}
-              />
-            ))}
-            <Text style={styles.cashLine}>
-              {formatCurrency(cash)} cash available to trade
-            </Text>
-          </View>
         ) : (
-          <View style={styles.portfolio}>
-            <Text style={styles.emptyTitle}>No holdings yet</Text>
-            <Text style={styles.emptyText}>
-              Buy a token from Markets to start your portfolio.
-            </Text>
+          <View>
+            {heldIds.length > 0 ? (
+              heldIds.map((id) => {
+                const def = resolveTokenDefinition(id, playerTokens);
+                return def ? (
+                  <HoldingRow
+                    key={id}
+                    token={def}
+                    state={market.tokens[id]}
+                    amount={holdings[id]}
+                    isOwn={ownIds.has(id)}
+                    onPress={(t) => setSelectedId(t.id)}
+                  />
+                ) : null;
+              })
+            ) : (
+              <View style={styles.portfolio}>
+                <Text style={styles.emptyTitle}>No holdings yet</Text>
+                <Text style={styles.emptyText}>
+                  Buy a token from Markets to start your portfolio.
+                </Text>
+              </View>
+            )}
+
+            <LaunchTokenCard onPress={() => setWizardOpen(true)} />
+
             <Text style={styles.cashLine}>
               {formatCurrency(cash)} cash available to trade
             </Text>
           </View>
         )}
       </ScrollView>
+
+      <LaunchWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onLaunched={(id) => {
+          setWizardOpen(false);
+          setSelectedId(id);
+        }}
+      />
 
       <TokenDetail
         tokenId={selectedId}

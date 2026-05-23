@@ -7,6 +7,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Sparkline } from '../Sparkline';
 import { TokenBadge } from './TokenBadge';
+import { OwnBadge } from './OwnBadge';
 import { formatSignedPercent, formatTokenPrice } from '../format';
 import { dayChangePercent, type TokenMarketState } from '../../engine/market';
 import type { TokenDefinition } from '../../data/tokens';
@@ -21,10 +22,12 @@ import {
 interface TokenRowProps {
   token: TokenDefinition;
   state: TokenMarketState;
+  /** True for a token the player launched — shows the YOURS badge. */
+  isOwn?: boolean;
   onPress?: (token: TokenDefinition) => void;
 }
 
-export function TokenRow({ token, state, onPress }: TokenRowProps) {
+export function TokenRow({ token, state, isOwn, onPress }: TokenRowProps) {
   const change = dayChangePercent(state);
   const changeColor =
     change > 0 ? color.success : change < 0 ? color.danger : color.text.tertiary;
@@ -39,9 +42,12 @@ export function TokenRow({ token, state, onPress }: TokenRowProps) {
       <TokenBadge emoji={token.emoji} size={40} />
 
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
-          {token.name}
-        </Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.name} numberOfLines={1}>
+            {token.name}
+          </Text>
+          {isOwn && <OwnBadge />}
+        </View>
         <Text style={styles.meta} numberOfLines={1}>
           {token.id} · {token.category}
         </Text>
@@ -79,10 +85,16 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
   name: {
     fontSize: fontSize.body,
     fontWeight: fontWeight.semibold,
     color: color.text.primary,
+    flexShrink: 1,
   },
   meta: {
     fontSize: fontSize.caption,

@@ -23,8 +23,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { CandlestickChart } from './CandlestickChart';
 import { TokenBadge } from './TokenBadge';
+import { OwnBadge } from './OwnBadge';
+import { resolveTokenDefinition } from './playerTokenView';
 import { useGameStore } from '../../state/store';
-import { TOKEN_BY_ID } from '../../data/tokens';
 import { dayChangePercent, toCandles } from '../../engine/market';
 import { formatSignedPercent, formatTokenPrice } from '../format';
 import {
@@ -72,6 +73,7 @@ export function TokenDetail({ tokenId, onBack, onTrade }: TokenDetailProps) {
   const insets = useSafeAreaInsets();
   const market = useGameStore((s) => s.market);
   const holdings = useGameStore((s) => s.holdings);
+  const playerTokens = useGameStore((s) => s.playerTokens);
 
   const [displayedId, setDisplayedId] = useState<string | null>(null);
   const [timeframe, setTimeframe] = useState(1); // index into TIMEFRAMES
@@ -105,8 +107,12 @@ export function TokenDetail({ tokenId, onBack, onTrade }: TokenDetailProps) {
     return null;
   }
 
-  const token = TOKEN_BY_ID[displayedId];
+  const token = resolveTokenDefinition(displayedId, playerTokens);
   const state = market.tokens[displayedId];
+  if (!token || !state) {
+    return null;
+  }
+  const isOwn = playerTokens.some((p) => p.id === displayedId);
   const owned = (holdings[displayedId] ?? 0) > 0;
   const change = dayChangePercent(state);
   const changeColor =
@@ -141,8 +147,13 @@ export function TokenDetail({ tokenId, onBack, onTrade }: TokenDetailProps) {
           </Svg>
         </Pressable>
         <TokenBadge emoji={token.emoji} size={36} />
-        <View>
-          <Text style={styles.topName}>{token.name}</Text>
+        <View style={styles.topInfo}>
+          <View style={styles.topNameRow}>
+            <Text style={styles.topName} numberOfLines={1}>
+              {token.name}
+            </Text>
+            {isOwn && <OwnBadge />}
+          </View>
           <Text style={styles.topTicker}>{token.id}</Text>
         </View>
       </View>
@@ -233,10 +244,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  topInfo: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  topNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
   topName: {
     fontSize: fontSize.heading,
     fontWeight: fontWeight.semibold,
     color: color.text.primary,
+    flexShrink: 1,
   },
   topTicker: {
     fontSize: fontSize.caption,
