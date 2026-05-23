@@ -12,6 +12,7 @@ import {
   dayChangePercent,
   gaussian,
   tickMarket,
+  toCandles,
 } from '../src/engine/market';
 import { TOKENS } from '../src/data/tokens';
 
@@ -149,5 +150,40 @@ describe('dayChangePercent', () => {
     expect(
       dayChangePercent({ id: 'X', price: 80, history: [], dayOpen: 100 }),
     ).toBeCloseTo(-20);
+  });
+});
+
+describe('toCandles', () => {
+  it('returns an empty array for empty input', () => {
+    expect(toCandles([], 10)).toEqual([]);
+  });
+
+  it('returns an empty array when count is below 1', () => {
+    expect(toCandles([1, 2, 3], 0)).toEqual([]);
+  });
+
+  it('produces at most `count` candles', () => {
+    const prices = Array.from({ length: 100 }, (_, i) => i + 1);
+    expect(toCandles(prices, 10).length).toBeLessThanOrEqual(10);
+  });
+
+  it('builds correct OHLC values for a single bucket', () => {
+    const [candle] = toCandles([10, 25, 5, 18], 1);
+    expect(candle.open).toBe(10);
+    expect(candle.close).toBe(18);
+    expect(candle.high).toBe(25);
+    expect(candle.low).toBe(5);
+  });
+
+  it('keeps each high the bucket max and each low the bucket min', () => {
+    const prices = createMarket(createRandom(4)).tokens.MOONP.history;
+    for (const candle of toCandles(prices, 20)) {
+      expect(candle.high).toBeGreaterThanOrEqual(
+        Math.max(candle.open, candle.close),
+      );
+      expect(candle.low).toBeLessThanOrEqual(
+        Math.min(candle.open, candle.close),
+      );
+    }
   });
 });

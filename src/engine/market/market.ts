@@ -130,3 +130,39 @@ export function dayChangePercent(token: TokenMarketState): number {
   }
   return ((token.price - token.dayOpen) / token.dayOpen) * 100;
 }
+
+/** One OHLC candle. */
+export interface Candle {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+/**
+ * Aggregate a flat price series into roughly `count` OHLC candles by
+ * bucketing consecutive prices. Pure — used to draw the price chart.
+ */
+export function toCandles(prices: number[], count: number): Candle[] {
+  if (prices.length === 0 || count < 1) {
+    return [];
+  }
+  const bucketSize = Math.max(1, Math.ceil(prices.length / count));
+  const candles: Candle[] = [];
+  for (let i = 0; i < prices.length; i += bucketSize) {
+    const bucket = prices.slice(i, i + bucketSize);
+    let high = bucket[0];
+    let low = bucket[0];
+    for (const price of bucket) {
+      if (price > high) high = price;
+      if (price < low) low = price;
+    }
+    candles.push({
+      open: bucket[0],
+      close: bucket[bucket.length - 1],
+      high,
+      low,
+    });
+  }
+  return candles;
+}

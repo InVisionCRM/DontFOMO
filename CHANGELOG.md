@@ -6,6 +6,44 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 08:27 UTC — Exchange satire: token descriptions + Sponsored ad
+- Added a satirical `description` to every token in the catalogue —
+  each parodies a real crypto archetype and quietly teaches healthy
+  skepticism (the unaudited PDF, the same anon dev, "where does the
+  yield come from"). The token detail screen now shows it.
+- New `src/data/exchangeAds.ts` — six parody crypto-ad creatives, plus
+  the constant fine print.
+- New `ExchangeAd` component — a "Sponsored" banner at the top of the
+  Markets list that rotates through the ad creatives (~every 7s, wall-
+  clock-derived, no component timer) and opens the shilled token's
+  detail when tapped. Groundwork for the see-hype → tap reflex the
+  scam engine will use later.
+- No new dependencies.
+- Verification: the new data files type-check clean under strict mode;
+  the 36 existing unit tests are unaffected. UI verified on device.
+- Outcome: the Exchange now has character — funny token write-ups and
+  a rotating fake ad.
+
+## 2026-05-23 07:46 UTC — Stage 3, checkpoint 2: token detail + chart
+- Added `toCandles` to the market engine — aggregates a price history
+  into OHLC candles for the chart (5 new unit tests).
+- Added `marketCap` / `volume24h` / `liquidity` flavour stats to the
+  token catalogue.
+- Built the token detail screen (`src/ui/exchange/`): `TokenDetail`
+  (slides in from the right on a token tap — the live price, the
+  candlestick chart, timeframe tabs, the stat grid, an about line, and
+  the Buy / Sell bar) and `CandlestickChart` (react-native-svg OHLC
+  candles over grid lines).
+- `ExchangeScreen` now opens the detail when a token row is tapped;
+  Back slides it away.
+- The Buy / Sell bar is inert — trading is checkpoint 3.
+- No new dependencies.
+- Verification: pure-TS files type-check clean under strict mode; all
+  36 unit tests pass (10 clock + 20 market + 6 store).
+- Outcome: tap any token for its live candlestick chart and stats.
+  Next (checkpoint 3): trading — buy/sell, the on/off-ramp, the
+  portfolio.
+
 ## 2026-05-23 07:37 UTC — Stage 3, checkpoint 1b: the Exchange screen
 - Wired the market into the game: the store now holds the `MarketState`,
   ticks it (`tickMarket`), fast-forwards it on the offline catch-up,
