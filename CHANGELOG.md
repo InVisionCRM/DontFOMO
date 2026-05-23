@@ -6,6 +6,30 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 07:27 UTC — Stage 3, checkpoint 1a: the market engine
+- Built the market simulation engine (`src/engine/market/`) — pure
+  TypeScript, no React imports.
+  - `random.ts` — a seeded PRNG (mulberry32) plus a Box-Muller
+    gaussian, so the market is deterministic and unit-testable.
+  - `market.ts` — the geometric random-walk price simulation ported
+    from the original `index.html`: `createMarket`, `tickMarket`,
+    `advanceMarket` (the offline catch-up), and `dayChangePercent`.
+    The stablecoin wobbles in a tight band around $1; the market ticks
+    independently of the calendar clock so charts stay alive.
+- Added `src/data/tokens.ts` — the seven-token catalogue (USDX, MOONP,
+  PEPE2, NEURA, VOLT, YIELDX, GIGA), each with its category, badge
+  gradient, and per-token drift / volatility.
+- Added `__tests__/market.test.ts` — 15 unit tests: PRNG determinism,
+  the gaussian, price positivity over many ticks, history caps, the
+  stablecoin peg, the offline advance, and the change math.
+- Decision recorded: the token economy stays fully fictional and
+  game-simulated for now (real-token integration deferred — KG).
+- No new dependencies.
+- Verification: pure-TS files type-check clean under strict mode; all
+  25 engine tests pass (10 clock + 15 market) in a ts-jest harness.
+- Outcome: the market engine is live and tested. Next (checkpoint 1b):
+  the Exchange app screen that renders it.
+
 ## 2026-05-23 06:38 UTC — Stage 2, checkpoint 3b: apps open & close
 - Apps now open and close. Tapping an icon opens it with an iOS-style
   zoom that grows from the icon's exact on-screen position; tapping the
