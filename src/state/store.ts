@@ -5,8 +5,8 @@
  * through actions; screens read from it with selectors. See CLAUDE.md
  * §5.
  *
- * Holds the clock, core stats, the market, and which app is open.
- * Later stages add the wallet, scams, and so on.
+ * Holds the clock, core stats, the market, the player's holdings, and
+ * which app is open. Later stages add scams and so on.
  */
 import { create } from 'zustand';
 import {
@@ -23,6 +23,7 @@ import {
   tickMarket as tickMarketEngine,
   type MarketState,
 } from '../engine/market';
+import { quoteBuy, quoteSell } from '../engine/economy';
 import type { AppId } from '../data/apps';
 
 /**
@@ -36,6 +37,9 @@ export const DEFAULT_HANDLE = '@degen_kyle';
 
 /** The most market ticks an offline catch-up will ever simulate. */
 const MARKET_CATCHUP_CAP = 600;
+
+/** A holding smaller than this is treated as dust and dropped. */
+const DUST = 1e-8;
 
 /**
  * Entropy for ongoing market ticks. Not part of the saved state — the
@@ -54,6 +58,8 @@ export interface SavedGame {
   followers: number;
   handle: string;
   market: MarketState;
+  /** Token holdings — ticker → amount owned. */
+  holdings: Record<string, number>;
 }
 
 export interface GameState {
@@ -67,6 +73,8 @@ export interface GameState {
   handle: string;
   /** The live crypto market simulation. */
   market: MarketState;
+  /** Token holdings — ticker → amount owned. */
+  holdings: Record<string, number>;
   /** Which in-game app is open; null = the home screen. */
   openAppId: AppId | null;
 
@@ -80,6 +88,10 @@ export interface GameState {
   resume: (now: number) => void;
   /** Apply a loaded save, then run the offline catch-up to `now`. */
   loadSaved: (saved: SavedGame, now: number) => void;
+  /** Buy a token: spend `usd` of cash on it at the current price. */
+  buyToken: (tokenId: string, usd: number) => void;
+  /** Sell `tokenAmount` of a token at the current price. */
+  sellToken: (tokenId: string, tokenAmount: number) => void;
   /** Open an in-game app. */
   openApp: (id: AppId) => void;
   /** Return to the home screen. */
@@ -89,7 +101,7 @@ export interface GameState {
 /** The fresh-game state slice (everything except the actions). */
 function freshGame(now: number): Pick<
   GameState,
-  'clock' | 'cash' | 'followers' | 'handle' | 'market' | 'openAppId'
+  'clock' | 'cash' | 'followers' | 'handle' | 'market' | 'holdings' | 'openAppId'
 > {
   return {
     clock: createClock(now),
@@ -97,6 +109,7 @@ function freshGame(now: number): Pick<
     followers: 0,
     handle: DEFAULT_HANDLE,
     market: createMarket(createRandom(now)),
+    holdings: {},
     openAppId: null,
   };
 }
@@ -138,8 +151,42 @@ export const useGameStore = create<GameState>()((set) => ({
           catchUpTicks(resumed.elapsedMs),
           marketRand,
         ),
+        holdings: saved.holdings,
         openAppId: null,
       };
+    }),
+  buyToken: (tokenId, usd) =>
+    set((s) => {
+      const token = s.market.tokens[tokenId];
+      if (!token || usd <= 0 || usd > s.cash) {
+        return {};
+      }
+      const quote = quoteBuy(usd, token.price);
+      return {
+        cash: s.cash - usd,
+        holdings: {
+          ...s.holdings,
+          [tokenId]: (s.holdings[tokenId] ?? 0) + quote.tokenAmount,
+        },
+      };
+    }),
+  sellToken: (tokenId, tokenAmount) =>
+    set((s) => {
+      const token = s.market.tokens[tokenId];
+      const owned = s.holdings[tokenId] ?? 0;
+      const amount = Math.min(tokenAmount, owned);
+      if (!token || amount <= 0) {
+        return {};
+      }
+      const quote = quoteSell(amount, token.price);
+      const holdings = { ...s.holdings };
+      const remaining = owned - amount;
+      if (remaining > DUST) {
+        holdings[tokenId] = remaining;
+      } else {
+        delete holdings[tokenId];
+      }
+      return { cash: s.cash + quote.usd, holdings };
     }),
   openApp: (id) => set({ openAppId: id }),
   closeApp: () => set({ openAppId: null }),
@@ -156,5 +203,6 @@ export function serializeGame(state: GameState): SavedGame {
     followers: state.followers,
     handle: state.handle,
     market: state.market,
+    holdings: state.holdings,
   };
 }

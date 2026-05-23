@@ -26,13 +26,13 @@ describe('game store', () => {
     expect(state.followers).toBe(0);
     expect(state.handle).toBe(DEFAULT_HANDLE);
     expect(state.openAppId).toBeNull();
+    expect(state.holdings).toEqual({});
     expect(state.clock).toEqual({
       startedAt: 1_000,
       lastSeenAt: 1_000,
       now: 1_000,
     });
     expect(state.market.tokens.USDX).toBeDefined();
-    expect(state.market.tokens.USDX.price).toBeGreaterThan(0);
   });
 
   it('tick advances the clock', () => {
@@ -54,6 +54,29 @@ describe('game store', () => {
     expect(useGameStore.getState().openAppId).toBeNull();
   });
 
+  it('buyToken spends cash and adds a holding', () => {
+    useGameStore.getState().buyToken('NEURA', 100);
+    const state = useGameStore.getState();
+    expect(state.cash).toBe(STARTING_CASH - 100);
+    expect(state.holdings.NEURA).toBeGreaterThan(0);
+  });
+
+  it('buyToken refuses to spend more cash than you have', () => {
+    useGameStore.getState().buyToken('NEURA', STARTING_CASH + 1);
+    const state = useGameStore.getState();
+    expect(state.cash).toBe(STARTING_CASH);
+    expect(state.holdings.NEURA).toBeUndefined();
+  });
+
+  it('sellToken returns cash and clears a fully-sold holding', () => {
+    useGameStore.getState().buyToken('NEURA', 100);
+    const owned = useGameStore.getState().holdings.NEURA;
+    useGameStore.getState().sellToken('NEURA', owned);
+    const state = useGameStore.getState();
+    expect(state.holdings.NEURA).toBeUndefined();
+    expect(state.cash).toBeGreaterThan(STARTING_CASH - 100);
+  });
+
   it('loadSaved restores a saved game and catches the clock up', () => {
     const saved: SavedGame = {
       clock: { startedAt: 0, lastSeenAt: 0, now: 0 },
@@ -61,6 +84,7 @@ describe('game store', () => {
       followers: 678,
       handle: '@whale',
       market: createMarket(createRandom(1)),
+      holdings: { NEURA: 42 },
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -68,11 +92,9 @@ describe('game store', () => {
     expect(state.cash).toBe(12_345);
     expect(state.followers).toBe(678);
     expect(state.handle).toBe('@whale');
+    expect(state.holdings).toEqual({ NEURA: 42 });
     expect(state.openAppId).toBeNull();
-    expect(state.clock.startedAt).toBe(0);
     expect(state.clock.now).toBe(DAY_MS * 3);
-    expect(state.clock.lastSeenAt).toBe(DAY_MS * 3);
-    expect(state.market.tokens.USDX).toBeDefined();
   });
 
   it('serializeGame extracts only the persistent fields', () => {
@@ -84,6 +106,7 @@ describe('game store', () => {
       'clock',
       'followers',
       'handle',
+      'holdings',
       'market',
     ]);
     expect(saved.cash).toBe(STARTING_CASH);

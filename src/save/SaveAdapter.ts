@@ -16,9 +16,9 @@
 
 /**
  * Current save-schema version. Bump on any breaking shape change.
- * v2 added the market state to the saved game (Stage 3).
+ * v2 added the market state; v3 added the player's token holdings.
  */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 /**
  * The envelope every save is wrapped in. `version` lets the loader

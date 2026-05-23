@@ -6,6 +6,22 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 11:10 UTC — Stage 3, checkpoint 3a: the trade engine
+- New economy engine (`src/engine/economy/`) — `quoteBuy`, `quoteSell`
+  (the 0.3% fee math) and `holdingsValue`. Pure TypeScript, 7 unit
+  tests.
+- Store: added `holdings` (ticker → amount owned) and the `buyToken` /
+  `sellToken` actions — `buyToken` spends cash for tokens, `sellToken`
+  returns cash and clears a fully-sold position. Holdings are saved
+  and loaded; both actions are guarded against overspending.
+- Save format bumped to v3 (the save now includes holdings); older
+  saves reset to a fresh game on first launch.
+- No new dependencies.
+- Verification: pure-TS files type-check clean under strict mode; all
+  46 unit tests pass (10 clock + 20 market + 9 store + 7 trade).
+- Outcome: the money engine is live and tested. Next (checkpoint 3b):
+  the buy/sell sheet and portfolio UI that drive it.
+
 ## 2026-05-23 08:27 UTC — Exchange satire: token descriptions + Sponsored ad
 - Added a satirical `description` to every token in the catalogue —
   each parodies a real crypto archetype and quietly teaches healthy
