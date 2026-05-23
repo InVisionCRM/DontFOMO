@@ -2,9 +2,9 @@
  * tokens.ts — the tradeable token catalogue.
  * ------------------------------------------------------------------
  * The fictional, real-flavoured tokens listed on the Exchange, stored
- * as DATA (CLAUDE.md §5). Each carries its identity, its badge
- * gradient, the drift / volatility that drive its simulated price,
- * flavour stats, and a satirical description.
+ * as DATA (CLAUDE.md §5). Each carries its identity, its emoji logo,
+ * an accent gradient, the drift / volatility that drive its simulated
+ * price, flavour stats, and a satirical description.
  *
  * Pure data — no React, no React Native imports.
  */
@@ -18,8 +18,10 @@ export interface TokenDefinition {
   category: TokenCategory;
   /** Reference price the simulated history is seeded from. */
   basePrice: number;
-  /** Badge gradient — [from, to]. */
+  /** Accent gradient — [from, to]. Used for glows and edges, not the logo. */
   gradient: readonly [string, string];
+  /** The token's emoji logo. */
+  emoji: string;
   /** Per-tick price drift — the gentle trend (may be negative). */
   drift: number;
   /** Per-tick volatility — the random-walk magnitude. */
@@ -43,6 +45,7 @@ export const TOKENS: readonly TokenDefinition[] = [
     category: 'Stablecoin',
     basePrice: 1.0,
     gradient: ['#2775CA', '#1A5FA8'],
+    emoji: '💵',
     drift: 0,
     volatility: 0.0008,
     isStable: true,
@@ -58,6 +61,7 @@ export const TOKENS: readonly TokenDefinition[] = [
     category: 'Meme',
     basePrice: 0.00071,
     gradient: ['#FB923C', '#EA580C'],
+    emoji: '🐷',
     drift: 0.0012,
     volatility: 0.085,
     isStable: false,
@@ -73,6 +77,7 @@ export const TOKENS: readonly TokenDefinition[] = [
     category: 'Meme',
     basePrice: 0.00000142,
     gradient: ['#4ADE80', '#16A34A'],
+    emoji: '🐸',
     drift: 0.001,
     volatility: 0.09,
     isStable: false,
@@ -88,6 +93,7 @@ export const TOKENS: readonly TokenDefinition[] = [
     category: 'AI',
     basePrice: 1.84,
     gradient: ['#8B5CF6', '#6D28D9'],
+    emoji: '🧠',
     drift: 0.0006,
     volatility: 0.04,
     isStable: false,
@@ -103,6 +109,7 @@ export const TOKENS: readonly TokenDefinition[] = [
     category: 'L1',
     basePrice: 0.62,
     gradient: ['#06B6D4', '#0E7490'],
+    emoji: '⚡',
     drift: 0.0003,
     volatility: 0.022,
     isStable: false,
@@ -118,6 +125,7 @@ export const TOKENS: readonly TokenDefinition[] = [
     category: 'DeFi',
     basePrice: 0.094,
     gradient: ['#EC4899', '#BE185D'],
+    emoji: '🌾',
     drift: -0.0002,
     volatility: 0.045,
     isStable: false,
@@ -133,6 +141,7 @@ export const TOKENS: readonly TokenDefinition[] = [
     category: 'Meme',
     basePrice: 0.0231,
     gradient: ['#F59E0B', '#B45309'],
+    emoji: '💪',
     drift: -0.0003,
     volatility: 0.08,
     isStable: false,

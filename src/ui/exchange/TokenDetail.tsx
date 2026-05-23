@@ -20,9 +20,9 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { CandlestickChart } from './CandlestickChart';
+import { TokenBadge } from './TokenBadge';
 import { useGameStore } from '../../state/store';
 import { TOKEN_BY_ID } from '../../data/tokens';
 import { dayChangePercent, toCandles } from '../../engine/market';
@@ -140,14 +140,7 @@ export function TokenDetail({ tokenId, onBack, onTrade }: TokenDetailProps) {
             />
           </Svg>
         </Pressable>
-        <LinearGradient
-          colors={token.gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.badge}
-        >
-          <Text style={styles.badgeText}>{token.id.slice(0, 2)}</Text>
-        </LinearGradient>
+        <TokenBadge emoji={token.emoji} size={36} />
         <View>
           <Text style={styles.topName}>{token.name}</Text>
           <Text style={styles.topTicker}>{token.id}</Text>
@@ -239,18 +232,6 @@ const styles = StyleSheet.create({
     borderColor: color.border.hairline,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  badge: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: {
-    fontSize: fontSize.label,
-    fontWeight: fontWeight.bold,
-    color: '#FFFFFF',
   },
   topName: {
     fontSize: fontSize.heading,

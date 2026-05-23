@@ -1,11 +1,11 @@
 /**
  * HoldingRow.tsx — one row in the Exchange Portfolio list.
  * ------------------------------------------------------------------
- * Badge, name, amount owned, and the holding's current value and day
- * change. Presentational — tapping it opens the token (to sell).
+ * Emoji logo, name, amount owned, and the holding's current value and
+ * day change. Presentational — tapping it opens the token (to sell).
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { TokenBadge } from './TokenBadge';
 import { formatCurrency, formatSignedPercent, formatTokenAmount } from '../format';
 import { dayChangePercent, type TokenMarketState } from '../../engine/market';
 import type { TokenDefinition } from '../../data/tokens';
@@ -13,7 +13,6 @@ import {
   color,
   fontSize,
   fontWeight,
-  radius,
   spacing,
   tabularNums,
 } from '../../theme/theme';
@@ -39,14 +38,7 @@ export function HoldingRow({ token, state, amount, onPress }: HoldingRowProps) {
       accessibilityRole="button"
       accessibilityLabel={`${token.name} holding, worth ${formatCurrency(value)}`}
     >
-      <LinearGradient
-        colors={token.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.badge}
-      >
-        <Text style={styles.badgeText}>{token.id.slice(0, 2)}</Text>
-      </LinearGradient>
+      <TokenBadge emoji={token.emoji} size={40} />
 
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>
@@ -75,18 +67,6 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: color.border.hairline,
-  },
-  badge: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: {
-    fontSize: fontSize.label,
-    fontWeight: fontWeight.bold,
-    color: '#FFFFFF',
   },
   info: {
     flex: 1,

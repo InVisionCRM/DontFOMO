@@ -10,7 +10,7 @@
  * re-renders frequently as the market ticks.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { TokenBadge } from './TokenBadge';
 import { AD_FINE_PRINT, EXCHANGE_ADS } from '../../data/exchangeAds';
 import { TOKEN_BY_ID } from '../../data/tokens';
 import { color, fontSize, fontWeight, radius, spacing } from '../../theme/theme';
@@ -34,14 +34,7 @@ export function ExchangeAd({ onPress }: ExchangeAdProps) {
       accessibilityRole="button"
       accessibilityLabel={`Sponsored ad for ${token.name}`}
     >
-      <LinearGradient
-        colors={token.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.badge}
-      >
-        <Text style={styles.badgeText}>{token.id.slice(0, 2)}</Text>
-      </LinearGradient>
+      <TokenBadge emoji={token.emoji} size={40} />
 
       <View style={styles.body}>
         <Text style={styles.tag}>SPONSORED</Text>
@@ -64,18 +57,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.md,
-  },
-  badge: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: {
-    fontSize: fontSize.label,
-    fontWeight: fontWeight.bold,
-    color: '#FFFFFF',
   },
   body: {
     flex: 1,

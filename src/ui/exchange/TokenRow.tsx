@@ -1,12 +1,12 @@
 /**
  * TokenRow.tsx — one row in the Exchange token list.
  * ------------------------------------------------------------------
- * Badge, name, ticker / category, a sparkline, and the live price and
- * day change. Presentational — reports taps via onPress.
+ * Emoji logo, name, ticker / category, a sparkline, and the live
+ * price and day change. Presentational — reports taps via onPress.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Sparkline } from '../Sparkline';
+import { TokenBadge } from './TokenBadge';
 import { formatSignedPercent, formatTokenPrice } from '../format';
 import { dayChangePercent, type TokenMarketState } from '../../engine/market';
 import type { TokenDefinition } from '../../data/tokens';
@@ -14,7 +14,6 @@ import {
   color,
   fontSize,
   fontWeight,
-  radius,
   spacing,
   tabularNums,
 } from '../../theme/theme';
@@ -37,14 +36,7 @@ export function TokenRow({ token, state, onPress }: TokenRowProps) {
       accessibilityRole="button"
       accessibilityLabel={`${token.name}, ${formatTokenPrice(state.price)}`}
     >
-      <LinearGradient
-        colors={token.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.badge}
-      >
-        <Text style={styles.badgeText}>{token.id.slice(0, 2)}</Text>
-      </LinearGradient>
+      <TokenBadge emoji={token.emoji} size={40} />
 
       <View style={styles.info}>
         <Text style={styles.name} numberOfLines={1}>
@@ -82,18 +74,6 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: color.border.hairline,
-  },
-  badge: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: {
-    fontSize: fontSize.label,
-    fontWeight: fontWeight.bold,
-    color: '#FFFFFF',
   },
   info: {
     flex: 1,

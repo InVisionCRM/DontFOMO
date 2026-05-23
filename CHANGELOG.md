@@ -6,6 +6,26 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 12:44 UTC — Token logos switched to emojis
+- Token logos are now bare emojis (no circle, no background), matching
+  the original index.html prototype's identity and the satirical tone.
+  💵 Dollar X · 🐷 MoonPig · 🐸 Pepe 2.0 · 🧠 NeuraNet · ⚡ VoltChain ·
+  🌾 YieldX · 💪 GigaChad.
+- Added an `emoji` field to the token catalogue; each token's
+  `gradient` is kept as an accent colour (the Sponsored ad edge, etc.),
+  no longer a logo background.
+- New reusable `TokenBadge` component (renders the emoji at a given
+  size); `TokenRow`, `HoldingRow`, `TokenDetail` and `ExchangeAd` now
+  use it. The gradient-circle-with-initials badge is retired.
+- Note: emojis render in each platform's own art style (Apple vs
+  Google) — acceptable for a satirical game; Twemoji is the option if
+  pixel-identical logos are ever needed.
+- No new dependencies.
+- Verification: token data type-checks clean under strict mode; the 46
+  unit tests are unaffected (no engine/store change).
+- Outcome: the Exchange's tokens have real character. Checkpoint 4's
+  launch flow will use an emoji picker.
+
 ## 2026-05-23 11:14 UTC — Stage 3, checkpoint 3b: the trading UI
 - Built the buy / sell trade sheet (`TradeSheet`) — slides up from the
   Sell / Buy bar on a token's detail: quick-amount buttons, a live
