@@ -6,6 +6,46 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-23 20:07 UTC — Stage 4, checkpoint 3: the CashSwipe engine
+- New `src/engine/economy/cashSwipe.ts` — pure TypeScript, no React
+  imports. The engine half of the CashSwipe minigame: the income
+  floor and the player's guaranteed comeback path (Design Bible §3).
+- **Cap.** **1,000 swipes per day**, each paying **$1**. Cap resets
+  at the player's **local midnight** (KG, 2026-05-23). Encoded as a
+  `localDayKey` (`YYYY-MM-DD`, anchored to the device's local
+  timezone): when today's key differs from the state's, the count
+  refreshes to zero.
+- **Pure API.** `createCashSwipe(now)`, `refreshDay(state, now)`,
+  `swipesRemaining(state, now)`, `isCapReached(state, now)`,
+  `applySwipe(state, now)` → `{ state, earned }`,
+  `earnedToday(state, now)`, plus `msUntilLocalMidnight(now)` for
+  the UI's "comes back at midnight" countdown.
+- **Offline catch-up is implicit.** Any call after a midnight has
+  passed refreshes the day automatically — there's no separate
+  catch-up function to remember to call. A player who was away for
+  several days lands on a fresh cap on first interaction.
+- **Reset behaviour.** `applySwipe` rolls the day *first*, then
+  spends a swipe — so a swipe attempted seconds after midnight on a
+  fully-capped state pays $1 and starts the new day with one used.
+- New `__tests__/cashSwipe.test.ts` — 22 tests covering: dayKey
+  formatting + stability + midnight rollover + zero-padding;
+  `msUntilLocalMidnight` boundaries; `createCashSwipe`,
+  `refreshDay` (no-op + reset + purity), `swipesRemaining` /
+  `isCapReached` at all states (fresh, mid, capped, day-rolled),
+  and `applySwipe` (success, refusal at cap, midnight-roll-then-
+  spend, full-day exhaustion exactness).
+- Engine is store-free — actions return the new state and $0/$1
+  earned, the store action (added in cp 4.4) credits cash and
+  applies the state change. Mirrors the bank engine's pattern.
+- Wired into the economy barrel; no new dependencies.
+- Verification: `npx tsc --noEmit --project tsconfig.json` exits 0;
+  `npm test` passes 7 suites / **118 tests** (10 clock + 21 market
+  + 12 store + 7 trade + 16 player-token + 22 bank + 22 swipe + 8
+  bank-action store tests).
+- Outcome: the CashSwipe rules are engine-ready. Next (4.4): the
+  CashSwipe screen — the swipe-up bill physics, the HUD, the
+  out-of-swipes empty state, and the store wiring.
+
 ## 2026-05-23 20:03 UTC — AppView open animation: icon-colour launch overlay
 - The iOS-style zoom-open animation was technically running for every
   app, but on screens whose first impression is dark (e.g. Bank's
