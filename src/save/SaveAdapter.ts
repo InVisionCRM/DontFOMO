@@ -19,9 +19,9 @@
  * v2 added the market; v3 added holdings; v4 added player tokens;
  * v5 added the Bank (bills + loans); v6 added CashSwipe; v7 added
  * peakNetWorth + lastUnemploymentCheckAt; v8 added the Mail inbox;
- * v9 added the Tunnel chat list.
+ * v9 added the Tunnel chat list; v10 added the Messages threads.
  */
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 /**
  * The envelope every save is wrapped in. `version` lets the loader

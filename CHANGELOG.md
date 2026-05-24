@@ -6,6 +6,78 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-24 00:02 UTC — Stage 5, checkpoint 3: the Messages app
+- Third comm app — Bible §5's "real friends" inbox. Held separate
+  from Tunnel because the scam vector is different: Tunnel hosts
+  fake channels / fake support DMs; Messages hosts the **Hijacked
+  Friend** (Bible §11 / Scam Library #9) — a trusted contact whose
+  account has been compromised, sliding from chit-chat into a
+  $5,000 airdrop link.
+- **Engine** (`src/engine/messages/messages.ts`): pure-TS data
+  model. `Conversation` carries id + contactName + avatarGradient
+  + optional `isSuspicious` (compromised-account flag) +
+  `messages: MessageItem[]` + `unreadCount`. `MessageItem` is
+  either a text bubble OR a link-preview card (`link?:
+  MessageLink`) — never both. Pure helpers:
+  `totalUnreadCount`, `findConversation`, `lastMessage`,
+  `previewText` (collapses a link bubble to its title for the
+  inbox row), `markConversationRead` (idempotent, preserves
+  reference when already read), `addConversationMessage` (incoming
+  bumps unread; outgoing doesn't), `addConversation`,
+  `contactInitials`.
+- **Data** (`src/data/messages.ts`): five seed conversations —
+  Sarah (chit-chat), Marcus (VOLT trade banter), **Jordan**
+  (`isSuspicious: true`, the Hijacked Friend primer — starts
+  normal, escalates to "BRO, claim this $5,000 airdrop, just
+  connect your wallet" with a `free-airdrop-claim.live` link
+  card), Dad ("call your mother"), Mom ("did you eat today").
+- **Store integration:**
+  - New `messages: Conversation[]` field on `GameState` and
+    `SavedGame`.
+  - New actions: `openConversation(id)` (zeros unread),
+    `pushConversationMessage(id, msg)`.
+  - `freshGame` seeds via `createStartingMessages(now)`;
+    `loadSaved` and `serializeGame` carry it through with the
+    same defensive defaults the other comm apps use.
+  - **`SAVE_VERSION` bumped 9 → 10.** v9 saves wipe.
+- **UI** (`src/ui/messages/`):
+  - `MessagesScreen` — iMessage-style black screen with the big
+    "Messages" title, decorative search bar, the `ConversationRow`
+    list, and the slide-in detail. Uses the stable empty-array
+    fallback pattern.
+  - `ConversationRow` — reserved unread-dot column (so rows
+    align), gradient avatar, contact name, relative time, single-
+    line preview (`previewText` collapses link bubbles).
+  - `MessagesDetail` — slide-in from the right. Centred avatar +
+    contact name at the top, left-aligned blue back chevron.
+    Inline date stamps ("Today 9:41 AM" / "Yesterday 11:02 AM" /
+    "Tuesday 7:14 PM" / "Mar 14, 9:30 AM") emitted whenever the
+    calendar day changes between two adjacent messages. Auto-
+    scrolls to the bottom on open. Decorative iMessage composer
+    at the foot.
+  - `MessageBubble` — either an iMessage-blue outgoing bubble, a
+    dark-gray incoming bubble, or a left-aligned link-preview
+    card with a coloured thumbnail + URL + headline.
+- **Badge pipeline extended** — `useAppBadges` now reports the
+  total Messages unread alongside Mail and Tunnel; the Messages
+  icon on the home grid shows the red bubble.
+- **Tests:**
+  - New `__tests__/messages.test.ts` — 16 engine tests
+    (`totalUnreadCount`, `findConversation`, `lastMessage`,
+    `previewText` text + link + empty, `markConversationRead`
+    idempotency, `addConversationMessage` incoming/outgoing,
+    `contactInitials` edges).
+  - 4 new store tests for `openConversation` /
+    `pushConversationMessage` + seed presence + save/load
+    round-trip.
+  - One existing test updated for the new `SavedGame` field.
+  - Suite is now 11/11 green at **212 tests** (was 192).
+- No new runtime dependencies.
+- Verification: `npx tsc --noEmit` exits 0; `npm test` 212/212.
+- Outcome: Stage 5 cp3 done — three of five comm apps live.
+  Next (5.4): Clout (followers + feed + daily Post + the alpha
+  source for the yield-farm link).
+
 ## 2026-05-23 23:52 UTC — Stage 5, checkpoint 2: the Tunnel chat app
 - Second of Stage 5's comm apps. Telegram-style chat list inside the
   in-game phone — channels + DMs, slide-in detail with bubbles, the

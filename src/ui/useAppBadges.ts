@@ -10,7 +10,14 @@
  */
 import { useGameStore } from '../state/store';
 import { unreadCount, type MailMessage } from '../engine/mail';
-import { totalUnreadCount, type TunnelChat } from '../engine/tunnel';
+import {
+  totalUnreadCount as totalUnreadTunnel,
+  type TunnelChat,
+} from '../engine/tunnel';
+import {
+  totalUnreadCount as totalUnreadMessages,
+  type Conversation,
+} from '../engine/messages';
 import type { AppId } from '../data/apps';
 
 /**
@@ -21,6 +28,7 @@ import type { AppId } from '../data/apps';
  */
 const EMPTY_MAIL: readonly MailMessage[] = [];
 const EMPTY_TUNNEL: readonly TunnelChat[] = [];
+const EMPTY_MESSAGES: readonly Conversation[] = [];
 
 /**
  * Returns a map of app id → badge count. Apps without a badge are
@@ -31,8 +39,10 @@ export function useAppBadges(): Partial<Record<AppId, number>> {
   // so the selector's return stays a stable reference.
   const mail = useGameStore((s) => s.mail) ?? EMPTY_MAIL;
   const tunnel = useGameStore((s) => s.tunnel) ?? EMPTY_TUNNEL;
+  const messages = useGameStore((s) => s.messages) ?? EMPTY_MESSAGES;
   return {
     mail: unreadCount(mail),
-    tunnel: totalUnreadCount(tunnel),
+    tunnel: totalUnreadTunnel(tunnel),
+    messages: totalUnreadMessages(messages),
   };
 }

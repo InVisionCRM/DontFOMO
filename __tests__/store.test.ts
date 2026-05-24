@@ -123,6 +123,7 @@ describe('game store', () => {
       lastUnemploymentCheckAt: DAY_MS * 3, // future so loadSaved doesn't auto-credit
       mail: [],
       tunnel: [],
+      messages: [],
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -154,6 +155,7 @@ describe('game store', () => {
       'lastUnemploymentCheckAt',
       'mail',
       'market',
+      'messages',
       'peakNetWorth',
       'playerTokens',
       'tunnel',
@@ -423,6 +425,65 @@ describe('tunnel actions', () => {
     useGameStore.getState().loadSaved(saved, 2_000);
     expect(
       useGameStore.getState().tunnel.find((c) => c.id === firstId)?.unreadCount,
+    ).toBe(0);
+  });
+});
+
+describe('messages actions', () => {
+  beforeEach(() => {
+    useGameStore.getState().newGame(1_000);
+  });
+
+  it('newGame seeds the conversation list', () => {
+    const convs = useGameStore.getState().messages;
+    expect(convs.length).toBeGreaterThan(0);
+    expect(convs.some((c) => c.unreadCount > 0)).toBe(true);
+  });
+
+  it('openConversation zeros the matching unread count', () => {
+    const firstUnread = useGameStore
+      .getState()
+      .messages.find((c) => c.unreadCount > 0)!;
+    useGameStore.getState().openConversation(firstUnread.id);
+    expect(
+      useGameStore
+        .getState()
+        .messages.find((c) => c.id === firstUnread.id)?.unreadCount,
+    ).toBe(0);
+  });
+
+  it('pushConversationMessage appends and bumps unread for incoming', () => {
+    const targetId = useGameStore.getState().messages[0].id;
+    const beforeLen = useGameStore
+      .getState()
+      .messages.find((c) => c.id === targetId)!.messages.length;
+    const beforeUnread = useGameStore
+      .getState()
+      .messages.find((c) => c.id === targetId)!.unreadCount;
+
+    useGameStore.getState().pushConversationMessage(targetId, {
+      id: 'new-1',
+      text: 'hey',
+      sentAt: 2_000,
+    });
+
+    const after = useGameStore
+      .getState()
+      .messages.find((c) => c.id === targetId)!;
+    expect(after.messages).toHaveLength(beforeLen + 1);
+    expect(after.unreadCount).toBe(beforeUnread + 1);
+  });
+
+  it('round-trips through serialize / loadSaved', () => {
+    const firstId = useGameStore.getState().messages[0].id;
+    useGameStore.getState().openConversation(firstId);
+    const saved = serializeGame(useGameStore.getState());
+    useGameStore.getState().newGame(2_000);
+    useGameStore.getState().loadSaved(saved, 2_000);
+    expect(
+      useGameStore
+        .getState()
+        .messages.find((c) => c.id === firstId)?.unreadCount,
     ).toBe(0);
   });
 });

@@ -65,9 +65,16 @@ import {
   type TunnelChat,
   type TunnelMessage,
 } from '../engine/tunnel';
+import {
+  addConversationMessage,
+  markConversationRead,
+  type Conversation,
+  type MessageItem,
+} from '../engine/messages';
 import { TOKEN_BY_ID } from '../data/tokens';
 import { createStartingMail } from '../data/mail';
 import { createStartingTunnel } from '../data/tunnel';
+import { createStartingMessages } from '../data/messages';
 import type { AppId } from '../data/apps';
 
 /**
@@ -151,6 +158,8 @@ export interface SavedGame {
   mail: MailMessage[];
   /** Tunnel chats — newest activity first. */
   tunnel: TunnelChat[];
+  /** Messages conversations — real friends, newest first. */
+  messages: Conversation[];
 }
 
 export interface GameState {
@@ -180,6 +189,8 @@ export interface GameState {
   mail: MailMessage[];
   /** Tunnel chats — newest activity first. */
   tunnel: TunnelChat[];
+  /** Messages conversations — real friends, newest first. */
+  messages: Conversation[];
   /** The top-edge banner currently being shown; null = none. */
   banner: BannerMessage | null;
   /** Which in-game app is open; null = the home screen. */
@@ -226,6 +237,10 @@ export interface GameState {
   openTunnelChat: (chatId: string) => void;
   /** Push a new message into a Tunnel chat. */
   pushTunnelMessage: (chatId: string, msg: TunnelMessage) => void;
+  /** Open a Messages conversation — zeroes its unread count. */
+  openConversation: (convId: string) => void;
+  /** Push a new item into a Messages conversation. */
+  pushConversationMessage: (convId: string, msg: MessageItem) => void;
   /** Show a top-edge banner notification. */
   postBanner: (title: string, body: string) => void;
   /** Clear the current banner if its id matches. */
@@ -252,6 +267,7 @@ function freshGame(now: number): Pick<
   | 'lastUnemploymentCheckAt'
   | 'mail'
   | 'tunnel'
+  | 'messages'
   | 'banner'
   | 'openAppId'
 > {
@@ -270,6 +286,7 @@ function freshGame(now: number): Pick<
     lastUnemploymentCheckAt: now,
     mail: createStartingMail(now),
     tunnel: createStartingTunnel(now),
+    messages: createStartingMessages(now),
     banner: null,
     openAppId: null,
   };
@@ -384,6 +401,7 @@ export const useGameStore = create<GameState>()((set) => ({
       const seededLastCheckAt = saved.lastUnemploymentCheckAt ?? now;
       const seededMail = saved.mail ?? createStartingMail(now);
       const seededTunnel = saved.tunnel ?? createStartingTunnel(now);
+      const seededMessages = saved.messages ?? createStartingMessages(now);
 
       const resumed = resumeClock(saved.clock, now);
       const loan = bank.loan
@@ -413,6 +431,7 @@ export const useGameStore = create<GameState>()((set) => ({
         lastUnemploymentCheckAt: due ? now : seededLastCheckAt,
         mail: seededMail,
         tunnel: seededTunnel,
+        messages: seededMessages,
         banner: due
           ? bannerOf(
               'Unemployment',
@@ -566,6 +585,12 @@ export const useGameStore = create<GameState>()((set) => ({
     set((s) => ({ tunnel: markChatRead(s.tunnel ?? [], chatId) })),
   pushTunnelMessage: (chatId, msg) =>
     set((s) => ({ tunnel: addTunnelMessage(s.tunnel ?? [], chatId, msg) })),
+  openConversation: (convId) =>
+    set((s) => ({ messages: markConversationRead(s.messages ?? [], convId) })),
+  pushConversationMessage: (convId, msg) =>
+    set((s) => ({
+      messages: addConversationMessage(s.messages ?? [], convId, msg),
+    })),
   postBanner: (title, body) => set({ banner: bannerOf(title, body) }),
   dismissBanner: (id) =>
     set((s) => (s.banner?.id === id ? { banner: null } : {})),
@@ -595,5 +620,6 @@ export function serializeGame(state: GameState): SavedGame {
     lastUnemploymentCheckAt: state.lastUnemploymentCheckAt ?? state.clock.now,
     mail: state.mail ?? [],
     tunnel: state.tunnel ?? [],
+    messages: state.messages ?? [],
   };
 }
