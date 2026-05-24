@@ -6,6 +6,94 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-24 03:30 UTC — Onboarding flow + the Clipboard Scam primer
+- Bible §13's first-launch flow + the flagship Slow Burn's arming
+  mechanism (Scam Library v1.1 Event #5). Players who tap "Copy to
+  clipboard" during wallet setup leave the 12-word recovery phrase
+  in the Clipboard app, defusable by deleting it. The detonation
+  pathway will be wired by the Scam Director in Stage 6.
+- **Engine — `src/engine/clipboard/`:** new `ClipboardEntry` model
+  (`id`, `content`, `copiedAt`, `isSensitive`, optional `source`).
+  Pure helpers: `addEntry` (newest first, capped at
+  `CLIPBOARD_HISTORY_CAP = 20`), `deleteEntry`, `findSensitive`,
+  `readLatest`.
+- **Engine — `src/engine/onboarding/`:** cosmetic seed-phrase
+  generator. `pickPhrase(seed, count)` runs Fisher-Yates over a
+  96-word in-game wordlist via the existing `createRandom`
+  (mulberry32). NOT BIP-39 — DON'T FOMO is a simulation, not a
+  custodial wallet (CLAUDE.md §7). Companions: `phraseToText`,
+  `looksLikePhrase` (the defensive shape-detector for the scan tick).
+- **Engine — `src/engine/scam-director/clipboardScan.ts`:** the
+  foundational primitive for clipboard-class Slow Burns. Pure
+  scanner — returns the first entry flagged `isSensitive`, falling
+  back to the shape-detector. Full Director (Stage 6) wraps this
+  with cooldown + detonation delay + drain + teaching.
+- **Store integration (`src/state/store.ts`):**
+  - Two new fields on `GameState` / `SavedGame`: `clipboard:
+    ClipboardEntry[]` and `onboarding: { hasOnboarded,
+    pendingSeedPhrase }`. Seeded by `freshGame`; `loadSaved` +
+    `serializeGame` carry them through with defensive defaults.
+  - Pre-v13 saves default to `hasOnboarded: true` so existing
+    players are never punted into the onboarding flow.
+  - Five new actions: `setProfile(name, bio)` slugifies the handle
+    and trims the bio; `generateWallet(seed?)` parks a fresh
+    12-word phrase on the onboarding slice; `copySeedToClipboard
+    (now)` arms the trap as a sensitive entry tagged "Recovery
+    phrase"; `deleteClipboardEntry(id)` is the defuse path;
+    `finishOnboarding()` flips the gate and clears the pending
+    phrase.
+  - **`SAVE_VERSION` bumped 12 → 13.** v12 saves wipe per
+    precedent (Stage 7 brings the proper migration framework).
+- **Top-level routing (`App.tsx`):** state-driven shell switch
+  reads `onboarding.hasOnboarded` and mounts `<OnboardingShell />`
+  or `<PhoneShell />`. No Expo Router yet — kept lighter and
+  consistent with the in-game state-driven app switching. Can
+  introduce Expo Router later when a second top-level flow appears.
+- **UI — `src/ui/onboarding/`:**
+  - `OnboardingShell` owns the linear step index and renders the
+    right step against the existing `Wallpaper` + `PhoneStatusBar`.
+  - Six steps to the mockup (`DontFOMO_Onboarding_Flow_Mockup.html`):
+    Welcome → Profile → Wallet intro → Seed phrase → Confirm →
+    Done. Welcome's brand line says "DON'T FOMO" (mockup said
+    "CryptoLife" — pre-rename).
+  - Profile auto-derives the avatar initial from the typed name
+    (orange gradient per the mockup). Continue is disabled until
+    a name is typed.
+  - Seed phrase step shows the 12 words from
+    `onboarding.pendingSeedPhrase`, a warning callout, the "Copy
+    to clipboard" ghost button (the trap — dispatches
+    `copySeedToClipboard`), and the primary Continue button. Copy
+    does NOT advance — the player still has to tap Continue.
+  - Confirm step's "Paste from clipboard" reads the latest
+    clipboard entry and fills the 12 grid slots; a safe-path
+    "I wrote it down — mark as saved" link fills from the
+    pending phrase so a player who avoided Copy isn't stuck.
+  - Done step dispatches `finishOnboarding` → App.tsx flips to
+    PhoneShell.
+- **UI — `src/ui/clipboard/ClipboardScreen.tsx`:** real screen,
+  registered in `appScreens.ts` (replaces the placeholder). Header
+  + list of entries; each row shows source label / content /
+  relative timestamp / delete button. Sensitive entries get the
+  danger border, filled delete button, and the on-screen teaching
+  callout ("Anyone who reads it controls your entire wallet —
+  delete it now"). Built to `DontFOMO_Clipboard_App_Mockup.html`.
+- **UI — `useAppBadges`:** Clipboard now reports a "1" badge
+  whenever a sensitive entry sits in history. Quiet, pull-based
+  nudge per Bible §5 — the player learns that a Clipboard badge
+  means something dangerous to address.
+- **Tests:** four new suites — `clipboard.test.ts` (12),
+  `seedPhrase.test.ts` (14), `clipboardScan.test.ts` (4),
+  `onboarding.test.ts` (17). Existing `store.test.ts` updated for
+  the new SavedGame shape. **All 17 suites / 302 tests passing;
+  `tsc --noEmit` clean under strict mode.**
+- **Outcome:** Phase 2 closed end-to-end. The Clipboard Scam is
+  armable today (player taps Copy in onboarding → sensitive entry
+  sits in Clipboard with the red badge), defusable today (delete
+  in Clipboard → badge clears, scan returns clean), and primed for
+  Stage 6 to add the detonation half (drain + teaching). Device
+  verification on Expo Go is the open follow-up; the existing
+  comm-app tap-through still holds.
+
 ## 2026-05-24 00:26 UTC — Stage 5, checkpoint 5: the Market app + Stage 5 complete
 - Last comm app. Cars, watches, houses — assets bought with USD
   only (Bible §4), each giving a **follower boost while owned**

@@ -18,6 +18,7 @@ import {
   totalUnreadCount as totalUnreadMessages,
   type Conversation,
 } from '../engine/messages';
+import { findSensitive, type ClipboardEntry } from '../engine/clipboard';
 import type { AppId } from '../data/apps';
 
 /**
@@ -29,10 +30,16 @@ import type { AppId } from '../data/apps';
 const EMPTY_MAIL: readonly MailMessage[] = [];
 const EMPTY_TUNNEL: readonly TunnelChat[] = [];
 const EMPTY_MESSAGES: readonly Conversation[] = [];
+const EMPTY_CLIPBOARD: readonly ClipboardEntry[] = [];
 
 /**
  * Returns a map of app id → badge count. Apps without a badge are
  * omitted (the AppIcon ignores undefined badges).
+ *
+ * Clipboard surfaces a "1" badge whenever a sensitive entry is in
+ * history — that's the visible nudge that teaches the player to
+ * check the Clipboard, the defuse path for the Clipboard Scam
+ * (Scam Library v1.1 Event #5).
  */
 export function useAppBadges(): Partial<Record<AppId, number>> {
   // Read raw; the `?? ...` fallback is applied OUTSIDE the selector
@@ -40,9 +47,11 @@ export function useAppBadges(): Partial<Record<AppId, number>> {
   const mail = useGameStore((s) => s.mail) ?? EMPTY_MAIL;
   const tunnel = useGameStore((s) => s.tunnel) ?? EMPTY_TUNNEL;
   const messages = useGameStore((s) => s.messages) ?? EMPTY_MESSAGES;
+  const clipboard = useGameStore((s) => s.clipboard) ?? EMPTY_CLIPBOARD;
   return {
     mail: unreadCount(mail),
     tunnel: totalUnreadTunnel(tunnel),
     messages: totalUnreadMessages(messages),
+    clipboard: findSensitive(clipboard) === null ? 0 : 1,
   };
 }
