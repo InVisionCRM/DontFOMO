@@ -71,10 +71,18 @@ import {
   type Conversation,
   type MessageItem,
 } from '../engine/messages';
+import {
+  applyDailyPost as applyDailyPostEngine,
+  createDailyPostState,
+  pushTweet as pushTweetEngine,
+  type DailyPostState,
+  type Tweet,
+} from '../engine/clout';
 import { TOKEN_BY_ID } from '../data/tokens';
 import { createStartingMail } from '../data/mail';
 import { createStartingTunnel } from '../data/tunnel';
 import { createStartingMessages } from '../data/messages';
+import { createStartingClout, DEFAULT_BIO } from '../data/clout';
 import type { AppId } from '../data/apps';
 
 /**
@@ -160,6 +168,14 @@ export interface SavedGame {
   tunnel: TunnelChat[];
   /** Messages conversations — real friends, newest first. */
   messages: Conversation[];
+  /** The player's Clout bio — shown on the profile header. */
+  bio: string;
+  /** The Clout feed — capped to the first N for the home view. */
+  cloutFeed: Tweet[];
+  /** Daily Post streak state. */
+  dailyPost: DailyPostState;
+  /** Diamond balance — the skill-tree premium currency (Bible §12). */
+  diamonds: number;
 }
 
 export interface GameState {
@@ -191,6 +207,14 @@ export interface GameState {
   tunnel: TunnelChat[];
   /** Messages conversations — real friends, newest first. */
   messages: Conversation[];
+  /** The player's Clout bio — shown on the profile header. */
+  bio: string;
+  /** The Clout feed — newest first. */
+  cloutFeed: Tweet[];
+  /** Daily Post streak state. */
+  dailyPost: DailyPostState;
+  /** Diamond balance — Bible §12's premium currency. */
+  diamonds: number;
   /** The top-edge banner currently being shown; null = none. */
   banner: BannerMessage | null;
   /** Which in-game app is open; null = the home screen. */
@@ -241,6 +265,14 @@ export interface GameState {
   openConversation: (convId: string) => void;
   /** Push a new item into a Messages conversation. */
   pushConversationMessage: (convId: string, msg: MessageItem) => void;
+  /**
+   * Fire the daily Clout post. Awards followers + (possibly) a
+   * Diamond per Bible §6's streak rules. No-op if the player has
+   * already posted today.
+   */
+  postDailyClout: (now: number) => void;
+  /** Push a new tweet onto the Clout feed (newest first). */
+  pushTweet: (tweet: Tweet) => void;
   /** Show a top-edge banner notification. */
   postBanner: (title: string, body: string) => void;
   /** Clear the current banner if its id matches. */
@@ -268,6 +300,10 @@ function freshGame(now: number): Pick<
   | 'mail'
   | 'tunnel'
   | 'messages'
+  | 'bio'
+  | 'cloutFeed'
+  | 'dailyPost'
+  | 'diamonds'
   | 'banner'
   | 'openAppId'
 > {
@@ -287,6 +323,10 @@ function freshGame(now: number): Pick<
     mail: createStartingMail(now),
     tunnel: createStartingTunnel(now),
     messages: createStartingMessages(now),
+    bio: DEFAULT_BIO,
+    cloutFeed: createStartingClout(now),
+    dailyPost: createDailyPostState(),
+    diamonds: 0,
     banner: null,
     openAppId: null,
   };
@@ -402,6 +442,10 @@ export const useGameStore = create<GameState>()((set) => ({
       const seededMail = saved.mail ?? createStartingMail(now);
       const seededTunnel = saved.tunnel ?? createStartingTunnel(now);
       const seededMessages = saved.messages ?? createStartingMessages(now);
+      const seededBio = saved.bio ?? DEFAULT_BIO;
+      const seededCloutFeed = saved.cloutFeed ?? createStartingClout(now);
+      const seededDailyPost = saved.dailyPost ?? createDailyPostState();
+      const seededDiamonds = saved.diamonds ?? 0;
 
       const resumed = resumeClock(saved.clock, now);
       const loan = bank.loan
@@ -432,6 +476,10 @@ export const useGameStore = create<GameState>()((set) => ({
         mail: seededMail,
         tunnel: seededTunnel,
         messages: seededMessages,
+        bio: seededBio,
+        cloutFeed: seededCloutFeed,
+        dailyPost: seededDailyPost,
+        diamonds: seededDiamonds,
         banner: due
           ? bannerOf(
               'Unemployment',
@@ -591,6 +639,39 @@ export const useGameStore = create<GameState>()((set) => ({
     set((s) => ({
       messages: addConversationMessage(s.messages ?? [], convId, msg),
     })),
+  postDailyClout: (now) =>
+    set((s) => {
+      const dailyPost = s.dailyPost ?? createDailyPostState();
+      const result = applyDailyPostEngine(dailyPost, now);
+      if (
+        result.followersEarned === 0 &&
+        result.diamondsEarned === 0 &&
+        result.state === dailyPost
+      ) {
+        return {}; // already posted today — no-op
+      }
+      const followers = Math.max(
+        0,
+        (s.followers ?? 0) + result.followersEarned,
+      );
+      const diamonds = (s.diamonds ?? 0) + result.diamondsEarned;
+      // Build the confirmation banner copy.
+      const sign = result.followersEarned >= 0 ? '+' : '';
+      const followerLine = `${sign}${result.followersEarned} followers`;
+      const body = result.streakBroken
+        ? `Streak broken — back to day 1. ${followerLine}.`
+        : result.diamondsEarned > 0
+          ? `Day ${result.state.currentStreakDays}. ${followerLine}, +${result.diamondsEarned} diamond.`
+          : `Day ${result.state.currentStreakDays}. ${followerLine}.`;
+      return {
+        dailyPost: result.state,
+        followers,
+        diamonds,
+        banner: bannerOf('Clout', body),
+      };
+    }),
+  pushTweet: (tweet) =>
+    set((s) => ({ cloutFeed: pushTweetEngine(s.cloutFeed ?? [], tweet) })),
   postBanner: (title, body) => set({ banner: bannerOf(title, body) }),
   dismissBanner: (id) =>
     set((s) => (s.banner?.id === id ? { banner: null } : {})),
@@ -621,5 +702,9 @@ export function serializeGame(state: GameState): SavedGame {
     mail: state.mail ?? [],
     tunnel: state.tunnel ?? [],
     messages: state.messages ?? [],
+    bio: state.bio ?? DEFAULT_BIO,
+    cloutFeed: state.cloutFeed ?? [],
+    dailyPost: state.dailyPost ?? createDailyPostState(),
+    diamonds: state.diamonds ?? 0,
   };
 }

@@ -6,6 +6,87 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-24 00:12 UTC — Stage 5, checkpoint 4: the Clout app + daily Post + Diamonds
+- Heaviest comm app — public identity (Bible §6) plus the feed
+  where alpha + scam tweets arrive (Bible §8) plus the **daily
+  Post** consistency hook with streak rewards and Diamond drops
+  (Bible §6 + §12). Single-screen v1 (profile strip on top, feed
+  below, floating Post button) — bottom-tab UI, search panel and
+  notifications panel are deferred polish.
+- **Engine** (`src/engine/clout/clout.ts`): pure-TS.
+  - `Tweet` / `TweetAuthor` / `TweetLinkCard` / `TweetStats`
+    types. `isSuspicious` flag drives the danger tint for typo-
+    squat / fake-founder tweets.
+  - `DailyPostState` (`lastPostAt`, `currentStreakDays`,
+    `graceDays`).
+  - Rules: ramp +1..+7 over days 1-7, flat +7 from day 8; every
+    7-day milestone bumps **+1 Diamond** and banks **+1 grace
+    day** (cap 3); a missed day spends grace automatically; if
+    grace runs out the streak breaks, resets to day 1, and stings
+    **-3 followers** once.
+  - Pure helpers: `dayKey`, `daysBetween`, `canPostToday`,
+    `streakReward`, `applyDailyPost`, `pushTweet`, `clampFeed`.
+- **Data** (`src/data/clout.ts`): five seed tweets — Ape House
+  alpha tip with a `stablefarm.xyz` link card, a verified Crypto
+  Desk satire post, a **typo-squat phish** from
+  `@DAVE_protoco1` (note the digit `1` — Bible §11's "every
+  opportunity has a fake twin" primer), sarah's degen humour,
+  chart fairy's $PEPE2 take. Plus `DEFAULT_BIO`.
+- **Store integration:**
+  - New fields on `GameState` and `SavedGame`: `bio: string`,
+    `cloutFeed: Tweet[]`, `dailyPost: DailyPostState`,
+    `diamonds: number`.
+  - New actions: `postDailyClout(now)` (runs the engine, credits
+    followers + diamonds, posts a "Day N. +N followers." banner —
+    or the streak-broken variant), `pushTweet(tweet)` (for the
+    Scam Director / future events).
+  - `freshGame` seeds the feed + zero diamonds + an empty
+    DailyPost state. `loadSaved` normalises each field with
+    defensive defaults; `serializeGame` carries them through.
+  - **`SAVE_VERSION` bumped 10 → 11.** v10 saves wipe.
+- **UI** (`src/ui/clout/`):
+  - `CloutScreen` — single scrollable view. ProfileStrip on top,
+    feed (capped to 5 per Bible §6) below, floating PostFAB. Uses
+    the stable empty-array fallback pattern.
+  - `CloutProfileStrip` — purple/pink gradient banner, avatar
+    overlap, display name + handle + bio + Following/Followers
+    counts, streak card (orange flame, "N-day post streak" /
+    "Post today to keep it alive" or "Already posted today ✓").
+  - `TweetCard` — gradient avatar, name + verified-blue badge,
+    handle + relative time, body text, optional link-preview
+    card (gradient thumbnail + domain + headline), action-stat
+    row (reply / repost / heart / views, formatted as 1.2K /
+    44K / 1.2M). Suspicious tweets get a subtle red tint on the
+    row.
+  - `PostFAB` — bottom-right blue circle. Streak-badge in the
+    top-right shows a flame + day count when canPost; flips to a
+    ✓ when already posted today; the FAB itself dims to 0.45
+    opacity then.
+- **Banner copy:** Day-N posts say
+  `"Day N. +N followers."`; milestone posts add
+  `", +1 diamond."`; broken streaks say
+  `"Streak broken — back to day 1. -2 followers."`.
+- **Tests:**
+  - New `__tests__/clout.test.ts` — 18 engine tests
+    (`dayKey` / `daysBetween`, `canPostToday` midnight rollover,
+    `streakReward` ramp + plateau, `applyDailyPost` first / 1-7 /
+    plateau / milestone / grace-cap, same-day no-op, grace
+    absorbs miss, streak break with -3 sting, `pushTweet` /
+    `clampFeed`).
+  - 6 new store tests for the daily-post action + tweet push +
+    save/load round-trip.
+  - One existing test updated for the four new `SavedGame`
+    fields.
+  - Suite is 12/12 green at **236 tests** (was 212).
+- No new runtime dependencies.
+- Verification: `npx tsc --noEmit` exits 0; `npm test` 236/236.
+  On-device walkthrough still owed.
+- Outcome: Stage 5 cp4 done. Four of five comm apps live; the
+  daily-Post / streak / Diamond economy is operational. Next
+  (5.5): Market — the assets (cars/watches/houses) that complete
+  the `peakNetWorth` formula and the long-tail "destinations" the
+  game's win ladder points at.
+
 ## 2026-05-24 00:02 UTC — Stage 5, checkpoint 3: the Messages app
 - Third comm app — Bible §5's "real friends" inbox. Held separate
   from Tunnel because the scam vector is different: Tunnel hosts

@@ -13,6 +13,7 @@ import { CashSwipeScreen } from './cashSwipe/CashSwipeScreen';
 import { MailScreen } from './mail/MailScreen';
 import { TunnelScreen } from './tunnel/TunnelScreen';
 import { MessagesScreen } from './messages/MessagesScreen';
+import { CloutScreen } from './clout/CloutScreen';
 
 export const APP_SCREENS: Partial<Record<AppId, ComponentType>> = {
   exchange: ExchangeScreen,
@@ -21,4 +22,5 @@ export const APP_SCREENS: Partial<Record<AppId, ComponentType>> = {
   mail: MailScreen,
   tunnel: TunnelScreen,
   messages: MessagesScreen,
+  clout: CloutScreen,
 };

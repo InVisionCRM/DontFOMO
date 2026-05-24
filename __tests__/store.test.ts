@@ -124,6 +124,10 @@ describe('game store', () => {
       mail: [],
       tunnel: [],
       messages: [],
+      bio: 'test bio',
+      cloutFeed: [],
+      dailyPost: { lastPostAt: 0, currentStreakDays: 0, graceDays: 0 },
+      diamonds: 0,
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -146,9 +150,13 @@ describe('game store', () => {
 
     expect(Object.keys(saved).sort()).toEqual([
       'bank',
+      'bio',
       'cash',
       'cashSwipe',
       'clock',
+      'cloutFeed',
+      'dailyPost',
+      'diamonds',
       'followers',
       'handle',
       'holdings',
@@ -485,6 +493,77 @@ describe('messages actions', () => {
         .getState()
         .messages.find((c) => c.id === firstId)?.unreadCount,
     ).toBe(0);
+  });
+});
+
+describe('clout / daily post', () => {
+  beforeEach(() => {
+    useGameStore.getState().newGame(1_000);
+  });
+
+  it('newGame seeds the Clout feed and zero diamonds', () => {
+    const state = useGameStore.getState();
+    expect(state.cloutFeed.length).toBeGreaterThan(0);
+    expect(state.diamonds).toBe(0);
+    expect(state.dailyPost.currentStreakDays).toBe(0);
+  });
+
+  it('postDailyClout credits followers and bumps the streak to day 1', () => {
+    const before = useGameStore.getState();
+    const at1 = new Date(2026, 4, 23, 12).getTime();
+    useGameStore.getState().postDailyClout(at1);
+    const after = useGameStore.getState();
+    expect(after.dailyPost.currentStreakDays).toBe(1);
+    expect(after.followers).toBe(before.followers + 1);
+  });
+
+  it('postDailyClout twice the same day is a no-op', () => {
+    const at1 = new Date(2026, 4, 23, 8).getTime();
+    const at2 = new Date(2026, 4, 23, 23).getTime();
+    useGameStore.getState().postDailyClout(at1);
+    const followersAfterFirst = useGameStore.getState().followers;
+    useGameStore.getState().postDailyClout(at2);
+    expect(useGameStore.getState().followers).toBe(followersAfterFirst);
+    expect(useGameStore.getState().dailyPost.currentStreakDays).toBe(1);
+  });
+
+  it('seven consecutive days awards +1 diamond on day 7', () => {
+    for (let d = 0; d < 7; d++) {
+      useGameStore.getState().postDailyClout(
+        new Date(2026, 4, 23 + d, 12).getTime(),
+      );
+    }
+    const state = useGameStore.getState();
+    expect(state.dailyPost.currentStreakDays).toBe(7);
+    expect(state.diamonds).toBe(1);
+    expect(state.dailyPost.graceDays).toBe(1);
+  });
+
+  it('pushTweet prepends a tweet onto the feed', () => {
+    const before = useGameStore.getState().cloutFeed.length;
+    useGameStore.getState().pushTweet({
+      id: 'test-tweet-1',
+      author: {
+        name: 'tester',
+        handle: '@tester',
+        avatarGradient: ['#000', '#fff'],
+      },
+      text: 'hello',
+      sentAt: 1_000,
+    });
+    const after = useGameStore.getState().cloutFeed;
+    expect(after).toHaveLength(before + 1);
+    expect(after[0].id).toBe('test-tweet-1');
+  });
+
+  it('round-trips through serialize / loadSaved', () => {
+    const at1 = new Date(2026, 4, 23, 12).getTime();
+    useGameStore.getState().postDailyClout(at1);
+    const saved = serializeGame(useGameStore.getState());
+    useGameStore.getState().newGame(2_000);
+    expect(useGameStore.getState().dailyPost.currentStreakDays).toBe(0);
+    useGameStore.getState().loadSaved(saved, 2_000);
+    expect(useGameStore.getState().dailyPost.currentStreakDays).toBe(1);
   });
 });
 
