@@ -129,6 +129,8 @@ describe('game store', () => {
       dailyPost: { lastPostAt: 0, currentStreakDays: 0, graceDays: 0 },
       diamonds: 0,
       assets: [],
+      clipboard: [],
+      onboarding: { hasOnboarded: true, pendingSeedPhrase: null },
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -155,6 +157,7 @@ describe('game store', () => {
       'bio',
       'cash',
       'cashSwipe',
+      'clipboard',
       'clock',
       'cloutFeed',
       'dailyPost',
@@ -166,6 +169,7 @@ describe('game store', () => {
       'mail',
       'market',
       'messages',
+      'onboarding',
       'peakNetWorth',
       'playerTokens',
       'tunnel',

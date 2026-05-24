@@ -87,6 +87,12 @@ import {
   resaleValue,
   type OwnedAsset,
 } from '../engine/assets';
+import {
+  addEntry as addClipboardEntry,
+  deleteEntry as deleteClipboardEntryEngine,
+  type ClipboardEntry,
+} from '../engine/clipboard';
+import { phraseToText, pickPhrase } from '../engine/onboarding';
 import { TOKEN_BY_ID } from '../data/tokens';
 import { createStartingMail } from '../data/mail';
 import { createStartingTunnel } from '../data/tunnel';
@@ -96,13 +102,18 @@ import { ASSET_CATALOG } from '../data/assets';
 import type { AppId } from '../data/apps';
 
 /**
- * Starting cash for a fresh game. PLACEHOLDER — the onboarding flow
- * (a later stage) sets the real starting balance.
+ * Starting cash for a fresh game. Onboarding (Bible §13) does not
+ * currently customise this — the player enters the game with this
+ * balance once the flow completes.
  */
 export const STARTING_CASH = 500;
 
-/** PLACEHOLDER default handle — onboarding lets the player choose one. */
-export const DEFAULT_HANDLE = '@degen_kyle';
+/**
+ * Placeholder handle a fresh game holds until onboarding completes.
+ * Real handles are derived from the display name the player enters
+ * in the Profile step via `setProfile`.
+ */
+export const DEFAULT_HANDLE = '@new_player';
 
 /** The most market ticks an offline catch-up will ever simulate. */
 const MARKET_CATCHUP_CAP = 600;
@@ -126,6 +137,26 @@ export interface LaunchTokenInput {
   name: string;
   emoji: string;
   gradient: readonly [string, string];
+}
+
+/**
+ * Onboarding state (Bible §13). `hasOnboarded` gates the top-level
+ * shell — until it flips true, the player sees the onboarding flow
+ * instead of the phone. `pendingSeedPhrase` is the wallet's 12-word
+ * phrase generated in the Wallet Intro step and consumed by the
+ * Seed and Confirm steps; it is cleared on `finishOnboarding`. The
+ * Clipboard Scam (Scam Library v1.1 Event #5) is armed when the
+ * player taps "Copy to clipboard" during the Seed step — that copy
+ * lives on in `clipboard`, defusable in the Clipboard app.
+ */
+export interface OnboardingState {
+  hasOnboarded: boolean;
+  pendingSeedPhrase: readonly string[] | null;
+}
+
+/** Build a fresh OnboardingState for a brand-new game. */
+export function createOnboardingState(): OnboardingState {
+  return { hasOnboarded: false, pendingSeedPhrase: null };
 }
 
 /**
@@ -188,6 +219,10 @@ export interface SavedGame {
   diamonds: number;
   /** Market assets the player currently owns. */
   assets: OwnedAsset[];
+  /** Clipboard history — newest first. Where the Clipboard Scam arms. */
+  clipboard: ClipboardEntry[];
+  /** Onboarding gate + transient seed-phrase slot. */
+  onboarding: OnboardingState;
 }
 
 export interface GameState {
@@ -229,6 +264,10 @@ export interface GameState {
   diamonds: number;
   /** Market assets the player currently owns. */
   assets: OwnedAsset[];
+  /** Clipboard history — where the Clipboard Scam arms (Bible §11). */
+  clipboard: ClipboardEntry[];
+  /** Onboarding gate + transient seed-phrase slot (Bible §13). */
+  onboarding: OnboardingState;
   /** The top-edge banner currently being shown; null = none. */
   banner: BannerMessage | null;
   /** Which in-game app is open; null = the home screen. */
@@ -306,6 +345,31 @@ export interface GameState {
   openApp: (id: AppId) => void;
   /** Return to the home screen. */
   closeApp: () => void;
+  /**
+   * Onboarding — Profile step. Sets the player's display name (used
+   * to derive the handle) and bio. Trims and slugifies; no-op on an
+   * empty name.
+   */
+  setProfile: (displayName: string, bio: string) => void;
+  /**
+   * Onboarding — Wallet Intro step. Generates a fresh 12-word seed
+   * phrase using the given seed (defaults to `Date.now()`) and parks
+   * it on the transient onboarding slice. Re-callable.
+   */
+  generateWallet: (seed?: number) => void;
+  /**
+   * Onboarding — Seed step. Adds the pending seed phrase to the
+   * Clipboard as a SENSITIVE entry. No-op if no phrase is pending.
+   * This is the arming action for the Clipboard Scam (Bible §11).
+   */
+  copySeedToClipboard: (now: number) => void;
+  /** Delete one entry from the Clipboard — the player's defuse path. */
+  deleteClipboardEntry: (id: string) => void;
+  /**
+   * Onboarding — Done step. Flips `hasOnboarded` and clears the
+   * pending phrase. The phone shell takes over after this fires.
+   */
+  finishOnboarding: () => void;
 }
 
 /** The fresh-game state slice (everything except the actions). */
@@ -330,6 +394,8 @@ function freshGame(now: number): Pick<
   | 'dailyPost'
   | 'diamonds'
   | 'assets'
+  | 'clipboard'
+  | 'onboarding'
   | 'banner'
   | 'openAppId'
 > {
@@ -354,6 +420,8 @@ function freshGame(now: number): Pick<
     dailyPost: createDailyPostState(),
     diamonds: 0,
     assets: [],
+    clipboard: [],
+    onboarding: createOnboardingState(),
     banner: null,
     openAppId: null,
   };
@@ -478,6 +546,11 @@ export const useGameStore = create<GameState>()((set) => ({
       const seededDailyPost = saved.dailyPost ?? createDailyPostState();
       const seededDiamonds = saved.diamonds ?? 0;
       const seededAssets = saved.assets ?? [];
+      const seededClipboard = saved.clipboard ?? [];
+      // Pre-v13 saves predate onboarding — those players already
+      // played, so default to `hasOnboarded: true` to skip the flow.
+      const seededOnboarding =
+        saved.onboarding ?? { hasOnboarded: true, pendingSeedPhrase: null };
 
       const resumed = resumeClock(saved.clock, now);
       const loan = bank.loan
@@ -518,6 +591,8 @@ export const useGameStore = create<GameState>()((set) => ({
         dailyPost: seededDailyPost,
         diamonds: seededDiamonds,
         assets: seededAssets,
+        clipboard: seededClipboard,
+        onboarding: seededOnboarding,
         banner: due
           ? bannerOf(
               'Unemployment',
@@ -753,6 +828,44 @@ export const useGameStore = create<GameState>()((set) => ({
     set((s) => (s.banner?.id === id ? { banner: null } : {})),
   openApp: (id) => set({ openAppId: id }),
   closeApp: () => set({ openAppId: null }),
+  setProfile: (displayName, bio) =>
+    set((s) => {
+      const trimmedName = displayName.trim();
+      if (!trimmedName) return {}; // a profile requires a name
+      const slug = trimmedName.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      const handle = slug.length > 0 ? `@${slug}` : s.handle;
+      return { handle, bio: bio.trim() };
+    }),
+  generateWallet: (seed) =>
+    set((s) => ({
+      onboarding: {
+        hasOnboarded: s.onboarding?.hasOnboarded ?? false,
+        pendingSeedPhrase: pickPhrase(seed ?? Date.now()),
+      },
+    })),
+  copySeedToClipboard: (now) =>
+    set((s) => {
+      const phrase = s.onboarding?.pendingSeedPhrase;
+      if (!phrase || phrase.length === 0) return {};
+      const entry: ClipboardEntry = {
+        id: `clip-${now}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+        content: phraseToText(phrase),
+        copiedAt: now,
+        isSensitive: true,
+        // The on-screen cue. Names what the entry actually is so a
+        // careful player sees the danger at a glance.
+        source: 'Recovery phrase',
+      };
+      return { clipboard: addClipboardEntry(s.clipboard ?? [], entry) };
+    }),
+  deleteClipboardEntry: (id) =>
+    set((s) => ({
+      clipboard: deleteClipboardEntryEngine(s.clipboard ?? [], id),
+    })),
+  finishOnboarding: () =>
+    set(() => ({
+      onboarding: { hasOnboarded: true, pendingSeedPhrase: null },
+    })),
 }));
 
 /**
@@ -783,5 +896,7 @@ export function serializeGame(state: GameState): SavedGame {
     dailyPost: state.dailyPost ?? createDailyPostState(),
     diamonds: state.diamonds ?? 0,
     assets: state.assets ?? [],
+    clipboard: state.clipboard ?? [],
+    onboarding: state.onboarding ?? createOnboardingState(),
   };
 }

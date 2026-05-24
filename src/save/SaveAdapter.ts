@@ -21,9 +21,11 @@
  * peakNetWorth + lastUnemploymentCheckAt; v8 added the Mail inbox;
  * v9 added the Tunnel chat list; v10 added the Messages threads;
  * v11 added Clout (bio + feed + dailyPost) + the Diamonds balance;
- * v12 added the Market (owned assets) — completes peakNetWorth.
+ * v12 added the Market (owned assets) — completes peakNetWorth;
+ * v13 added the Clipboard history + the onboarding slice (handle and
+ *      bio are now set in onboarding rather than hard-coded defaults).
  */
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 
 /**
  * The envelope every save is wrapped in. `version` lets the loader

@@ -15,6 +15,7 @@ import { TunnelScreen } from './tunnel/TunnelScreen';
 import { MessagesScreen } from './messages/MessagesScreen';
 import { CloutScreen } from './clout/CloutScreen';
 import { MarketScreen } from './market/MarketScreen';
+import { ClipboardScreen } from './clipboard/ClipboardScreen';
 
 export const APP_SCREENS: Partial<Record<AppId, ComponentType>> = {
   exchange: ExchangeScreen,
@@ -25,4 +26,5 @@ export const APP_SCREENS: Partial<Record<AppId, ComponentType>> = {
   messages: MessagesScreen,
   clout: CloutScreen,
   market: MarketScreen,
+  clipboard: ClipboardScreen,
 };
