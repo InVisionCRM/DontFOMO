@@ -78,11 +78,21 @@ import {
   type DailyPostState,
   type Tweet,
 } from '../engine/clout';
+import {
+  addOwned,
+  findAsset,
+  isOwned,
+  ownedValue,
+  removeOwned,
+  resaleValue,
+  type OwnedAsset,
+} from '../engine/assets';
 import { TOKEN_BY_ID } from '../data/tokens';
 import { createStartingMail } from '../data/mail';
 import { createStartingTunnel } from '../data/tunnel';
 import { createStartingMessages } from '../data/messages';
 import { createStartingClout, DEFAULT_BIO } from '../data/clout';
+import { ASSET_CATALOG } from '../data/assets';
 import type { AppId } from '../data/apps';
 
 /**
@@ -176,6 +186,8 @@ export interface SavedGame {
   dailyPost: DailyPostState;
   /** Diamond balance — the skill-tree premium currency (Bible §12). */
   diamonds: number;
+  /** Market assets the player currently owns. */
+  assets: OwnedAsset[];
 }
 
 export interface GameState {
@@ -215,6 +227,8 @@ export interface GameState {
   dailyPost: DailyPostState;
   /** Diamond balance — Bible §12's premium currency. */
   diamonds: number;
+  /** Market assets the player currently owns. */
+  assets: OwnedAsset[];
   /** The top-edge banner currently being shown; null = none. */
   banner: BannerMessage | null;
   /** Which in-game app is open; null = the home screen. */
@@ -273,6 +287,17 @@ export interface GameState {
   postDailyClout: (now: number) => void;
   /** Push a new tweet onto the Clout feed (newest first). */
   pushTweet: (tweet: Tweet) => void;
+  /**
+   * Buy a Market asset by id. Charges its `price` from cash and
+   * applies its `followersBoost`. No-op if cash is short, the asset
+   * id is unknown, or the player already owns it.
+   */
+  buyAsset: (id: string, now: number) => void;
+  /**
+   * Sell a Market asset by id. Credits `resaleValue` to cash and
+   * removes the asset's follower boost (floored at 0).
+   */
+  sellAsset: (id: string, now: number) => void;
   /** Show a top-edge banner notification. */
   postBanner: (title: string, body: string) => void;
   /** Clear the current banner if its id matches. */
@@ -304,6 +329,7 @@ function freshGame(now: number): Pick<
   | 'cloutFeed'
   | 'dailyPost'
   | 'diamonds'
+  | 'assets'
   | 'banner'
   | 'openAppId'
 > {
@@ -327,21 +353,26 @@ function freshGame(now: number): Pick<
     cloutFeed: createStartingClout(now),
     dailyPost: createDailyPostState(),
     diamonds: 0,
+    assets: [],
     banner: null,
     openAppId: null,
   };
 }
 
 /**
- * Compute net worth from a slice of state. Currently cash + crypto;
- * Market-app assets (cars/watches/houses) will be added when they land.
+ * Compute net worth from a slice of state. Cash + crypto holdings +
+ * Market-app asset book value (Bible §14). The full formula now;
+ * `peakNetWorth` tracks the running max.
  */
 function netWorthOf(
   cash: number,
   holdings: Record<string, number>,
   market: MarketState,
+  assets: readonly OwnedAsset[],
 ): number {
-  return cash + holdingsValue(holdings, market);
+  return (
+    cash + holdingsValue(holdings, market) + ownedValue(ASSET_CATALOG, assets)
+  );
 }
 
 /** Whole market ticks elapsed across an offline gap, capped. */
@@ -369,7 +400,7 @@ export const useGameStore = create<GameState>()((set) => ({
   tick: (now) =>
     set((s) => {
       const clock = tickClock(s.clock, now);
-      const netWorth = netWorthOf(s.cash, s.holdings, s.market);
+      const netWorth = netWorthOf(s.cash, s.holdings, s.market, s.assets ?? []);
       const peakNetWorth = Math.max(s.peakNetWorth, netWorth);
       if (isCheckDue(s.lastUnemploymentCheckAt, now)) {
         const amount = unemploymentAmount(peakNetWorth);
@@ -406,7 +437,7 @@ export const useGameStore = create<GameState>()((set) => ({
         marketRand,
         paramsFor(s.playerTokens, s.followers),
       );
-      const netWorth = netWorthOf(s.cash, s.holdings, market);
+      const netWorth = netWorthOf(s.cash, s.holdings, market, s.assets ?? []);
       const peakNetWorth = Math.max(s.peakNetWorth, netWorth);
       const due = isCheckDue(s.lastUnemploymentCheckAt, now);
       const amount = due ? unemploymentAmount(peakNetWorth) : 0;
@@ -446,6 +477,7 @@ export const useGameStore = create<GameState>()((set) => ({
       const seededCloutFeed = saved.cloutFeed ?? createStartingClout(now);
       const seededDailyPost = saved.dailyPost ?? createDailyPostState();
       const seededDiamonds = saved.diamonds ?? 0;
+      const seededAssets = saved.assets ?? [];
 
       const resumed = resumeClock(saved.clock, now);
       const loan = bank.loan
@@ -457,7 +489,12 @@ export const useGameStore = create<GameState>()((set) => ({
         marketRand,
         paramsFor(playerTokens, saved.followers),
       );
-      const netWorth = netWorthOf(saved.cash, holdings, market);
+      const netWorth = netWorthOf(
+        saved.cash,
+        holdings,
+        market,
+        saved.assets ?? [],
+      );
       const peakNetWorth = Math.max(seededPeakNetWorth, netWorth);
       const due = isCheckDue(seededLastCheckAt, now);
       const amount = due ? unemploymentAmount(peakNetWorth) : 0;
@@ -480,6 +517,7 @@ export const useGameStore = create<GameState>()((set) => ({
         cloutFeed: seededCloutFeed,
         dailyPost: seededDailyPost,
         diamonds: seededDiamonds,
+        assets: seededAssets,
         banner: due
           ? bannerOf(
               'Unemployment',
@@ -672,6 +710,44 @@ export const useGameStore = create<GameState>()((set) => ({
     }),
   pushTweet: (tweet) =>
     set((s) => ({ cloutFeed: pushTweetEngine(s.cloutFeed ?? [], tweet) })),
+  buyAsset: (id, now) =>
+    set((s) => {
+      const def = findAsset(ASSET_CATALOG, id);
+      if (!def) return {};
+      const owned = s.assets ?? [];
+      if (isOwned(owned, id)) return {};
+      if (def.price > (s.cash ?? 0)) return {};
+      return {
+        cash: s.cash - def.price,
+        assets: addOwned(owned, id, now),
+        followers: (s.followers ?? 0) + def.followersBoost,
+        banner: bannerOf(
+          'Market',
+          `Bought ${def.name} for ${fmtUSD(def.price)} (+${def.followersBoost.toLocaleString('en-US')} followers).`,
+        ),
+      };
+    }),
+  sellAsset: (id, _now) =>
+    set((s) => {
+      const def = findAsset(ASSET_CATALOG, id);
+      if (!def) return {};
+      const owned = s.assets ?? [];
+      if (!isOwned(owned, id)) return {};
+      const proceeds = resaleValue(def);
+      const followers = Math.max(
+        0,
+        (s.followers ?? 0) - def.followersBoost,
+      );
+      return {
+        cash: (s.cash ?? 0) + proceeds,
+        assets: removeOwned(owned, id),
+        followers,
+        banner: bannerOf(
+          'Market',
+          `Sold ${def.name} for ${fmtUSD(proceeds)} (-${def.followersBoost.toLocaleString('en-US')} followers).`,
+        ),
+      };
+    }),
   postBanner: (title, body) => set({ banner: bannerOf(title, body) }),
   dismissBanner: (id) =>
     set((s) => (s.banner?.id === id ? { banner: null } : {})),
@@ -706,5 +782,6 @@ export function serializeGame(state: GameState): SavedGame {
     cloutFeed: state.cloutFeed ?? [],
     dailyPost: state.dailyPost ?? createDailyPostState(),
     diamonds: state.diamonds ?? 0,
+    assets: state.assets ?? [],
   };
 }

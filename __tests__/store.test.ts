@@ -128,6 +128,7 @@ describe('game store', () => {
       cloutFeed: [],
       dailyPost: { lastPostAt: 0, currentStreakDays: 0, graceDays: 0 },
       diamonds: 0,
+      assets: [],
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -149,6 +150,7 @@ describe('game store', () => {
     const saved = serializeGame(useGameStore.getState());
 
     expect(Object.keys(saved).sort()).toEqual([
+      'assets',
       'bank',
       'bio',
       'cash',
@@ -564,6 +566,81 @@ describe('clout / daily post', () => {
     expect(useGameStore.getState().dailyPost.currentStreakDays).toBe(0);
     useGameStore.getState().loadSaved(saved, 2_000);
     expect(useGameStore.getState().dailyPost.currentStreakDays).toBe(1);
+  });
+});
+
+describe('market (assets)', () => {
+  beforeEach(() => {
+    useGameStore.getState().newGame(1_000);
+    useGameStore.setState({ cash: 5_000_000 });
+  });
+
+  it('newGame starts with no assets', () => {
+    expect(useGameStore.getState().assets).toEqual([]);
+  });
+
+  it('buyAsset deducts cash, owns the item, bumps followers', () => {
+    const before = useGameStore.getState();
+    useGameStore.getState().buyAsset('car-hatchback', 1_000);
+    const after = useGameStore.getState();
+    expect(after.cash).toBe(before.cash - 24_000);
+    expect(after.assets.find((a) => a.id === 'car-hatchback')).toBeDefined();
+    expect(after.followers).toBe(before.followers + 15);
+  });
+
+  it('buyAsset refuses when cash is short', () => {
+    useGameStore.setState({ cash: 100 });
+    const before = useGameStore.getState();
+    useGameStore.getState().buyAsset('car-hatchback', 1_000);
+    const after = useGameStore.getState();
+    expect(after.cash).toBe(before.cash);
+    expect(after.assets).toEqual([]);
+  });
+
+  it('buyAsset is idempotent — cannot own the same id twice', () => {
+    useGameStore.getState().buyAsset('car-hatchback', 1_000);
+    const cashAfterFirst = useGameStore.getState().cash;
+    useGameStore.getState().buyAsset('car-hatchback', 2_000);
+    expect(useGameStore.getState().cash).toBe(cashAfterFirst);
+    expect(useGameStore.getState().assets).toHaveLength(1);
+  });
+
+  it('sellAsset returns the resale amount and removes the asset', () => {
+    useGameStore.getState().buyAsset('car-sports-coupe', 1_000);
+    const cashAfterBuy = useGameStore.getState().cash;
+    const followersAfterBuy = useGameStore.getState().followers;
+    useGameStore.getState().sellAsset('car-sports-coupe', 2_000);
+    const after = useGameStore.getState();
+    // Sports Coupe is $140,000; resale 70% = $98,000.
+    expect(after.cash).toBe(cashAfterBuy + 98_000);
+    expect(after.assets).toEqual([]);
+    expect(after.followers).toBe(followersAfterBuy - 120);
+  });
+
+  it('sellAsset is a no-op for an unowned id', () => {
+    const before = useGameStore.getState();
+    useGameStore.getState().sellAsset('car-hatchback', 1_000);
+    expect(useGameStore.getState().cash).toBe(before.cash);
+  });
+
+  it('owned assets count toward peakNetWorth', () => {
+    const before = useGameStore.getState().peakNetWorth;
+    useGameStore.getState().buyAsset('house-suburban', 1_000); // $720k
+    // Tick the clock so peakNetWorth recalculates.
+    useGameStore.getState().tick(2_000);
+    const after = useGameStore.getState().peakNetWorth;
+    expect(after).toBeGreaterThan(before);
+  });
+
+  it('round-trips through serialize / loadSaved', () => {
+    useGameStore.getState().buyAsset('watch-steel-diver', 1_000);
+    const saved = serializeGame(useGameStore.getState());
+    useGameStore.getState().newGame(2_000);
+    expect(useGameStore.getState().assets).toEqual([]);
+    useGameStore.getState().loadSaved(saved, 2_000);
+    expect(
+      useGameStore.getState().assets.find((a) => a.id === 'watch-steel-diver'),
+    ).toBeDefined();
   });
 });
 

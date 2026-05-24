@@ -20,9 +20,10 @@
  * v5 added the Bank (bills + loans); v6 added CashSwipe; v7 added
  * peakNetWorth + lastUnemploymentCheckAt; v8 added the Mail inbox;
  * v9 added the Tunnel chat list; v10 added the Messages threads;
- * v11 added Clout (bio + feed + dailyPost) + the Diamonds balance.
+ * v11 added Clout (bio + feed + dailyPost) + the Diamonds balance;
+ * v12 added the Market (owned assets) — completes peakNetWorth.
  */
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 /**
  * The envelope every save is wrapped in. `version` lets the loader

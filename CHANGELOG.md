@@ -6,6 +6,82 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-24 00:26 UTC — Stage 5, checkpoint 5: the Market app + Stage 5 complete
+- Last comm app. Cars, watches, houses — assets bought with USD
+  only (Bible §4), each giving a **follower boost while owned**
+  (Bible §5) and counting toward **`peakNetWorth`** (Bible §14).
+  Selling returns USD at a 70% haircut and gives back the follower
+  boost. Stage 5 is now done.
+- **Engine** (`src/engine/assets/assets.ts`): pure-TS catalogue
+  model. `AssetDefinition` (id, name, category, price,
+  followersBoost, thumbGradient, description, optional
+  `resaleRate`), `OwnedAsset` (id + acquiredAt), three categories
+  (`Cars` / `Watches` / `Houses`). Pure helpers: `findAsset`,
+  `isOwned`, `ownedValue` (sum of book-value prices),
+  `ownedFollowerBoost`, `resaleValue` (default 70%), `addOwned`
+  (idempotent), `removeOwned`.
+- **Data** (`src/data/assets.ts`): nine catalogue entries from the
+  approved mockup — 3 tiers per category:
+  - Cars: City Hatchback $24k / +15, Sports Coupe $140k / +120,
+    Hypercar $1.2M / +850.
+  - Watches: Steel Diver $9k / +40, Gold Chrono $52k / +260,
+    Diamond Piece $480k / +1,400.
+  - Houses: Studio $180k / +90, Suburban $720k / +520,
+    Beachfront Villa $4.2M / +3,200.
+  All keep the mockup's satirical descriptions.
+- **Store integration:**
+  - New `assets: OwnedAsset[]` field on `GameState` and
+    `SavedGame`. Seeded empty in `freshGame`; `loadSaved` +
+    `serializeGame` carry it through with the defensive default
+    pattern.
+  - **`netWorthOf` updated** to `cash + holdingsValue + ownedValue`
+    (the full Bible §14 formula). `tick` / `resume` / `loadSaved`
+    all pass `s.assets` through; `peakNetWorth` now climbs with
+    every asset bought.
+  - New actions: `buyAsset(id, now)` charges price, adds the owned
+    record, bumps `followers` by `followersBoost`, posts a Market
+    banner (with the follower-boost note). `sellAsset(id, now)`
+    returns the resale value, removes the owned record, subtracts
+    `followersBoost` (floored at 0), posts a sale banner. Both
+    are guarded against duplicates / missing ids / insufficient
+    cash.
+  - **`SAVE_VERSION` bumped 11 → 12.** v11 wipes per precedent.
+- **UI** (`src/ui/market/`):
+  - `MarketScreen` — pink-accented dark screen. Title + subtitle,
+    three category filter chips (Cars / Watches / Houses), 2-column
+    `AssetCard` grid filtered by the active chip, slide-in
+    `AssetDetail`. Uses the stable empty-array fallback pattern.
+  - `AssetCard` — gradient thumbnail with optional OWNED badge,
+    name + pink price + "+N followers" caption.
+  - `AssetDetail` — 280px gradient hero with back chevron, asset
+    name + big pink price, "+N followers while owned" call-out
+    card (with a user icon), description, **Buy** button at the
+    bottom (disabled / "Not enough cash" when short on USD) or a
+    **Sell for $X** button when owned. Resale percentage shown as
+    a flavour line above the action bar when owned.
+- **Tests:**
+  - New `__tests__/assets.test.ts` — 13 engine tests covering
+    `findAsset`, `isOwned`, `ownedValue` + `ownedFollowerBoost`
+    (including ghost ids), `resaleValue` defaults + per-asset
+    override, `addOwned` idempotency + purity, `removeOwned`.
+  - 7 new store tests: zero starting assets, buy deducts +
+    follows, refuses on short cash, idempotency, sell at resale,
+    no-op for unowned, **owned assets bump `peakNetWorth`**, and
+    save/load round-trip.
+  - One existing test updated for the new `SavedGame` field.
+  - Suite is **13/13 green at 257 tests** (was 236).
+- No new runtime dependencies.
+- Verification: `npx tsc --noEmit` exits 0; `npm test` 257/257.
+- **Stage 5 (Communication apps) is complete.** Mail, Tunnel,
+  Messages, Clout, Market — all live. The scam-channel substrate
+  Stage 6's Scam Director will assemble on top of is in place:
+  every Bible-§11 scam pattern (Hijacked Friend in Messages,
+  duplicate channel + fake support in Tunnel, typo-squat phish in
+  Clout + Mail, recovery-vulture-style mail) has its UI vessel
+  ready. Net-worth completion (cash + crypto + assets) means
+  peakNetWorth is now correct; the Thursday unemployment check
+  finally scales off the player's full lifetime peak.
+
 ## 2026-05-24 00:12 UTC — Stage 5, checkpoint 4: the Clout app + daily Post + Diamonds
 - Heaviest comm app — public identity (Bible §6) plus the feed
   where alpha + scam tweets arrive (Bible §8) plus the **daily
