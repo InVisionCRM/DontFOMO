@@ -20,6 +20,8 @@ import {
   STARTING_BILLS,
   billTotalDue,
   findBillDefinition,
+  formatBillDueLine,
+  mostUrgentBill,
   nextInstallmentCost,
 } from '../../engine/economy';
 import { formatCurrency } from '../format';
@@ -28,6 +30,7 @@ import {
   color,
   fontSize,
   fontWeight,
+  radius,
   spacing,
   tabularNums,
 } from '../../theme/theme';
@@ -52,6 +55,11 @@ export function BankScreen() {
       return def ? sum + billTotalDue(def, bill, clockNow) : sum;
     }, 0);
   }, [bank.bills, clockNow]);
+
+  const urgentBill = useMemo(
+    () => mostUrgentBill(STARTING_BILLS, bank.bills, clockNow),
+    [bank.bills, clockNow],
+  );
 
   // The store actions now post their own banners — the screen just
   // dispatches them. Affordability guards still happen here so we
@@ -87,6 +95,15 @@ export function BankScreen() {
         <Text style={styles.title}>Bank</Text>
 
         <BankBalanceCard cash={cash} />
+
+        {urgentBill && (
+          <View style={styles.urgentChip}>
+            <Text style={styles.urgentLabel}>Next up</Text>
+            <Text style={styles.urgentText}>
+              {urgentBill.def.name} · {formatBillDueLine(urgentBill.bill, clockNow)}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Bills due</Text>
@@ -150,6 +167,28 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     color: color.text.primary,
     marginBottom: spacing.md,
+  },
+  urgentChip: {
+    backgroundColor: 'rgba(45, 212, 191, 0.12)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(45, 212, 191, 0.35)',
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: spacing.md,
+    gap: 2,
+  },
+  urgentLabel: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.bold,
+    color: appAccent.bank,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  urgentText: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
+    color: color.text.primary,
   },
   sectionHeader: {
     flexDirection: 'row',

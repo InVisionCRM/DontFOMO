@@ -15,6 +15,7 @@ import { MailRow } from './MailRow';
 import { MailDetail } from './MailDetail';
 import { useGameStore } from '../../state/store';
 import { findMessage, unreadCount, type MailMessage } from '../../engine/mail';
+import { formatDate } from '../format';
 import {
   color,
   fontSize,
@@ -92,6 +93,11 @@ export function MailScreen() {
             </View>
           )}
         </View>
+
+        <Text style={styles.synced}>
+          Updated {formatDate(clockNow)} · {mail.length} message
+          {mail.length === 1 ? '' : 's'}
+        </Text>
       </ScrollView>
 
       <MailDetail message={opened} onBack={() => setOpenId(null)} />
@@ -160,5 +166,13 @@ const styles = StyleSheet.create({
     color: color.text.secondary,
     textAlign: 'center',
     paddingHorizontal: spacing.huge,
+  },
+  synced: {
+    fontSize: fontSize.caption,
+    color: HEAD_SUB,
+    textAlign: 'center',
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    opacity: 0.85,
   },
 });

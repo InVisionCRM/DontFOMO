@@ -11,7 +11,7 @@ import {
   billLateFee,
   billTotalDue,
   daysOverdue,
-  daysUntilDue,
+  formatBillDueLine,
   type BillDefinition,
   type BillState,
 } from '../../engine/economy';
@@ -33,17 +33,6 @@ interface BillRowProps {
   onPay: (billId: string) => void;
 }
 
-/** Format the "Due in N days" / "Overdue by N days" line. */
-function dueLine(bill: BillState, now: number): string {
-  const overdue = daysOverdue(bill, now);
-  if (overdue > 0) {
-    return overdue === 1 ? 'Overdue by 1 day' : `Overdue by ${overdue} days`;
-  }
-  const until = Math.ceil(daysUntilDue(bill, now));
-  if (until <= 0) return 'Due today';
-  return until === 1 ? 'Due in 1 day' : `Due in ${until} days`;
-}
-
 export function BillRow({ def, bill, now, canPay, onPay }: BillRowProps) {
   const overdue = daysOverdue(bill, now) > 0;
   const fee = billLateFee(def, bill, now);
@@ -54,7 +43,7 @@ export function BillRow({ def, bill, now, canPay, onPay }: BillRowProps) {
       <View style={styles.info}>
         <Text style={styles.name}>{def.name}</Text>
         <Text style={[styles.due, overdue && styles.dueLate]}>
-          {dueLine(bill, now)}
+          {formatBillDueLine(bill, now)}
           {fee > 0 && ` · +${formatCurrency(fee)} late fee`}
         </Text>
       </View>

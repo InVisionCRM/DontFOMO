@@ -13,7 +13,11 @@ import Svg, { Path } from 'react-native-svg';
 import { TunnelChatRow } from './TunnelChatRow';
 import { TunnelChatDetail } from './TunnelChatDetail';
 import { useGameStore } from '../../state/store';
-import { findTunnelChat, type TunnelChat } from '../../engine/tunnel';
+import {
+  findTunnelChat,
+  totalUnreadCount,
+  type TunnelChat,
+} from '../../engine/tunnel';
 import { fontWeight } from '../../theme/theme';
 
 /**
@@ -41,11 +45,21 @@ export function TunnelScreen() {
   };
 
   const opened = openId ? findTunnelChat(chats, openId) ?? null : null;
+  const unread = totalUnreadCount(chats);
 
   return (
     <View style={styles.root}>
       <View style={styles.header}>
-        <Text style={styles.title}>Tunnel</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Tunnel</Text>
+          {unread > 0 && (
+            <View style={styles.unreadPill}>
+              <Text style={styles.unreadText}>
+                {unread > 99 ? '99+' : unread}
+              </Text>
+            </View>
+          )}
+        </View>
         <View style={styles.search} pointerEvents="none">
           <Svg width={17} height={17} viewBox="0 0 24 24" fill="none">
             <Path
@@ -93,11 +107,30 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     paddingHorizontal: 16,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 9,
+  },
   title: {
     fontSize: 21,
     fontWeight: fontWeight.semibold,
     color: '#FFFFFF',
-    marginBottom: 9,
+  },
+  unreadPill: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 7,
+    borderRadius: 11,
+    backgroundColor: '#5EB5F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadText: {
+    fontSize: 12,
+    fontWeight: fontWeight.bold,
+    color: '#17212B',
   },
   search: {
     backgroundColor: SEARCH_BG,

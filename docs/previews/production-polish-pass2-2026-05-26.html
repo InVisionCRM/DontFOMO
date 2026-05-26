@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DON'T FOMO — Production polish pass 2</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: #0a0a0c;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+      color: #fff;
+      padding: 32px 24px 48px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 28px;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      justify-content: center;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+    .phone {
+      width: 300px;
+      height: 620px;
+      border-radius: 36px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      flex-direction: column;
+    }
+    .label {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.45);
+      margin-top: 10px;
+      letter-spacing: 0.04em;
+    }
+    .status {
+      padding: 44px 18px 8px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      font-variant-numeric: tabular-nums;
+    }
+    .screen-title {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      padding: 0 18px 14px;
+    }
+    /* Wallet */
+    .wallet { background: #0B0F14; }
+    .wallet .hero {
+      margin: 0 16px 12px;
+      padding: 18px;
+      border-radius: 16px;
+      background: linear-gradient(145deg, #1A2634, #0F1720);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .wallet .hero-label { font-size: 11px; color: rgba(255,255,255,0.55); text-transform: uppercase; letter-spacing: 0.06em; }
+    .wallet .hero-value { font-size: 32px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .wallet .hero-sub { font-size: 12px; color: #FBB24A; margin-top: 8px; }
+    .wallet .rows {
+      margin: 0 16px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.1);
+      overflow: hidden;
+    }
+    .wallet .row {
+      display: flex;
+      justify-content: space-between;
+      padding: 13px 14px;
+      font-size: 14px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .wallet .row:first-child { border-top: none; }
+    .wallet .row span:first-child { color: rgba(255,255,255,0.55); }
+    .wallet .row span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .wallet .hint { text-align: center; font-size: 11px; color: rgba(255,255,255,0.45); margin: 10px 16px 0; }
+    /* Bank */
+    .bank { background: #0F1412; }
+    .bank .balance {
+      margin: 0 16px 12px;
+      padding: 20px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #134E4A, #0D3D38);
+    }
+    .bank .balance-label { font-size: 12px; opacity: 0.7; }
+    .bank .balance-value { font-size: 30px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .bank .urgent {
+      margin: 0 16px 16px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(45, 212, 191, 0.12);
+      border: 1px solid rgba(45, 212, 191, 0.35);
+    }
+    .bank .urgent-label { font-size: 10px; font-weight: 700; color: #2DD4BF; text-transform: uppercase; letter-spacing: 0.05em; }
+    .bank .urgent-text { font-size: 14px; font-weight: 600; margin-top: 2px; }
+    .bank .section { padding: 0 16px; font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .bank .bill {
+      margin: 0 16px 8px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #18201F;
+      border: 1px solid #243230;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+    }
+    .bank .bill-due { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+    /* Market */
+    .market { background: #0F0D13; }
+    .market .subtitle { padding: 0 18px 16px; font-size: 13px; color: #9B93A8; line-height: 1.4; }
+    .market .chips { display: flex; gap: 8px; padding: 0 18px 14px; }
+    .market .chip {
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #3A1F33;
+      border: 1px solid #EC4899;
+      color: #F9C8E0;
+    }
+    .market .chip.off { background: #1C1825; border-color: #2C2638; color: #9B93A8; }
+    .market .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 16px; }
+    .market .card {
+      border-radius: 14px;
+      padding: 12px;
+      background: #1C1825;
+      border: 1px solid #2C2638;
+      min-height: 100px;
+    }
+    .market .card-name { font-size: 13px; font-weight: 600; margin-top: 8px; }
+    .market .card-price { font-size: 12px; color: #9B93A8; margin-top: 4px; }
+    .thumb { height: 48px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+  </style>
+</head>
+<body>
+  <h1>Production polish pass 2 — Wallet · Bank · Market</h1>
+  <div class="row">
+    <div>
+      <div class="phone wallet">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="screen-title">Wallet</div>
+        <div class="hero">
+          <div class="hero-label">Total balance</div>
+          <div class="hero-value">$2,847.50</div>
+          <div class="hero-sub">2 tokens on Exchange</div>
+        </div>
+        <div class="rows">
+          <div class="row"><span>Cash</span><span>$412.00</span></div>
+          <div class="row"><span>Crypto</span><span>$1,935.50</span></div>
+          <div class="row"><span>Lifestyle</span><span>$500.00</span></div>
+          <div class="row"><span>All-time high</span><span>$3,102.00</span></div>
+        </div>
+        <p class="hint">1 Market asset included in lifestyle</p>
+      </div>
+      <p class="label">Wallet — breakdown + peak</p>
+    </div>
+    <div>
+      <div class="phone bank">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="screen-title">Bank</div>
+        <div class="balance">
+          <div class="balance-label">Available cash</div>
+          <div class="balance-value">$412.00</div>
+        </div>
+        <div class="urgent">
+          <div class="urgent-label">Next up</div>
+          <div class="urgent-text">Phone plan · Due in 3 days</div>
+        </div>
+        <div class="section">Bills due</div>
+        <div class="bill">
+          <div><div>Rent</div><div class="bill-due">Due in 5 days</div></div>
+          <div>$1,200.00</div>
+        </div>
+        <div class="bill">
+          <div><div>Utilities</div><div class="bill-due">Due in 4 days</div></div>
+          <div>$180.00</div>
+        </div>
+      </div>
+      <p class="label">Bank — next-up chip</p>
+    </div>
+    <div>
+      <div class="phone market">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="screen-title">Market</div>
+        <p class="subtitle">2 owned · $1,240.00 portfolio value</p>
+        <div class="chips">
+          <span class="chip">Cars</span>
+          <span class="chip off">Watches</span>
+          <span class="chip off">Houses</span>
+        </div>
+        <div class="grid">
+          <div class="card"><div class="thumb"></div><div class="card-name">Cybertruck</div><div class="card-price">$89,000</div></div>
+          <div class="card"><div class="thumb" style="background:linear-gradient(135deg,#f59e0b,#ef4444)"></div><div class="card-name">Lamborghini</div><div class="card-price">$420,000</div></div>
+        </div>
+      </div>
+      <p class="label">Market — live portfolio subtitle</p>
+    </div>
+  </div>
+</body>
+</html>

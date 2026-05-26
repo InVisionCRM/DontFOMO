@@ -12,6 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGameStore } from '../../state/store';
 import { computeNetWorth } from '../../engine/economy/netWorth';
 import { holdingsValue } from '../../engine/economy';
+import { ownedValue } from '../../engine/assets';
+import { ASSET_CATALOG } from '../../data/assets';
 import {
   PLAYER_AVATAR_GRADIENT,
   resolveDisplayName,
@@ -36,13 +38,16 @@ export function WalletScreen() {
   const assets = useGameStore((s) => s.assets);
   const handle = useGameStore((s) => s.handle);
   const displayName = useGameStore((s) => s.displayName);
+  const peakNetWorth = useGameStore((s) => s.peakNetWorth);
 
   const crypto = holdingsValue(holdings, market);
+  const lifestyle = ownedValue(ASSET_CATALOG, assets ?? []);
   const netWorth = computeNetWorth(cash, holdings, market, assets ?? []);
   const name = resolveDisplayName(displayName, handle);
   const tokenCount = Object.keys(holdings).filter(
     (id) => (holdings[id] ?? 0) > 0,
   ).length;
+  const ownedCount = (assets ?? []).length;
 
   return (
     <View style={styles.root}>
@@ -96,7 +101,28 @@ export function WalletScreen() {
               {formatCurrency(crypto)}
             </Text>
           </View>
+          {lifestyle > 0 && (
+            <View style={[styles.row, styles.rowBorder]}>
+              <Text style={styles.rowLabel}>Lifestyle</Text>
+              <Text style={[styles.rowValue, tabularNums]}>
+                {formatCurrency(lifestyle)}
+              </Text>
+            </View>
+          )}
+          <View style={[styles.row, styles.rowBorder]}>
+            <Text style={styles.rowLabel}>All-time high</Text>
+            <Text style={[styles.rowValue, tabularNums]}>
+              {formatCurrency(peakNetWorth)}
+            </Text>
+          </View>
         </View>
+
+        {ownedCount > 0 && (
+          <Text style={styles.assetHint}>
+            {ownedCount} Market asset{ownedCount === 1 ? '' : 's'} included in
+            lifestyle
+          </Text>
+        )}
 
         <Text style={styles.note}>
           Simulated wallet — not connected to a real chain. Never share a
@@ -206,6 +232,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: fontWeight.semibold,
     color: VALUE,
+  },
+  assetHint: {
+    fontSize: 12.5,
+    color: LABEL,
+    marginTop: 10,
+    textAlign: 'center',
   },
   note: {
     fontSize: 12.5,

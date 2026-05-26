@@ -69,6 +69,40 @@ export function isOverdue(bill: BillState, now: number): boolean {
   return now > bill.nextDueAt;
 }
 
+/** Human-readable due line for a bill row or summary chip. */
+export function formatBillDueLine(bill: BillState, now: number): string {
+  const overdue = daysOverdue(bill, now);
+  if (overdue > 0) {
+    return overdue === 1 ? 'Overdue by 1 day' : `Overdue by ${overdue} days`;
+  }
+  const until = Math.ceil(daysUntilDue(bill, now));
+  if (until <= 0) return 'Due today';
+  return until === 1 ? 'Due in 1 day' : `Due in ${until} days`;
+}
+
+/**
+ * The bill the player should act on first — the one with the smallest
+ * `daysUntilDue` (most overdue, or soonest upcoming).
+ */
+export function mostUrgentBill(
+  defs: readonly BillDefinition[],
+  bills: readonly BillState[],
+  now: number,
+): { def: BillDefinition; bill: BillState } | null {
+  let best: { def: BillDefinition; bill: BillState; urgency: number } | null =
+    null;
+  for (const bill of bills) {
+    const def = findBillDefinition(defs, bill.id);
+    if (!def) continue;
+    const urgency = daysUntilDue(bill, now);
+    if (!best || urgency < best.urgency) {
+      best = { def, bill, urgency };
+    }
+  }
+  if (!best) return null;
+  return { def: best.def, bill: best.bill };
+}
+
 /** Accrued late fee in USD for a single bill at the moment `now`. */
 export function billLateFee(
   def: BillDefinition,

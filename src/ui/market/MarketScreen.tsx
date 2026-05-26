@@ -17,9 +17,11 @@ import {
   ASSET_CATEGORIES,
   findAsset,
   isOwned,
+  ownedValue,
   type AssetCategory,
   type OwnedAsset,
 } from '../../engine/assets';
+import { formatCurrency } from '../format';
 import { ASSET_CATALOG } from '../../data/assets';
 import { fontWeight } from '../../theme/theme';
 
@@ -51,6 +53,12 @@ export function MarketScreen() {
     () => ASSET_CATALOG.filter((a) => a.category === category),
     [category],
   );
+  const ownedCount = owned.length;
+  const portfolioValue = ownedValue(ASSET_CATALOG, owned);
+  const subtitle =
+    ownedCount === 0
+      ? 'Buy assets to grow your net worth and your following.'
+      : `${ownedCount} owned · ${formatCurrency(portfolioValue)} portfolio value`;
   const opened = openId ? findAsset(ASSET_CATALOG, openId) ?? null : null;
   const openedOwned = opened ? isOwned(owned, opened.id) : false;
   const canBuyOpened = opened ? cash >= opened.price : false;
@@ -66,9 +74,7 @@ export function MarketScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.title}>Market</Text>
-        <Text style={styles.subtitle}>
-          Buy assets to grow your net worth and your following.
-        </Text>
+        <Text style={styles.subtitle}>{subtitle}</Text>
 
         <View style={styles.chips}>
           {ASSET_CATEGORIES.map((c) => {

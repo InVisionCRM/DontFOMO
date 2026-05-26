@@ -6,6 +6,21 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-26 10:15 UTC — Production polish pass 2: believable app detail (Bank, Wallet, Market, Tunnel, Mail)
+- **Bank:** `mostUrgentBill` + `formatBillDueLine` in the bank engine;
+  a "Next up" chip under the balance card surfaces the most urgent bill
+  (same due-line copy as each `BillRow`). `BillRow` now imports the
+  shared formatter.
+- **Wallet:** lifestyle (Market assets) row when owned, all-time-high
+  net worth from `peakNetWorth`, and a short owned-asset hint.
+- **Market:** subtitle switches to live owned count + portfolio value
+  (`ownedValue`) once the player owns anything.
+- **Tunnel:** header unread pill when `totalUnreadCount` > 0.
+- **Mail:** footer shows game-date sync + message count.
+- **Tests:** `formatBillDueLine` + `mostUrgentBill` bank suite cases.
+- **Preview:** `docs/previews/production-polish-pass2-2026-05-26.html`
+  (+ PNG) — Wallet / Bank / Market panels.
+
 ## 2026-05-26 08:57 UTC — Production polish: identity, portfolio widget, Wallet + Settings
 - **Player identity (`displayName`):** `setProfile` now persists the
   typed display name (not just the slugified handle). Clout, Wallet,

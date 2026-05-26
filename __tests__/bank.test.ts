@@ -24,6 +24,8 @@ import {
   daysOverdue,
   daysUntilDue,
   findBillDefinition,
+  formatBillDueLine,
+  mostUrgentBill,
   findLoanTier,
   isOverdue,
   loanTotalCost,
@@ -222,5 +224,25 @@ describe('accrueMissedInstallments', () => {
       loan.nextPaymentDueAt + 5 * LOAN_INSTALLMENT_DAYS * DAY_MS,
     );
     expect(after.weeklyPayment).toBe(loan.weeklyPayment);
+  });
+});
+
+describe('formatBillDueLine', () => {
+  it('describes upcoming and overdue bills', () => {
+    const bank = createBank(T0);
+    const rent = bank.bills.find((b) => b.id === 'rent')!;
+    expect(formatBillDueLine(rent, T0)).toMatch(/Due in \d+ days/);
+    const overdueAt = rent.nextDueAt + 2 * DAY_MS;
+    expect(formatBillDueLine(rent, overdueAt)).toBe('Overdue by 2 days');
+  });
+});
+
+describe('mostUrgentBill', () => {
+  it('picks the bill due soonest', () => {
+    const bank = createBank(T0);
+    const urgent = mostUrgentBill(STARTING_BILLS, bank.bills, T0);
+    expect(urgent).not.toBeNull();
+    const days = bank.bills.map((b) => daysUntilDue(b, T0));
+    expect(daysUntilDue(urgent!.bill, T0)).toBe(Math.min(...days));
   });
 });
