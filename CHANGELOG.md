@@ -6,6 +6,15 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-26 — CI + auto-merge for automation PRs
+
+- **GitHub Actions — `.github/workflows/ci.yml`:** runs `npm ci`, `tsc --noEmit`, and `npm test` on PRs and pushes to `main`. PRs from `automation/*` or `cursor/*` branches enable auto-merge after tests pass.
+- **Repo settings:** `allow_auto_merge` and `delete_branch_on_merge` enabled on `InVisionCRM/DontFOMO`.
+- **`BACKLOG.md`:** repo-backed automation task list; Stage 6 marked complete.
+- **Outcome:** hourly automation PRs merge themselves when green — no manual merge step.
+
+---
+
 ## 2026-05-25 — Stage 6.5b + 6.6: Frozen Withdrawal, Wallet, News
 
 - **6.5b Frozen Withdrawal (Decision Point):** catalog entry `frozen-withdrawal` (reactive, Bank+Mail, difficulty 3, major). `deployFrozenWithdrawal` + tick timeout (expired → `waited`). `resolveScamFromPlayer` supports `decision: 'cancelled'` (no pacing tick). `bank.pendingWithdrawal` on `BankState`; save **v19**.
