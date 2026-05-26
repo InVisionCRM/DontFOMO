@@ -20,6 +20,7 @@ import {
   tokenLaunchCost,
   unemploymentAmount,
 } from '../src/engine/economy';
+import { createScamDirector } from '../src/engine/scam-director';
 import {
   DEFAULT_HANDLE,
   STARTING_CASH,
@@ -59,6 +60,8 @@ describe('game store', () => {
       now: 1_000,
     });
     expect(state.market.tokens.USDX).toBeDefined();
+    expect(state.scamDirector.frozen.status).toBe('none');
+    expect(state.newsReadIds).toEqual([]);
   });
 
   it('tick advances the clock', () => {
@@ -114,6 +117,7 @@ describe('game store', () => {
       cash: 12_345,
       followers: 678,
       handle: '@whale',
+      displayName: 'Whale',
       market: createMarket(createRandom(1)),
       holdings: { NEURA: 42 },
       playerTokens: [],
@@ -131,6 +135,8 @@ describe('game store', () => {
       assets: [],
       clipboard: [],
       onboarding: { hasOnboarded: true, pendingSeedPhrase: null },
+      scamDirector: createScamDirector(),
+      newsReadIds: [],
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -162,6 +168,7 @@ describe('game store', () => {
       'cloutFeed',
       'dailyPost',
       'diamonds',
+      'displayName',
       'followers',
       'handle',
       'holdings',
@@ -169,9 +176,11 @@ describe('game store', () => {
       'mail',
       'market',
       'messages',
+      'newsReadIds',
       'onboarding',
       'peakNetWorth',
       'playerTokens',
+      'scamDirector',
       'tunnel',
     ]);
     expect(saved.cash).toBe(STARTING_CASH);
@@ -908,5 +917,42 @@ describe('launchToken', () => {
     expect(state.playerTokens).toHaveLength(1);
     expect(state.playerTokens[0].id).toBe('DEGEN');
     expect(state.market.tokens.DEGEN).toBeDefined();
+  });
+});
+
+describe('Stage 6 — scam director and frozen withdrawal', () => {
+  beforeEach(() => {
+    useGameStore.getState().newGame(1_000);
+    useGameStore.getState().finishOnboarding();
+  });
+
+  it('requestBankWithdrawal freezes when cash is high enough', () => {
+    useGameStore.setState({ cash: 5_000 });
+    useGameStore.getState().requestBankWithdrawal(5_000, 2_000);
+    const state = useGameStore.getState();
+    expect(state.scamDirector.frozen.status).toBe('frozen');
+    expect(state.banner?.title).toBe('Withdrawal frozen');
+  });
+
+  it('payWithdrawalUnlockFee spends cash but stays frozen', () => {
+    useGameStore.setState({ cash: 5_000 });
+    useGameStore.getState().requestBankWithdrawal(5_000, 2_000);
+    useGameStore.getState().payWithdrawalUnlockFee(3_000);
+    const state = useGameStore.getState();
+    expect(state.scamDirector.frozen.feesPaid).toBeGreaterThan(0);
+    expect(state.scamDirector.frozen.status).toBe('frozen');
+    expect(state.cash).toBeLessThan(5_000);
+  });
+
+  it('opening Jordan arms hijacked_friend', () => {
+    useGameStore.getState().openConversation('jordan-msgs');
+    expect(
+      useGameStore.getState().scamDirector.scams.hijacked_friend.phase,
+    ).toBe('armed');
+  });
+
+  it('markNewsRead records article ids', () => {
+    useGameStore.getState().markNewsRead('news-neura-rally');
+    expect(useGameStore.getState().newsReadIds).toContain('news-neura-rally');
   });
 });
