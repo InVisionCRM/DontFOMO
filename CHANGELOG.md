@@ -6,6 +6,41 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-26 13:16 UTC — Production polish: live portfolio, player identity, daily post
+- Low-scope pass to make the phone feel like a real product — no mock
+  layers, no save-schema bump. Focus: believable numbers on the home
+  screen, the player's real name in Clout, and a visible outcome when
+  they post.
+- **Engine — `src/engine/profile/displayName.ts`:** pure
+  `displayNameFromHandle` — title-cases `@slug` handles from onboarding
+  without a separate save field.
+- **Engine — `src/engine/economy/netWorth.ts`:** shared
+  `computeNetWorth` (cash + crypto + Market book value). Store tick
+  path delegates here; home widgets use the same formula.
+- **Engine — `src/engine/clout/dailyPostTweet.ts`:** when the player
+  taps Post, a short player-authored tweet is prepended to the feed
+  (deterministic line per calendar day + handle).
+- **Store — `postDailyClout`:** gates with `canPostToday`, pushes the
+  player tweet into `cloutFeed`, keeps existing streak / diamond /
+  banner behaviour.
+- **UI — `HomeWidgets`:** Portfolio shows **net worth** (not cash
+  only) with a vs-start % hint and a sparkline that slopes up/down;
+  Clout widget highlights **Post today** + streak when due.
+- **UI — `CloutScreen`:** profile strip uses the onboarding-derived
+  display name (removes hard-coded "Kyle").
+- **UI — `useAppBadges`:** Clout icon badge `1` when a daily post is
+  still available — pull-based nudge per Bible §5.
+- **UI — `MarketScreen`:** owned collection summary line when the
+  player holds assets.
+- **Preview — `preview/production-polish-home.html` + `.png`:** static
+  home-screen snapshot of the polished widgets for design review.
+- **Tests:** `displayName.test.ts`, `dailyPostTweet.test.ts`,
+  `netWorth.test.ts` added. **20 suites / 308 tests passing;
+  `tsc --noEmit` clean.**
+- **Outcome:** Home and Clout read like a live game account; Daily Post
+  leaves a trace in the feed; Market and Portfolio numbers align with
+  Bible §14 net-worth rules.
+
 ## 2026-05-24 03:30 UTC — Onboarding flow + the Clipboard Scam primer
 - Bible §13's first-launch flow + the flagship Slow Burn's arming
   mechanism (Scam Library v1.1 Event #5). Players who tap "Copy to
