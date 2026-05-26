@@ -6,6 +6,15 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-26 17:30 UTC — Save migration framework (Stage 7)
+
+- **`src/save/migrations.ts`:** registered v16→v17 (`bank.regulatoryHold`), v17→v18 (`cloutTakeover`), v18→v19 (`bank.pendingWithdrawal`); `migrateEnvelope` chains steps; `isSaveLoadable` rejects only forward-incompatible saves.
+- **`useGameLoop.ts`:** loads any save at or below `SAVE_VERSION` — runs migrations when registered, then `loadSaved` defensive defaults for older blobs. Retires the version-mismatch wipe.
+- **Tests — `__tests__/saveMigrations.test.ts`:** 7 cases (loadable guard, v18→v19, v16→v19 chain, no-op at v15).
+- **Outcome:** bumping `SAVE_VERSION` no longer orphans on-device progress when a migration is added.
+
+---
+
 ## 2026-05-26 — CI + auto-merge for automation PRs
 
 - **GitHub Actions — `.github/workflows/ci.yml`:** runs `npm ci`, `tsc --noEmit`, and `npm test` on PRs and pushes to `main`. PRs from `automation/*` or `cursor/*` branches enable auto-merge after tests pass.

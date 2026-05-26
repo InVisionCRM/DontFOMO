@@ -42,6 +42,10 @@
  *      v17 backfill the field to `null` via the defensive default.
  * v19 added `bank.pendingWithdrawal` for the Frozen Withdrawal scam
  *      (6.5b — Decision Point). Saves from v18 backfill to `null`.
+ *
+ * Migrations for v16→v17, v17→v18, and v18→v19 live in `migrations.ts`.
+ * Older saves without a registered step still load via defensive defaults
+ * in `loadSaved`.
  */
 export const SAVE_VERSION = 19;
 

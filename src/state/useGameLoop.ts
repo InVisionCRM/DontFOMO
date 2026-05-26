@@ -13,7 +13,7 @@
 import { useEffect } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { serializeGame, useGameStore, type SavedGame } from './store';
-import { SAVE_VERSION, saveAdapter } from '../save';
+import { isSaveLoadable, migrateEnvelope, saveAdapter } from '../save';
 import { MARKET_TICK_MS } from '../engine/market';
 
 /** How often the calendar clock ticks in the foreground (ms). */
@@ -37,8 +37,14 @@ export function useGameLoop(): void {
       .load<SavedGame>()
       .then((envelope) => {
         if (cancelled) return;
-        if (envelope && envelope.version === SAVE_VERSION) {
-          useGameStore.getState().loadSaved(envelope.data, Date.now());
+        if (envelope && isSaveLoadable(envelope.version)) {
+          const migrated = migrateEnvelope(envelope);
+          if (migrated.version !== envelope.version) {
+            console.log(
+              `[DontFOMO] save migrated v${envelope.version} → v${migrated.version}.`,
+            );
+          }
+          useGameStore.getState().loadSaved(migrated.data, Date.now());
           console.log('[DontFOMO] save loaded.');
         } else {
           if (envelope) {
