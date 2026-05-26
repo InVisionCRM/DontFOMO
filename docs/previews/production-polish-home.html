@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DON'T FOMO — Production polish preview</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      padding: 40px 24px;
+      background: #0a0a0f;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+      color: #fff;
+    }
+    .phone {
+      width: 390px;
+      height: 844px;
+      border-radius: 44px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.08);
+      background: linear-gradient(165deg, #1a1035 0%, #0d1a2e 45%, #0a1628 100%);
+    }
+    .wallpaper {
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(124,92,255,0.35), transparent),
+        radial-gradient(ellipse 60% 40% at 90% 80%, rgba(212,83,126,0.25), transparent);
+    }
+    .status {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 54px 24px 8px;
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .status-left { display: flex; align-items: center; gap: 8px; }
+    .day-pill { font-size: 11px; color: rgba(255,255,255,0.55); font-weight: 600; }
+    .status-right { display: flex; gap: 5px; align-items: center; opacity: 0.9; }
+    .signal { display: flex; gap: 2px; align-items: flex-end; height: 10px; }
+    .signal span { width: 3px; background: #fff; border-radius: 1px; }
+    .battery {
+      width: 25px; height: 12px; border: 1px solid rgba(255,255,255,0.55);
+      border-radius: 3px; padding: 1.5px;
+    }
+    .battery-fill { width: 70%; height: 100%; background: #fff; border-radius: 1px; }
+    .widgets {
+      position: relative; z-index: 2;
+      display: flex; gap: 12px;
+      padding: 12px 20px 0;
+    }
+    .widget {
+      flex: 1;
+      height: 150px;
+      border-radius: 18px;
+      padding: 16px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+    }
+    .widget-top {
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-size: 12px; opacity: 0.6;
+    }
+    .widget-top strong { font-size: 13px; opacity: 1; color: #fff; font-weight: 600; }
+    .widget-value {
+      font-size: 26px; font-weight: 700; letter-spacing: -0.5px;
+      margin-top: auto;
+      font-variant-numeric: tabular-nums;
+    }
+    .widget-sub { font-size: 12px; opacity: 0.6; margin-top: 4px; }
+    .spark {
+      height: 28px; margin: 8px 0 4px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+      mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 150 28'%3E%3Cpolyline points='0,19 30,17 60,20 90,16 120,18 150,17' fill='none' stroke='white' stroke-width='2.5'/%3E%3C/svg%3E");
+      mask-size: 100% 100%;
+      background-color: rgba(255,255,255,0.35);
+    }
+    .flame-row {
+      display: flex; align-items: center; gap: 5px;
+      margin-top: auto; font-size: 12px; font-weight: 600;
+      color: rgba(255,255,255,0.9);
+    }
+    .flame { color: #f59e0b; }
+    .grid {
+      position: relative; z-index: 2;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px 8px;
+      padding: 32px 20px 0;
+    }
+    .app { text-align: center; }
+    .icon {
+      width: 60px; height: 60px; border-radius: 14px;
+      margin: 0 auto 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px;
+      position: relative;
+    }
+    .badge {
+      position: absolute; top: -4px; right: -4px;
+      min-width: 18px; height: 18px; border-radius: 9px;
+      background: #ef4444; color: #fff;
+      font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 5px;
+      border: 2px solid rgba(0,0,0,0.3);
+    }
+    .label { font-size: 11px; opacity: 0.85; }
+    .banner {
+      position: absolute; top: 52px; left: 12px; right: 12px; z-index: 10;
+      background: rgba(28,30,40,0.92);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 18px;
+      padding: 11px 13px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .banner-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: rgba(255,255,255,0.5);
+    }
+    .banner-body { font-size: 15px; margin-top: 2px; }
+    .dock {
+      position: absolute; bottom: 72px; left: 16px; right: 16px;
+      display: flex; gap: 12px; justify-content: center;
+      padding: 14px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 28px;
+      backdrop-filter: blur(24px);
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .home-bar {
+      position: absolute; bottom: 16px; left: 50%;
+      transform: translateX(-50%);
+      width: 130px; height: 5px; border-radius: 3px;
+      background: rgba(255,255,255,0.85);
+    }
+    .panel-title {
+      text-align: center;
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .clout-panel {
+      width: 390px;
+      height: 844px;
+      border-radius: 44px;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.65);
+    }
+    .clout-header {
+      padding: 54px 16px 12px;
+      border-bottom: 1px solid #16181c;
+    }
+    .clout-name { font-size: 20px; font-weight: 800; }
+    .clout-handle { color: #71767b; font-size: 14px; margin-top: 2px; }
+    .clout-stats { display: flex; gap: 16px; margin-top: 12px; font-size: 14px; }
+    .clout-stats strong { color: #e7e9ea; }
+    .tweet {
+      display: flex; gap: 11px;
+      padding: 13px 16px;
+      border-bottom: 1px solid #16181c;
+    }
+    .avatar {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; flex-shrink: 0;
+    }
+    .tweet-body { flex: 1; min-width: 0; }
+    .tweet-head { font-size: 14.5px; }
+    .tweet-head .name { font-weight: 700; }
+    .tweet-head .muted { color: #71767b; }
+    .tweet-text { margin-top: 3px; font-size: 14.5px; line-height: 1.45; color: #e7e9ea; }
+    .fab {
+      position: absolute; bottom: 80px; right: 20px;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: #1d9bf0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 300;
+      box-shadow: 0 8px 24px rgba(29,155,240,0.45);
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <p class="panel-title">Home — production polish</p>
+    <div class="phone">
+      <div class="wallpaper"></div>
+      <div class="status">
+        <div class="status-left">
+          <span>2:47 PM</span>
+          <span class="day-pill">Day 12</span>
+        </div>
+        <div class="status-right">
+          <div class="signal"><span style="height:4px"></span><span style="height:6px"></span><span style="height:8px"></span><span style="height:10px"></span></div>
+          <span style="opacity:0.7">⌁</span>
+          <div class="battery"><div class="battery-fill"></div></div>
+        </div>
+      </div>
+      <div class="banner">
+        <div class="banner-title">Market</div>
+        <div class="banner-body">Sold Sports Coupe for $98,000.00 (-120 followers).</div>
+      </div>
+      <div class="widgets">
+        <div class="widget">
+          <div class="widget-top"><strong>Portfolio</strong><span>Tue, May 26</span></div>
+          <div class="widget-value">$24,847.50</div>
+          <div class="spark"></div>
+          <div class="widget-sub">$8,420.00 cash · Day 12</div>
+        </div>
+        <div class="widget">
+          <div class="widget-top"><strong>Clout</strong><span>Kyle G</span></div>
+          <div class="widget-value">12,480</div>
+          <div class="widget-sub">@kyleg · followers</div>
+          <div class="flame-row"><span class="flame">🔥</span> Post today — streak starts</div>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="app"><div class="icon" style="background:linear-gradient(135deg,#22c55e,#15803d)">📈</div><div class="label">Exchange</div></div>
+        <div class="app"><div class="icon" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8)">🏦</div><div class="label">Bank</div></div>
+        <div class="app"><div class="icon" style="background:linear-gradient(135deg,#84cc16,#4d7c0f)">💵</div><div class="label">CashSwipe</div></div>
+        <div class="app"><div class="icon" style="background:linear-gradient(135deg,#6366f1,#4338ca)">✉️<span class="badge">2</span></div><div class="label">Mail</div></div>
+        <div class="app"><div class="icon" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9)">🕳️</div><div class="label">Tunnel</div></div>
+        <div class="app"><div class="icon" style="background:linear-gradient(135deg,#22d3ee,#0891b2)">💬</div><div class="label">Messages</div></div>
+        <div class="app"><div class="icon" style="background:linear-gradient(135deg,#f97316,#ea580c)">𝕏<span class="badge">1</span></div><div class="label">Clout</div></div>
+        <div class="app"><div class="icon" style="background:linear-gradient(135deg,#ec4899,#be185d)">🛍️</div><div class="label">Market</div></div>
+      </div>
+      <div class="dock">
+        <div class="icon" style="width:52px;height:52px;background:linear-gradient(135deg,#64748b,#334155);margin:0">📋<span class="badge">1</span></div>
+      </div>
+      <div class="home-bar"></div>
+    </div>
+  </div>
+
+  <div>
+    <p class="panel-title">Clout — real display name</p>
+    <div class="clout-panel phone" style="position:relative">
+      <div class="clout-header">
+        <div style="display:flex;gap:12px;align-items:center">
+          <div class="avatar">KG</div>
+          <div>
+            <div class="clout-name">Kyle G</div>
+            <div class="clout-handle">@kyleg</div>
+          </div>
+        </div>
+        <p style="margin-top:10px;font-size:14px;color:#e7e9ea;line-height:1.4">surviving the trenches one bad decision at a time.</p>
+        <div class="clout-stats">
+          <span><strong>12,480</strong> <span style="color:#71767b">Followers</span></span>
+          <span><strong>0</strong> <span style="color:#71767b">Following</span></span>
+        </div>
+      </div>
+      <div class="tweet">
+        <div class="avatar" style="background:linear-gradient(135deg,#22c55e,#15803d)">AH</div>
+        <div class="tweet-body">
+          <div class="tweet-head"><span class="name">Ape House</span> <span class="muted">@apehouse_eth · 2h</span></div>
+          <p class="tweet-text">gm degens. fresh farm just went live — STABLE/ETH pool paying 312% APR…</p>
+        </div>
+      </div>
+      <div class="fab">+</div>
+      <div class="home-bar"></div>
+    </div>
+  </div>
+</body>
+</html>
