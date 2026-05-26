@@ -6,6 +6,32 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-26 16:00 UTC — Stage 6 complete: Scam Director, Wallet, News, Frozen Withdrawal
+- **Scam catalogue (`src/data/scams.ts`):** four Scam Library v1.1 entries —
+  Clipboard seed (#5), Frozen withdrawal (#2), Hijacked friend (#9), Fake
+  support DM (#4). Runtime phases live on `scamDirector` in the store.
+- **Engine — `src/engine/scam-director/`:** `director.ts` ticks clipboard Slow
+  Burns (schedule 1–3 in-game-day detonation, 35% cash drain, defuse reward
+  +5 followers). `frozenWithdrawal.ts` arms when the player withdraws from
+  Bank above $2,500; paying the $750 “unlock fee” is a teaching trap that
+  never releases funds. Opening `jordan-msgs` / suspicious Tunnel chats
+  arms the social scams.
+- **Engine — `src/engine/news/` + `src/data/news.ts`:** eight seed articles
+  across Market / Scams / Culture / Regulation with category filter helpers.
+- **Engine — `src/engine/economy/netWorth.ts`, `src/engine/player/identity.ts`:**
+  Wallet totals and display-name resolution.
+- **Store (`src/state/store.ts`):** `scamDirector`, `newsReadIds`, `displayName`;
+  `requestBankWithdrawal`, `payWithdrawalUnlockFee`, `markNewsRead`; calendar
+  `tick` runs `tickScamDirector` after onboarding. **`SAVE_VERSION` 13 → 14.**
+- **UI:** `WalletScreen`, `NewsScreen` (category chips + relative timestamps),
+  `WithdrawalHoldCard` on Bank. Registered in `appScreens.ts`; News badge in
+  `useAppBadges.ts`.
+- **Tests:** new `scamDirector.test.ts`, `frozenWithdrawal.test.ts`,
+  `news.test.ts`; store/onboarding suites updated. **20 suites / 318 tests
+  green; `tsc --noEmit` clean.**
+- **Outcome:** Stage 6 verification checkpoint closed. Next backlog item:
+  save migration framework (`src/save/`).
+
 ## 2026-05-24 03:30 UTC — Onboarding flow + the Clipboard Scam primer
 - Bible §13's first-launch flow + the flagship Slow Burn's arming
   mechanism (Scam Library v1.1 Event #5). Players who tap "Copy to

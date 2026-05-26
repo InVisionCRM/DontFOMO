@@ -19,6 +19,8 @@ import {
   type Conversation,
 } from '../engine/messages';
 import { findSensitive, type ClipboardEntry } from '../engine/clipboard';
+import { createStartingNews } from '../data/news';
+import { unreadNewsCount } from '../engine/news';
 import type { AppId } from '../data/apps';
 
 /**
@@ -48,10 +50,17 @@ export function useAppBadges(): Partial<Record<AppId, number>> {
   const tunnel = useGameStore((s) => s.tunnel) ?? EMPTY_TUNNEL;
   const messages = useGameStore((s) => s.messages) ?? EMPTY_MESSAGES;
   const clipboard = useGameStore((s) => s.clipboard) ?? EMPTY_CLIPBOARD;
+  const clockNow = useGameStore((s) => s.clock.now);
+  const newsReadIds = useGameStore((s) => s.newsReadIds) ?? EMPTY_READ_IDS;
+  const newsArticles = createStartingNews(clockNow);
+  const newsUnread = unreadNewsCount(newsArticles, new Set(newsReadIds));
   return {
     mail: unreadCount(mail),
     tunnel: totalUnreadTunnel(tunnel),
     messages: totalUnreadMessages(messages),
     clipboard: findSensitive(clipboard) === null ? 0 : 1,
+    news: newsUnread > 0 ? newsUnread : undefined,
   };
 }
+
+const EMPTY_READ_IDS: readonly string[] = [];

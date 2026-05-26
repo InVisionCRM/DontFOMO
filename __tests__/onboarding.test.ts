@@ -15,7 +15,7 @@ import {
   pickPhrase,
 } from '../src/engine/onboarding';
 import { findSensitive } from '../src/engine/clipboard';
-import { scanClipboard } from '../src/engine/scam-director';
+import { createScamDirector, scanClipboard } from '../src/engine/scam-director';
 import {
   createOnboardingState,
   serializeGame,
@@ -40,6 +40,7 @@ describe('onboarding store actions', () => {
       useGameStore.getState().setProfile('Kyle G', '  surviving the trenches  ');
       const state = useGameStore.getState();
       expect(state.handle).toBe('@kyleg');
+      expect(state.displayName).toBe('Kyle G');
       expect(state.bio).toBe('surviving the trenches');
     });
     it('lowercases and strips non-alphanumerics from the handle', () => {
@@ -157,6 +158,7 @@ describe('save round-trip', () => {
       cash: 100,
       followers: 0,
       handle: '@x',
+      displayName: '',
       market: createMarket(createRandom(1)),
       holdings: {},
       playerTokens: [],
@@ -181,6 +183,8 @@ describe('save round-trip', () => {
         },
       ],
       onboarding: { hasOnboarded: false, pendingSeedPhrase: fakePhrase },
+      scamDirector: createScamDirector(),
+      newsReadIds: [],
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
     const state = useGameStore.getState();
