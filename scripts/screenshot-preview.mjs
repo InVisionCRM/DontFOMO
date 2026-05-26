@@ -2,7 +2,7 @@ import puppeteer from 'puppeteer';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
-const root = path.dirname(fileURLToPath(import.meta.url + '/..'));
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const html = path.join(root, 'docs/ui-preview-production-polish-2026-05-26.html');
 const out = path.join(root, 'docs/ui-preview-production-polish-2026-05-26.png');
 
