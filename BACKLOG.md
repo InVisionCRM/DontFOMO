@@ -3,7 +3,7 @@
 First unchecked item wins. The automation agent marks `[x]` when an item lands on `main`.
 
 - [x] Stage 6 verified on main: four scams, Wallet, News, Rug Radar, Settings reset, tests green
-- [ ] Save migration framework in `src/save/`: vN→vN+1 migrations, retire save wipes, test one migration path
+- [x] Save migration framework in `src/save/`: vN→vN+1 migrations, retire save wipes, test one migration path
 - [ ] Save audit: defensive defaults in both `loadSaved` and `serializeGame`
 - [ ] Tick loop + offline catch-up: fix double-fire or drift; add tests
 - [ ] Bank UI polish: copy, loading states, a11y labels on withdrawal/hold

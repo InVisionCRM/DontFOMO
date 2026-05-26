@@ -10,6 +10,11 @@ import { AsyncStorageSaveAdapter } from './AsyncStorageSaveAdapter';
 
 export type { SaveAdapter, SaveEnvelope, SaveMigration } from './SaveAdapter';
 export { SAVE_VERSION } from './SaveAdapter';
+export {
+  SAVE_MIGRATIONS,
+  isSaveLoadable,
+  migrateEnvelope,
+} from './migrations';
 export { AsyncStorageSaveAdapter } from './AsyncStorageSaveAdapter';
 
 /** The app-wide save adapter instance. */
