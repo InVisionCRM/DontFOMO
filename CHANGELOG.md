@@ -6,6 +6,15 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-26 19:15 UTC — Save audit: centralized defensive defaults
+
+- **`src/state/saveNormalize.ts`:** `normalizeSavedGame` backstops every `SavedGame` field (core scalars, bank holds, director pacing, rug radar, pre-v13 onboarding). Shared by `loadSaved` and `serializeGame`.
+- **`src/state/constants.ts`:** `STARTING_CASH` and `DEFAULT_HANDLE` extracted to break a circular import.
+- **Tests — `__tests__/saveNormalize.test.ts`:** 5 cases (empty partial, legacy bank, onboarding, serialize parity, v12 shape).
+- **Outcome:** 425 tests / 26 suites green; partial saves no longer diverge between load and persist paths.
+
+---
+
 ## 2026-05-26 17:30 UTC — Save migration framework (Stage 7)
 
 - **`src/save/migrations.ts`:** registered v16→v17 (`bank.regulatoryHold`), v17→v18 (`cloutTakeover`), v18→v19 (`bank.pendingWithdrawal`); `migrateEnvelope` chains steps; `isSaveLoadable` rejects only forward-incompatible saves.

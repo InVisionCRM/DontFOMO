@@ -104,7 +104,6 @@ import { dailyDeck as rugRadarDailyDeck } from '../data/rugRadar';
 import { phraseToText, pickPhrase } from '../engine/onboarding';
 import {
   createDirectorState,
-  createPacingState,
   deployFrozenWithdrawal,
   resolveScamFromPlayer,
   tickDirector,
