@@ -93,6 +93,18 @@ import {
   type ClipboardEntry,
 } from '../engine/clipboard';
 import { phraseToText, pickPhrase } from '../engine/onboarding';
+import {
+  armScam,
+  armFrozenWithdrawal,
+  canRequestWithdrawal,
+  createScamDirector,
+  createScamRuntime,
+  normalizeScamDirector,
+  payFrozenUnlockFee,
+  tickScamDirector,
+  type ScamDirectorState,
+} from '../engine/scam-director';
+import { markNewsRead as markNewsReadEngine } from '../engine/news';
 import { TOKEN_BY_ID } from '../data/tokens';
 import { createStartingMail } from '../data/mail';
 import { createStartingTunnel } from '../data/tunnel';
@@ -100,6 +112,8 @@ import { createStartingMessages } from '../data/messages';
 import { createStartingClout, DEFAULT_BIO } from '../data/clout';
 import { ASSET_CATALOG } from '../data/assets';
 import type { AppId } from '../data/apps';
+
+export type { ScamDirectorState };
 
 /**
  * Starting cash for a fresh game. Onboarding (Bible §13) does not
@@ -194,6 +208,7 @@ export interface SavedGame {
   cash: number;
   followers: number;
   handle: string;
+  displayName: string;
   market: MarketState;
   holdings: Record<string, number>;
   playerTokens: PlayerTokenDef[];
@@ -223,6 +238,10 @@ export interface SavedGame {
   clipboard: ClipboardEntry[];
   /** Onboarding gate + transient seed-phrase slot. */
   onboarding: OnboardingState;
+  /** Scam Director runtime — four catalogue scams + frozen withdrawal. */
+  scamDirector: ScamDirectorState;
+  /** News article ids the player has opened. */
+  newsReadIds: string[];
 }
 
 export interface GameState {
@@ -234,6 +253,8 @@ export interface GameState {
   followers: number;
   /** The player's Clout handle. */
   handle: string;
+  /** Display name from onboarding; empty until setProfile runs. */
+  displayName: string;
   /** The live crypto market simulation. */
   market: MarketState;
   /** Token holdings — ticker → amount owned. */
@@ -268,6 +289,10 @@ export interface GameState {
   clipboard: ClipboardEntry[];
   /** Onboarding gate + transient seed-phrase slot (Bible §13). */
   onboarding: OnboardingState;
+  /** Scam Director runtime (Stage 6). */
+  scamDirector: ScamDirectorState;
+  /** News articles opened at least once. */
+  newsReadIds: string[];
   /** The top-edge banner currently being shown; null = none. */
   banner: BannerMessage | null;
   /** Which in-game app is open; null = the home screen. */
@@ -370,6 +395,17 @@ export interface GameState {
    * pending phrase. The phone shell takes over after this fires.
    */
   finishOnboarding: () => void;
+  /**
+   * Bank — attempt to withdraw cash to an external wallet. Triggers the
+   * Frozen Withdrawal scam when balance crosses the threshold.
+   */
+  requestBankWithdrawal: (amount: number, now: number) => void;
+  /**
+   * Bank — pay the fake “verification fee” while frozen (teaching trap).
+   */
+  payWithdrawalUnlockFee: (now: number) => void;
+  /** News — mark an article read for badge + styling. */
+  markNewsRead: (articleId: string) => void;
 }
 
 /** The fresh-game state slice (everything except the actions). */
@@ -396,6 +432,9 @@ function freshGame(now: number): Pick<
   | 'assets'
   | 'clipboard'
   | 'onboarding'
+  | 'scamDirector'
+  | 'newsReadIds'
+  | 'displayName'
   | 'banner'
   | 'openAppId'
 > {
@@ -404,6 +443,7 @@ function freshGame(now: number): Pick<
     cash: STARTING_CASH,
     followers: 0,
     handle: DEFAULT_HANDLE,
+    displayName: '',
     market: createMarket(createRandom(now)),
     holdings: {},
     playerTokens: [],
@@ -422,6 +462,8 @@ function freshGame(now: number): Pick<
     assets: [],
     clipboard: [],
     onboarding: createOnboardingState(),
+    scamDirector: createScamDirector(),
+    newsReadIds: [],
     banner: null,
     openAppId: null,
   };
@@ -470,12 +512,33 @@ export const useGameStore = create<GameState>()((set) => ({
       const clock = tickClock(s.clock, now);
       const netWorth = netWorthOf(s.cash, s.holdings, s.market, s.assets ?? []);
       const peakNetWorth = Math.max(s.peakNetWorth, netWorth);
+      const scamTick = tickScamDirector(s.scamDirector ?? createScamDirector(), {
+        now,
+        cash: s.cash,
+        followers: s.followers,
+        clipboard: s.clipboard ?? [],
+        hasOnboarded: s.onboarding?.hasOnboarded ?? true,
+      });
+      const cashAfterScam = s.cash + scamTick.cashDelta;
+      const followersAfterScam = Math.max(
+        0,
+        s.followers + scamTick.followersDelta,
+      );
+      const base = {
+        clock,
+        peakNetWorth,
+        cash: cashAfterScam,
+        followers: followersAfterScam,
+        scamDirector: scamTick.state,
+        ...(scamTick.banner
+          ? { banner: bannerOf(scamTick.banner.title, scamTick.banner.body) }
+          : {}),
+      };
       if (isCheckDue(s.lastUnemploymentCheckAt, now)) {
         const amount = unemploymentAmount(peakNetWorth);
         return {
-          clock,
-          peakNetWorth,
-          cash: s.cash + amount,
+          ...base,
+          cash: cashAfterScam + amount,
           lastUnemploymentCheckAt: now,
           banner: bannerOf(
             'Unemployment',
@@ -483,7 +546,7 @@ export const useGameStore = create<GameState>()((set) => ({
           ),
         };
       }
-      return { clock, peakNetWorth };
+      return base;
     }),
   tickMarket: () =>
     set((s) => ({
@@ -551,6 +614,9 @@ export const useGameStore = create<GameState>()((set) => ({
       // played, so default to `hasOnboarded: true` to skip the flow.
       const seededOnboarding =
         saved.onboarding ?? { hasOnboarded: true, pendingSeedPhrase: null };
+      const seededScamDirector = normalizeScamDirector(saved.scamDirector);
+      const seededNewsReadIds = saved.newsReadIds ?? [];
+      const seededDisplayName = saved.displayName ?? '';
 
       const resumed = resumeClock(saved.clock, now);
       const loan = bank.loan
@@ -576,6 +642,7 @@ export const useGameStore = create<GameState>()((set) => ({
         cash: saved.cash + amount,
         followers: saved.followers,
         handle: saved.handle,
+        displayName: seededDisplayName,
         market,
         holdings,
         playerTokens,
@@ -593,6 +660,8 @@ export const useGameStore = create<GameState>()((set) => ({
         assets: seededAssets,
         clipboard: seededClipboard,
         onboarding: seededOnboarding,
+        scamDirector: seededScamDirector,
+        newsReadIds: seededNewsReadIds,
         banner: due
           ? bannerOf(
               'Unemployment',
@@ -743,11 +812,31 @@ export const useGameStore = create<GameState>()((set) => ({
   pushMailMessage: (msg) =>
     set((s) => ({ mail: addMessage(s.mail ?? [], msg) })),
   openTunnelChat: (chatId) =>
-    set((s) => ({ tunnel: markChatRead(s.tunnel ?? [], chatId) })),
+    set((s) => {
+      const chat = (s.tunnel ?? []).find((c) => c.id === chatId);
+      let scamDirector = s.scamDirector ?? createScamDirector();
+      if (chat?.isSuspicious) {
+        scamDirector = armScam(scamDirector, 'fake_support', s.clock.now);
+      }
+      return {
+        tunnel: markChatRead(s.tunnel ?? [], chatId),
+        scamDirector,
+      };
+    }),
   pushTunnelMessage: (chatId, msg) =>
     set((s) => ({ tunnel: addTunnelMessage(s.tunnel ?? [], chatId, msg) })),
   openConversation: (convId) =>
-    set((s) => ({ messages: markConversationRead(s.messages ?? [], convId) })),
+    set((s) => {
+      const conv = (s.messages ?? []).find((c) => c.id === convId);
+      let scamDirector = s.scamDirector ?? createScamDirector();
+      if (conv?.isSuspicious) {
+        scamDirector = armScam(scamDirector, 'hijacked_friend', s.clock.now);
+      }
+      return {
+        messages: markConversationRead(s.messages ?? [], convId),
+        scamDirector,
+      };
+    }),
   pushConversationMessage: (convId, msg) =>
     set((s) => ({
       messages: addConversationMessage(s.messages ?? [], convId, msg),
@@ -834,7 +923,7 @@ export const useGameStore = create<GameState>()((set) => ({
       if (!trimmedName) return {}; // a profile requires a name
       const slug = trimmedName.toLowerCase().replace(/[^a-z0-9_]/g, '');
       const handle = slug.length > 0 ? `@${slug}` : s.handle;
-      return { handle, bio: bio.trim() };
+      return { handle, displayName: trimmedName, bio: bio.trim() };
     }),
   generateWallet: (seed) =>
     set((s) => ({
@@ -866,6 +955,52 @@ export const useGameStore = create<GameState>()((set) => ({
     set(() => ({
       onboarding: { hasOnboarded: true, pendingSeedPhrase: null },
     })),
+  requestBankWithdrawal: (amount, now) =>
+    set((s) => {
+      const director = s.scamDirector ?? createScamDirector();
+      const frozen = director.frozen;
+      if (!canRequestWithdrawal(s.cash, frozen)) return {};
+      const clamped = Math.min(amount, s.cash);
+      if (clamped < 500) return {};
+      const nextFrozen = armFrozenWithdrawal(frozen, clamped, now);
+      const nextDirector = {
+        ...director,
+        frozen: nextFrozen,
+        scams: {
+          ...director.scams,
+          frozen_withdrawal: {
+            ...(director.scams.frozen_withdrawal ?? createScamRuntime('idle')),
+            phase: 'armed' as const,
+            armedAt: now,
+          },
+        },
+      };
+      return {
+        scamDirector: nextDirector,
+        banner: bannerOf(
+          'Withdrawal frozen',
+          `Your ${fmtUSD(clamped)} withdrawal is on hold. This is a common scam pattern — never pay an upfront "unlock" fee.`,
+        ),
+      };
+    }),
+  payWithdrawalUnlockFee: (_now) =>
+    set((s) => {
+      const director = s.scamDirector ?? createScamDirector();
+      const result = payFrozenUnlockFee(director.frozen, s.cash);
+      if (!result) return {};
+      return {
+        cash: s.cash - result.spent,
+        scamDirector: { ...director, frozen: result.state },
+        banner: bannerOf(
+          'Still frozen',
+          `Paid ${fmtUSD(result.spent)} in fees — real platforms never ask for this. Your withdrawal is still blocked.`,
+        ),
+      };
+    }),
+  markNewsRead: (articleId) =>
+    set((s) => ({
+      newsReadIds: markNewsReadEngine(s.newsReadIds ?? [], articleId),
+    })),
 }));
 
 /**
@@ -881,6 +1016,7 @@ export function serializeGame(state: GameState): SavedGame {
     cash: state.cash,
     followers: state.followers,
     handle: state.handle,
+    displayName: state.displayName ?? '',
     market: state.market,
     holdings: state.holdings ?? {},
     playerTokens: state.playerTokens ?? [],
@@ -898,5 +1034,7 @@ export function serializeGame(state: GameState): SavedGame {
     assets: state.assets ?? [],
     clipboard: state.clipboard ?? [],
     onboarding: state.onboarding ?? createOnboardingState(),
+    scamDirector: normalizeScamDirector(state.scamDirector),
+    newsReadIds: state.newsReadIds ?? [],
   };
 }
