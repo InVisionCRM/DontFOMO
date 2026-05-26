@@ -13,11 +13,8 @@ import { useGameStore } from '../../../state/store';
 import { fontWeight, spacing } from '../../../theme/theme';
 
 export function DoneStep() {
-  const handle = useGameStore((s) => s.handle);
+  const displayName = useGameStore((s) => s.displayName);
   const finishOnboarding = useGameStore((s) => s.finishOnboarding);
-
-  // Strip the leading "@" for the welcome line.
-  const displayName = handle.startsWith('@') ? handle.slice(1) : handle;
 
   return (
     <View style={styles.root}>

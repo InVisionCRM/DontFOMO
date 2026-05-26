@@ -19,6 +19,11 @@ import {
   type Conversation,
 } from '../engine/messages';
 import { findSensitive, type ClipboardEntry } from '../engine/clipboard';
+import {
+  CASH_SWIPE_DAILY_CAP,
+  countBillsNeedingAttention,
+  swipesRemaining,
+} from '../engine/economy';
 import type { AppId } from '../data/apps';
 
 /**
@@ -48,10 +53,28 @@ export function useAppBadges(): Partial<Record<AppId, number>> {
   const tunnel = useGameStore((s) => s.tunnel) ?? EMPTY_TUNNEL;
   const messages = useGameStore((s) => s.messages) ?? EMPTY_MESSAGES;
   const clipboard = useGameStore((s) => s.clipboard) ?? EMPTY_CLIPBOARD;
-  return {
+  const bank = useGameStore((s) => s.bank);
+  const cashSwipe = useGameStore((s) => s.cashSwipe);
+  const clockNow = useGameStore((s) => s.clock.now);
+
+  const bankDue = countBillsNeedingAttention(bank?.bills ?? [], clockNow);
+  const swipesLeft = swipesRemaining(cashSwipe, clockNow);
+
+  const badges: Partial<Record<AppId, number>> = {
     mail: unreadCount(mail),
     tunnel: totalUnreadTunnel(tunnel),
     messages: totalUnreadMessages(messages),
     clipboard: findSensitive(clipboard) === null ? 0 : 1,
   };
+
+  if (bankDue > 0) {
+    badges.bank = bankDue;
+  }
+
+  // Full daily cap unused — a soft nudge to open CashSwipe once per day.
+  if (swipesLeft === CASH_SWIPE_DAILY_CAP) {
+    badges.cashswipe = 1;
+  }
+
+  return badges;
 }

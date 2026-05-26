@@ -6,6 +6,32 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-26 15:10 UTC — Production polish: identity, home widgets, badges
+- Low–medium complexity pass to make the phone shell feel like a live
+  product: real net worth on the home Portfolio widget, a holdings-
+  driven sparkline and same-day crypto change caption, Clout post-
+  streak on the second widget (replacing the generic game-day label),
+  persisted `displayName` from onboarding (no more hard-coded "Kyle"),
+  scaled "following" count on Clout, and pull-based badges on Bank
+  (bills due within 2 days / overdue) plus CashSwipe (full daily cap
+  unused).
+- **Engine — `src/engine/profile/displayName.ts`:** `displayNameFromHandle`,
+  `approxFollowingCount`, `DEFAULT_DISPLAY_NAME`.
+- **Engine — `bank.ts`:** `countBillsNeedingAttention` for badge counts.
+- **UI — `portfolioSparkline.ts`:** `buildPortfolioSparkline`,
+  `portfolioDayChangePercent`, `homeNetWorth` from real holdings +
+  market history.
+- **Store — `displayName` on `GameState` / `SavedGame`; `setProfile`
+  persists it; `loadSaved` falls back via `displayNameFromHandle`.
+  **`SAVE_VERSION` 13 → 14.**
+- **UI — `HomeWidgets`, `useAppBadges`, `CloutScreen`, `DoneStep`**
+  wired to the above.
+- **Tests:** `profileDisplayName`, `portfolioSparkline`, `bankAttention`
+  (+ onboarding / store updates). **20 suites / 310 tests passing;
+  `tsc --noEmit` clean.**
+- **Preview:** `docs/ui-preview-production-polish-2026-05-26.html` +
+  `docs/ui-preview-production-polish-2026-05-26.png`.
+
 ## 2026-05-24 03:30 UTC — Onboarding flow + the Clipboard Scam primer
 - Bible §13's first-launch flow + the flagship Slow Burn's arming
   mechanism (Scam Library v1.1 Event #5). Players who tap "Copy to

@@ -69,6 +69,19 @@ export function isOverdue(bill: BillState, now: number): boolean {
   return now > bill.nextDueAt;
 }
 
+/**
+ * Bills due within `horizonDays` (or already overdue). Used for the
+ * home-screen Bank badge — a quiet nudge before late fees stack.
+ */
+export function countBillsNeedingAttention(
+  bills: readonly BillState[],
+  now: number,
+  horizonDays = 2,
+): number {
+  return bills.filter((bill) => daysUntilDue(bill, now) <= horizonDays)
+    .length;
+}
+
 /** Accrued late fee in USD for a single bill at the moment `now`. */
 export function billLateFee(
   def: BillDefinition,

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DON'T FOMO — Home polish preview (2026-05-26)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a12;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+    }
+    .phone {
+      width: 390px;
+      height: 844px;
+      border-radius: 44px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.65), inset 0 0 0 1px rgba(255,255,255,0.08);
+      background: linear-gradient(165deg, #1a0f2e 0%, #2d1548 38%, #4a1942 72%, #6b2d4a 100%);
+    }
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: 0.45;
+    }
+    .blob-a { width: 220px; height: 220px; background: #7c3aed; top: -40px; left: -60px; }
+    .blob-b { width: 180px; height: 180px; background: #ec4899; top: 120px; right: -40px; }
+    .blob-c { width: 200px; height: 200px; background: #f97316; bottom: 180px; left: 20px; opacity: 0.25; }
+    .status {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 28px 0;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .status-right { display: flex; gap: 6px; align-items: center; opacity: 0.9; font-size: 12px; }
+    .content {
+      position: relative;
+      z-index: 2;
+      padding: 12px 22px 0;
+    }
+    .widgets {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .widget {
+      flex: 1;
+      height: 150px;
+      border-radius: 18px;
+      padding: 14px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.18);
+      backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+      color: #fff;
+    }
+    .widget-top {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      opacity: 0.65;
+    }
+    .widget-top strong { opacity: 1; font-size: 13px; font-weight: 600; }
+    .widget-value {
+      margin-top: auto;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .spark {
+      margin: 8px 0 4px;
+      height: 28px;
+    }
+    .widget-foot {
+      font-size: 11px;
+      opacity: 0.6;
+    }
+    .streak {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      opacity: 0.9;
+    }
+    .streak svg { flex-shrink: 0; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 22px 8px;
+      margin-top: 28px;
+      text-align: center;
+    }
+    .app-icon {
+      width: 58px;
+      height: 58px;
+      border-radius: 14px;
+      margin: 0 auto 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      position: relative;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    }
+    .app-name { font-size: 11px; color: rgba(255,255,255,0.92); }
+    .badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 9px;
+      background: #ff3b30;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 5px;
+      border: 2px solid rgba(30,10,40,0.9);
+    }
+    .dots {
+      display: flex;
+      justify-content: center;
+      gap: 7px;
+      margin-top: 28px;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.32); }
+    .dot.on { background: rgba(255,255,255,0.95); }
+    .dock {
+      position: absolute;
+      bottom: 24px;
+      left: 22px;
+      right: 22px;
+      height: 88px;
+      border-radius: 28px;
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.2);
+      backdrop-filter: blur(24px);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 8px;
+      z-index: 2;
+    }
+    .dock .app-icon { width: 52px; height: 52px; margin-bottom: 0; }
+    .caption {
+      position: absolute;
+      bottom: 8px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 10px;
+      color: rgba(255,255,255,0.35);
+      z-index: 2;
+    }
+    h1.page-title {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      color: rgba(255,255,255,0.5);
+      font-size: 12px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <h1 class="page-title">Production polish — home screen (live store data patterns)</h1>
+  <div class="phone" id="capture">
+    <div class="blob blob-a"></div>
+    <div class="blob blob-b"></div>
+    <div class="blob blob-c"></div>
+    <div class="status">
+      <span>3:41</span>
+      <span class="status-right">●●●● ▮▮▮ 🔋</span>
+    </div>
+    <div class="content">
+      <div class="widgets">
+        <div class="widget">
+          <div class="widget-top"><strong>Portfolio</strong><span>Tue, May 26</span></div>
+          <div class="widget-value">$524.00</div>
+          <svg class="spark" viewBox="0 0 150 28" preserveAspectRatio="none" width="100%" height="28">
+            <polyline points="0,16 30,18 60,14 90,17 120,13 150,15" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+          <div class="widget-foot">Cash · open Exchange to trade</div>
+        </div>
+        <div class="widget">
+          <div class="widget-top"><strong>Clout</strong><span>@kyleg</span></div>
+          <div class="widget-value">0</div>
+          <div class="widget-foot" style="margin-top:auto">followers</div>
+          <div class="streak">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2"><path d="M12 12c2-3 0-7-1-8 0 3-2 5-3 6-1 1-2 3-2 5a6 6 0 1012 0c0-2-1-4-2-5-2 3-3 3-4 2z"/></svg>
+            Post on Clout to start
+          </div>
+        </div>
+      </div>
+      <div class="grid">
+        <div><div class="app-icon" style="background:linear-gradient(135deg,#48484A,#1C1C1E)">✕</div><div class="app-name">Clout</div></div>
+        <div><div class="app-icon" style="background:linear-gradient(135deg,#0ea5e9,#0369a1)">◈</div><div class="app-name">Exchange</div></div>
+        <div><div class="app-icon" style="background:linear-gradient(135deg,#a855f7,#6b21a8)">◎</div><div class="app-name">Wallet</div></div>
+        <div><div class="app-icon" style="background:linear-gradient(135deg,#1e3a5f,#0f172a)">✈<span class="badge">2</span></div><div class="app-name">Tunnel</div></div>
+        <div><div class="app-icon" style="background:linear-gradient(135deg,#dc2626,#7f1d1d)">▤</div><div class="app-name">News</div></div>
+        <div><div class="app-icon" style="background:linear-gradient(135deg,#2563eb,#1e3a8a)">✉<span class="badge">3</span></div><div class="app-name">Mail</div></div>
+        <div><div class="app-icon" style="background:linear-gradient(135deg,#22c55e,#14532d)">💬<span class="badge">1</span></div><div class="app-name">Messages</div></div>
+        <div><div class="app-icon" style="background:linear-gradient(135deg,#ec4899,#9d174d)">🏷</div><div class="app-name">Market</div></div>
+        <div><div class="app-icon" style="background:linear-gradient(135deg,#0d9488,#134e4a)">🏦<span class="badge">2</span></div><div class="app-name">Bank</div></div>
+        <div><div class="app-icon" style="background:linear-gradient(135deg,#16a34a,#14532d)">💵<span class="badge">1</span></div><div class="app-name">CashSwipe</div></div>
+        <div><div class="app-icon" style="background:linear-gradient(135deg,#64748b,#334155)">📋</div><div class="app-name">Clipboard</div></div>
+        <div><div class="app-icon" style="background:linear-gradient(135deg,#52525b,#27272a)">⚙</div><div class="app-name">Settings</div></div>
+      </div>
+      <div class="dots"><div class="dot on"></div><div class="dot"></div></div>
+    </div>
+    <div class="dock">
+      <div class="app-icon" style="background:linear-gradient(135deg,#48484A,#1C1C1E)">✕</div>
+      <div class="app-icon" style="background:linear-gradient(135deg,#0ea5e9,#0369a1)">◈</div>
+      <div class="app-icon" style="background:linear-gradient(135deg,#a855f7,#6b21a8)">◎</div>
+      <div class="app-icon" style="background:linear-gradient(135deg,#1e3a5f,#0f172a)">✈</div>
+    </div>
+    <div class="caption">Net worth widget · post streak · Bank + CashSwipe badges</div>
+  </div>
+</body>
+</html>
