@@ -17,6 +17,7 @@ import {
   ASSET_CATEGORIES,
   findAsset,
   isOwned,
+  ownedValue,
   type AssetCategory,
   type OwnedAsset,
 } from '../../engine/assets';
@@ -47,6 +48,9 @@ export function MarketScreen() {
   const [category, setCategory] = useState<AssetCategory>('Cars');
   const [openId, setOpenId] = useState<string | null>(null);
 
+  const ownedCount = owned.length;
+  const collectionValue = ownedValue(ASSET_CATALOG, owned);
+
   const visible = useMemo(
     () => ASSET_CATALOG.filter((a) => a.category === category),
     [category],
@@ -69,6 +73,12 @@ export function MarketScreen() {
         <Text style={styles.subtitle}>
           Buy assets to grow your net worth and your following.
         </Text>
+        {ownedCount > 0 && (
+          <Text style={styles.ownedLine}>
+            {ownedCount} owned · ${collectionValue.toLocaleString('en-US')} book
+            value
+          </Text>
+        )}
 
         <View style={styles.chips}>
           {ASSET_CATEGORIES.map((c) => {
@@ -147,6 +157,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: MUTED_COLOR,
     marginTop: 2,
+  },
+  ownedLine: {
+    fontSize: 12,
+    color: CHIP_ON_TEXT,
+    marginTop: 6,
+    fontWeight: fontWeight.semibold,
   },
   chips: {
     flexDirection: 'row',

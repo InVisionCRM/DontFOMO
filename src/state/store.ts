@@ -41,6 +41,7 @@ import {
   findLoanTier,
   followersFromDump,
   followersFromPump,
+  computeNetWorth,
   holdingsValue,
   isCheckDue,
   nextInstallmentCost,
@@ -73,7 +74,9 @@ import {
 } from '../engine/messages';
 import {
   applyDailyPost as applyDailyPostEngine,
+  canPostToday as canPostTodayEngine,
   createDailyPostState,
+  createPlayerDailyTweet,
   pushTweet as pushTweetEngine,
   type DailyPostState,
   type Tweet,
@@ -99,7 +102,7 @@ import { createStartingTunnel } from '../data/tunnel';
 import { createStartingMessages } from '../data/messages';
 import { createStartingClout, DEFAULT_BIO } from '../data/clout';
 import { ASSET_CATALOG } from '../data/assets';
-import type { AppId } from '../data/apps';
+import { APP_BY_ID, type AppId } from '../data/apps';
 
 /**
  * Starting cash for a fresh game. Onboarding (Bible §13) does not
@@ -427,20 +430,14 @@ function freshGame(now: number): Pick<
   };
 }
 
-/**
- * Compute net worth from a slice of state. Cash + crypto holdings +
- * Market-app asset book value (Bible §14). The full formula now;
- * `peakNetWorth` tracks the running max.
- */
+/** Net worth for a slice of state — delegates to the shared engine helper. */
 function netWorthOf(
   cash: number,
   holdings: Record<string, number>,
   market: MarketState,
   assets: readonly OwnedAsset[],
 ): number {
-  return (
-    cash + holdingsValue(holdings, market) + ownedValue(ASSET_CATALOG, assets)
-  );
+  return computeNetWorth(cash, holdings, market, assets);
 }
 
 /** Whole market ticks elapsed across an offline gap, capped. */
@@ -755,19 +752,19 @@ export const useGameStore = create<GameState>()((set) => ({
   postDailyClout: (now) =>
     set((s) => {
       const dailyPost = s.dailyPost ?? createDailyPostState();
+      if (!canPostTodayEngine(dailyPost, now)) return {};
       const result = applyDailyPostEngine(dailyPost, now);
-      if (
-        result.followersEarned === 0 &&
-        result.diamondsEarned === 0 &&
-        result.state === dailyPost
-      ) {
-        return {}; // already posted today — no-op
-      }
       const followers = Math.max(
         0,
         (s.followers ?? 0) + result.followersEarned,
       );
       const diamonds = (s.diamonds ?? 0) + result.diamondsEarned;
+      const playerTweet = createPlayerDailyTweet(
+        now,
+        s.handle,
+        APP_BY_ID.clout.gradient,
+      );
+      const feed = pushTweetEngine(s.cloutFeed ?? [], playerTweet);
       // Build the confirmation banner copy.
       const sign = result.followersEarned >= 0 ? '+' : '';
       const followerLine = `${sign}${result.followersEarned} followers`;
@@ -780,6 +777,7 @@ export const useGameStore = create<GameState>()((set) => ({
         dailyPost: result.state,
         followers,
         diamonds,
+        cloutFeed: feed,
         banner: bannerOf('Clout', body),
       };
     }),

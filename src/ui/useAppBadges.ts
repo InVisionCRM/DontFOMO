@@ -19,6 +19,7 @@ import {
   type Conversation,
 } from '../engine/messages';
 import { findSensitive, type ClipboardEntry } from '../engine/clipboard';
+import { canPostToday, createDailyPostState } from '../engine/clout';
 import type { AppId } from '../data/apps';
 
 /**
@@ -48,10 +49,13 @@ export function useAppBadges(): Partial<Record<AppId, number>> {
   const tunnel = useGameStore((s) => s.tunnel) ?? EMPTY_TUNNEL;
   const messages = useGameStore((s) => s.messages) ?? EMPTY_MESSAGES;
   const clipboard = useGameStore((s) => s.clipboard) ?? EMPTY_CLIPBOARD;
+  const dailyPost = useGameStore((s) => s.dailyPost) ?? createDailyPostState();
+  const cloutBadge = canPostToday(dailyPost, Date.now()) ? 1 : 0;
   return {
     mail: unreadCount(mail),
     tunnel: totalUnreadTunnel(tunnel),
     messages: totalUnreadMessages(messages),
+    clout: cloutBadge > 0 ? cloutBadge : undefined,
     clipboard: findSensitive(clipboard) === null ? 0 : 1,
   };
 }

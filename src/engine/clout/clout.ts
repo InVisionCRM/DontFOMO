@@ -223,3 +223,5 @@ export function pushTweet(feed: readonly Tweet[], tweet: Tweet): Tweet[] {
 export function clampFeed(feed: readonly Tweet[], limit: number): Tweet[] {
   return feed.length <= limit ? [...feed] : feed.slice(0, limit);
 }
+
+export { createPlayerDailyTweet } from './dailyPostTweet';

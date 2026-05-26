@@ -20,6 +20,7 @@ import {
   clampFeed,
   type Tweet,
 } from '../../engine/clout';
+import { displayNameFromHandle } from '../../engine/profile/displayName';
 import { APP_BY_ID } from '../../data/apps';
 import { fontWeight } from '../../theme/theme';
 
@@ -42,9 +43,7 @@ export function CloutScreen() {
   const clockNow = useGameStore((s) => s.clock.now);
   const postDailyClout = useGameStore((s) => s.postDailyClout);
 
-  // "Kyle" is a placeholder display name until onboarding (later
-  // stage) lets the player set their own. Handle is the canonical id.
-  const displayName = 'Kyle';
+  const displayName = displayNameFromHandle(handle);
   const avatarGradient = APP_BY_ID.clout.gradient;
 
   const visibleFeed = clampFeed(feed, FEED_LIMIT);
