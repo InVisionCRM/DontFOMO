@@ -10,6 +10,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { senderInitials } from '../../engine/mail';
+import { cloutFollowingCount } from '../format';
 import { fontWeight, tabularNums } from '../../theme/theme';
 
 interface CloutProfileStripProps {
@@ -17,8 +18,6 @@ interface CloutProfileStripProps {
   handle: string;
   bio: string;
   followers: number;
-  /** "Following" count — flavour only in v1. */
-  followingApprox?: number;
   streakDays: number;
   /** True when the player can post today (drives streak-card copy). */
   canPostToday: boolean;
@@ -46,7 +45,6 @@ export function CloutProfileStrip({
   handle,
   bio,
   followers,
-  followingApprox = 182,
   streakDays,
   canPostToday,
   avatarGradient,
@@ -76,7 +74,7 @@ export function CloutProfileStrip({
         <View style={styles.counts}>
           <Text style={styles.countLine}>
             <Text style={[styles.countNum, tabularNums]}>
-              {followingApprox.toLocaleString('en-US')}
+              {cloutFollowingCount(followers).toLocaleString('en-US')}
             </Text>
             <Text style={styles.countLabel}> Following</Text>
           </Text>

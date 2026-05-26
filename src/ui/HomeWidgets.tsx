@@ -7,11 +7,21 @@
  * actually change (not on every clock tick).
  */
 import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Path, Polyline } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { GlassSurface } from './GlassSurface';
-import { formatCurrency, formatDate } from './format';
-import { useGameStore } from '../state/store';
+import { Sparkline } from './Sparkline';
+import {
+  cloutFollowingCount,
+  formatCurrency,
+  formatDate,
+  pickPortfolioSparkline,
+  portfolioCaption,
+} from './format';
+import { useGameStore, STARTING_CASH } from '../state/store';
 import { dayNumber } from '../engine/time/clock';
+import { holdingsValue } from '../engine/economy';
+import { ownedValue } from '../engine/assets';
+import { ASSET_CATALOG } from '../data/assets';
 import { color, fontSize, fontWeight, radius, spacing, tabularNums } from '../theme/theme';
 
 /** Widget-specific layout metrics (not part of the global type scale). */
@@ -24,10 +34,29 @@ const FLAME =
 
 export function HomeWidgets() {
   const cash = useGameStore((s) => s.cash);
+  const holdings = useGameStore((s) => s.holdings);
+  const market = useGameStore((s) => s.market);
+  const assets = useGameStore((s) => s.assets ?? []);
   const followers = useGameStore((s) => s.followers);
   const handle = useGameStore((s) => s.handle);
   const dateLabel = useGameStore((s) => formatDate(s.clock.now));
   const day = useGameStore((s) => dayNumber(s.clock));
+
+  const cryptoValue = holdingsValue(holdings, market);
+  const assetValue = ownedValue(ASSET_CATALOG, assets);
+  const netWorth = cash + cryptoValue + assetValue;
+  const sparkData = pickPortfolioSparkline(market, holdings);
+  const caption = portfolioCaption(
+    netWorth,
+    cash,
+    cryptoValue,
+    assetValue,
+    STARTING_CASH,
+  );
+  const sparkColor =
+    sparkData.length >= 2 && sparkData[sparkData.length - 1]! >= sparkData[0]!
+      ? color.success
+      : color.danger;
 
   return (
     <View style={styles.row}>
@@ -36,25 +65,14 @@ export function HomeWidgets() {
           <Text style={styles.label}>Portfolio</Text>
           <Text style={styles.sub}>{dateLabel}</Text>
         </View>
-        <Text style={[styles.value, tabularNums]}>{formatCurrency(cash)}</Text>
-        <Svg
-          width="100%"
+        <Text style={[styles.value, tabularNums]}>{formatCurrency(netWorth)}</Text>
+        <Sparkline
+          data={sparkData}
+          width={150}
           height={28}
-          viewBox="0 0 150 28"
-          preserveAspectRatio="none"
-          style={styles.spark}
-        >
-          <Polyline
-            points="0,19 30,17 60,20 90,16 120,18 150,17"
-            fill="none"
-            stroke={color.text.primary}
-            strokeOpacity={0.4}
-            strokeWidth={2.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </Svg>
-        <Text style={styles.sub}>Starting balance</Text>
+          color={sparkColor}
+        />
+        <Text style={styles.sub}>{caption}</Text>
       </GlassSurface>
 
       <GlassSurface radius={radius.lg} style={styles.card}>
@@ -115,10 +133,6 @@ const styles = StyleSheet.create({
     color: color.text.primary,
     marginTop: 'auto',
     letterSpacing: -0.5,
-  },
-  spark: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
   },
   flameRow: {
     flexDirection: 'row',

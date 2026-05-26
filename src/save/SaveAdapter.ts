@@ -24,8 +24,9 @@
  * v12 added the Market (owned assets) — completes peakNetWorth;
  * v13 added the Clipboard history + the onboarding slice (handle and
  *      bio are now set in onboarding rather than hard-coded defaults).
+ * v14 added `displayName` — the player's chosen name from onboarding.
  */
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 
 /**
  * The envelope every save is wrapped in. `version` lets the loader

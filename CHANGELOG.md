@@ -6,6 +6,27 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-26 08:30 UTC — Game realism polish: live portfolio, real profile name
+- **Home Portfolio widget** now shows full **net worth** (cash + crypto +
+  owned assets) instead of cash alone. The sparkline tracks the
+  player's largest holding, or the flagship `MOONP` market when flat.
+  The footer caption reflects the mix (`Starting balance`, `crypto ·
+  assets`, `All cash`, etc.) instead of the static "Starting balance"
+  line that never changed after day one.
+- **Clout profile** reads the player's **`displayName`** from the store
+  (set in onboarding) instead of the hard-coded `"Kyle"`. The
+  **Following** count scales with followers via `cloutFollowingCount`
+  instead of a fixed `182`.
+- **Onboarding Done** welcome line uses the typed name, not the slug
+  stripped from `@handle`.
+- **Market** subtitle switches when the player owns assets (`N owned —
+  flex wisely…`).
+- **Store / save:** new `displayName` field on `GameState` /
+  `SavedGame`; `setProfile` persists it. **`SAVE_VERSION` 13 → 14.**
+  Pre-v14 saves back-fill from handle on load.
+- **Tests:** new `format.test.ts` (7); onboarding + store suites
+  updated. **18 suites / 308 tests passing; `tsc --noEmit` clean.**
+
 ## 2026-05-24 03:30 UTC — Onboarding flow + the Clipboard Scam primer
 - Bible §13's first-launch flow + the flagship Slow Burn's arming
   mechanism (Scam Library v1.1 Event #5). Players who tap "Copy to

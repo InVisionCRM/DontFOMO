@@ -47,6 +47,7 @@ export function MarketScreen() {
   const [category, setCategory] = useState<AssetCategory>('Cars');
   const [openId, setOpenId] = useState<string | null>(null);
 
+  const ownedCount = owned.length;
   const visible = useMemo(
     () => ASSET_CATALOG.filter((a) => a.category === category),
     [category],
@@ -67,7 +68,9 @@ export function MarketScreen() {
       >
         <Text style={styles.title}>Market</Text>
         <Text style={styles.subtitle}>
-          Buy assets to grow your net worth and your following.
+          {ownedCount === 0
+            ? 'Buy assets to grow your net worth and your following.'
+            : `${ownedCount} owned — flex wisely, sell at 70% if you need cash.`}
         </Text>
 
         <View style={styles.chips}>

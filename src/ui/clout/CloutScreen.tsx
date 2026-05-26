@@ -35,6 +35,7 @@ const MUTED_COLOR = '#71767B';
 
 export function CloutScreen() {
   const handle = useGameStore((s) => s.handle);
+  const displayName = useGameStore((s) => s.displayName);
   const bio = useGameStore((s) => s.bio) ?? '';
   const followers = useGameStore((s) => s.followers) ?? 0;
   const feed = useGameStore((s) => s.cloutFeed) ?? EMPTY_FEED;
@@ -42,9 +43,6 @@ export function CloutScreen() {
   const clockNow = useGameStore((s) => s.clock.now);
   const postDailyClout = useGameStore((s) => s.postDailyClout);
 
-  // "Kyle" is a placeholder display name until onboarding (later
-  // stage) lets the player set their own. Handle is the canonical id.
-  const displayName = 'Kyle';
   const avatarGradient = APP_BY_ID.clout.gradient;
 
   const visibleFeed = clampFeed(feed, FEED_LIMIT);
