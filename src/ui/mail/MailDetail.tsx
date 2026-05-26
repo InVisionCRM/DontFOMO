@@ -23,7 +23,7 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { MailMessage } from '../../engine/mail';
+import type { MailAction, MailMessage } from '../../engine/mail';
 import { senderInitials } from '../../engine/mail';
 import {
   appAccent,
@@ -40,6 +40,14 @@ interface MailDetailProps {
   message: MailMessage | null;
   /** Called when the back button is tapped. */
   onBack: () => void;
+  /**
+   * Called when the in-body action button is tapped. The handler
+   * receives the full action and the parent message — the screen
+   * decides whether to dispatch `resolveScamInstance` (when the
+   * action carries a `scamResolution`) or ignore (informational
+   * actions in v1).
+   */
+  onAction?: (action: MailAction, message: MailMessage) => void;
 }
 
 const SUSPICIOUS_ADDRESS = '#FF8A8A';
@@ -66,7 +74,7 @@ function avatarGradient(message: MailMessage): readonly [string, string] {
   return palette[Math.abs(h) % palette.length];
 }
 
-export function MailDetail({ message, onBack }: MailDetailProps) {
+export function MailDetail({ message, onBack, onAction }: MailDetailProps) {
   const { width } = useWindowDimensions();
   const progress = useRef(new Animated.Value(0)).current;
 
@@ -146,8 +154,29 @@ export function MailDetail({ message, onBack }: MailDetailProps) {
               ]}
               accessibilityRole="button"
               accessibilityLabel={message.action.label}
+              onPress={() => {
+                if (message.action && onAction) {
+                  onAction(message.action, message);
+                }
+              }}
             >
               <Text style={styles.actionText}>{message.action.label}</Text>
+            </Pressable>
+          )}
+          {message.secondaryAction && (
+            <Pressable
+              style={styles.secondaryActionBtn}
+              accessibilityRole="button"
+              accessibilityLabel={message.secondaryAction.label}
+              onPress={() => {
+                if (onAction) {
+                  onAction(message.secondaryAction!, message);
+                }
+              }}
+            >
+              <Text style={styles.secondaryActionText}>
+                {message.secondaryAction.label}
+              </Text>
             </Pressable>
           )}
         </View>
@@ -255,5 +284,19 @@ const styles = StyleSheet.create({
     fontSize: fontSize.body,
     fontWeight: fontWeight.bold,
     color: '#FFFFFF',
+  },
+  secondaryActionBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 11,
+    paddingHorizontal: 18,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: color.border.strong,
+    marginBottom: 13,
+  },
+  secondaryActionText: {
+    fontSize: fontSize.label,
+    fontWeight: fontWeight.semibold,
+    color: color.text.secondary,
   },
 });

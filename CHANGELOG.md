@@ -6,6 +6,342 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-25 — Stage 6.5b + 6.6: Frozen Withdrawal, Wallet, News
+
+- **6.5b Frozen Withdrawal (Decision Point):** catalog entry `frozen-withdrawal` (reactive, Bank+Mail, difficulty 3, major). `deployFrozenWithdrawal` + tick timeout (expired → `waited`). `resolveScamFromPlayer` supports `decision: 'cancelled'` (no pacing tick). `bank.pendingWithdrawal` on `BankState`; save **v19**.
+- **Data — `frozenWithdrawal.ts`:** paired Mail — genuine `notices@bank.com`, trap `notices@bannk.com`; secondary cancel action on the safe email.
+- **Bank UI:** `BankWithdrawSheet`, withdrawal hold lockout (tx card + cancel ghost), `initiateBankWithdrawal` (≥ $10k triggers scam when pacing allows).
+- **Mail UI:** `secondaryAction` on `MailMessage` + `MailDetail` ghost button.
+- **6.6 Wallet:** `WalletScreen` — holdings list + estimated USD from market prices.
+- **6.6 News:** `NewsScreen` + `news.ts` starter headlines (static feed v1).
+- **Authority Notice:** paired emails reworked to bank typosquat (`notices@bannk.com` as second message); Marcus teaching lines updated.
+- **Tests:** `__tests__/frozenWithdrawal.test.ts` (9 cases). **413 tests / 24 suites — all green.**
+- **Outcome:** all four scam archetypes live; no placeholder grid apps remain.
+
+---
+
+## 2026-05-25 — Authority Notice email canon + roadmap (KG)
+
+- **Authority Notice paired Mail:** second email is now `notices@bannk.com` (typosquat trap); genuine path stays `notices@bank.com` on the lock screen and the first paired message (`BANK_TYPOSQUAT_ADDRESS` exported). Replaced the old government-domain fake so both messages look like Bank mail — closer to real phish.
+- **Teaching threads:** Marcus lines updated for the typosquat tell (double-n domain vs lock-screen match).
+- **Frozen Withdrawal mockup:** fake sender updated to `notices@bannk.com` for 6.5b canon alignment.
+- **Roadmap (parent `CLAUDE.md` §13):** 6.6 teaching modal **cancelled** — teaching stays in Messages for authenticity; **6.6 reprioritised** to Wallet + News apps; **6.7 simulation harness deferred**; 6.5b fake email canon = `notices@bannk.com`.
+- **Outcome:** tests green; no teaching modal work planned.
+
+---
+
+## 2026-05-25 — Settings: Reset game
+
+- **Store — `resetGame(now)`:** replaces in-memory state with `freshGame`, deletes `cryptolife.save` via `saveAdapter.clear()`, then writes a new save so the next launch stays on onboarding.
+- **UI — `src/ui/settings/SettingsScreen.tsx`:** registered in `appScreens.ts`; destructive "Reset game" row with a two-step `Alert` confirmation and a busy state while persistence runs. On success, `App.tsx` swaps back to `OnboardingShell` because `hasOnboarded` is false.
+- **Tests — `store.test.ts`:** mocks the save adapter; asserts reset restores starting cash, clears the open app, and persists `hasOnboarded: false`.
+- **Outcome:** players and devs can start fresh from the Settings app on the home grid without wiping Expo Go.
+
+---
+
+## 2026-05-24 — Stage 6.5a: Golden Giveaway scam shipped (first proactive Inbound Lure on Clout)
+
+- **Working contract change:** KG dropped the "mockup before code for any new UI" rule (parent `CLAUDE.md` §3) this session; all future UI goes straight to code. The mockup at `../DontFOMO_ScamEvent_GoldenGiveaway_Mockup.html` was the spec for this work; new screens after this will skip the mockup gate.
+- **Catalog — `src/engine/scam-director/catalog.ts`:** added `GOLDEN_GIVEAWAY_ID = 'golden-giveaway'` (archetype `inbound-lure`, channels `['clout']`, difficulty 1, `maxSeverity: 'minor'`, `trigger: 'proactive'`). The picker now actually has to pick between two proactive entries in the newbie band — first real exercise of the difficulty-band overlap (1..3 / 2..4 / 3..5).
+- **Director — `director.ts`:** new constant `GOLDEN_GIVEAWAY_TIMEOUT_DAYS = 3` (longer than Authority Notice's 1d because Inbound Lures have no ticking real-world consequence — the window only exists to garbage-collect abandoned instances). New tick branch resolves an expired Golden Giveaway as **caught** with `reason: 'expired'` — opposite polarity from the Authority Notice's expired-as-fell-for because ignoring an Inbound Lure *is* the safe choice per Bible §11. `mintProactiveInstance` extended with the giveaway branch. `resolveProactiveInstance` extended to emit `golden-giveaway-resolved` on the tap path.
+- **New `DirectorEffect` variants** (in `types.ts`): `golden-giveaway-deployed { instanceId, expiresAt }` and `golden-giveaway-resolved { instanceId, caught, reason: 'tapped' | 'expired' }`.
+- **Content data — `src/data/goldenGiveaway.ts`:** `GOLDEN_GIVEAWAY_CANON` (real `@vancereiter` joined 2019 / 1.4M followers / pinned anti-scam tweet; clone `@vancereiter_eth` 3 days old / 412 followers / gold check; takeover title/body, contract address, suggested 0.5 ETH send) plus `buildGoldenGiveawayTakeover(instanceId, expiresAt)`. UI reads the per-instance snapshot exclusively (never the canon directly) so a canon rename can never break in-flight instances pinned in a save.
+- **Teaching content — `src/data/scamTeachings.ts`:** `golden-giveaway` caught + fell-for friend-voice threads, matching the existing voice rules (short lines, blame-shield on fell-for, quiet "respect" on caught).
+- **Store wiring — `src/state/store.ts`:** new top-level `cloutTakeover: GoldenGiveawayTakeover | null` slot on `GameState` / `SavedGame` (parallels `bank.regulatoryHold` but lives at top level because Clout has no dedicated state slice in v1). `applyDirectorEffects` extended:
+  - `golden-giveaway-deployed` → pins the takeover snapshot; fires "Clout" banner.
+  - `golden-giveaway-resolved` → clears the takeover; always lands the teaching thread.
+    - `caught + reason 'tapped'` (Report) → pays `vigilanceRewardFor('minor')` (+25 followers) + "Fake account reported" banner.
+    - `caught + reason 'expired'` (player let the 3d window pass) → no follower reward, no banner. Inaction shouldn't pay the same as active vigilance — would distort the player-skill model.
+    - `!caught` (Participate) → drain 30% of cash + 30% of every crypto holding (Scam Library v1.1 Event 10 damage matrix). Bank balance, Market assets, and player-launched tokens' supply untouched — the trap only takes what the player actually sent. "Wallet drained" banner.
+- **Save shape — `SAVE_VERSION 17 → 18`.** Defensive backfill: `saved.cloutTakeover ?? null`. v17 saves load cleanly.
+- **Clout UI — `src/ui/clout/CloutScreen.tsx`:** swap to the takeover overlay when `cloutTakeover !== null` (mirrors the Bank screen's `regulatoryHold` swap pattern). Two new components:
+  - **`GoldenGiveawayTakeover.tsx`** — the full-screen "LIVE giveaway" overlay. Three buttons: Participate (opens an in-component MetaPocket-styled send-confirm sheet → Confirm resolves as fell-for), Verify @handle (caller-supplied — opens the compare view), and "Dismiss for now" (deliberately does NOT resolve — shakes via `Animated.sequence` and flips its label to "It will come back. Resolve it." The lockout-pressure flavour Scam Library §11 specifies for this Inbound Lure).
+  - **`GoldenGiveawayCompare.tsx`** — the side-by-side compare. Two accounts rendered with pill badges (warn-tone on the clone's "Joined 3 days ago" + "Handle ends in _eth"; good-tone on the real founder's "Joined 2019" + "Original handle") and the real founder's pinned warning quoted in full. Two CTAs: "Report fake account" (resolve as caught) / "Participate anyway" (resolve as fell-for).
+- **Tests — new `__tests__/goldenGiveaway.test.ts` (12 cases):**
+  - Picker: Golden Giveaway is in candidates for a fresh game, reactive Clipboard excluded, returned when sole in-band proactive entry, null while an instance is in flight.
+  - Director: arms + emits `deployed` with the 3d expiry; auto-resolves as CAUGHT (not fell-for) on timeout — Inbound Lure polarity check; `resolveProactiveInstance` produces correct tapped effects + pacing bookkeeping.
+  - Store: deployment pins the snapshot + fires the Clout banner; correct (Report) resolution clears + pays minor reward + leaves cash/holdings alone; wrong (Participate) drains 30%/30% + leaves bank alone + posts "Wallet drained"; expired (ignored) credits caught but pays 0 followers; save round-trip preserves the snapshot.
+- **Existing tests updated for the new 2-proactive-entry catalog:**
+  - `__tests__/authorityNotice.test.ts` — picker assertions now scope to an `AUTHORITY_ONLY_CATALOG` (`SCAM_CATALOG.filter(d => d.id !== GOLDEN_GIVEAWAY_ID)`); store integration tests pre-seed a sham in-flight Golden Giveaway via a new `blockGoldenGiveaway(now)` helper so the picker deterministically picks Authority Notice.
+  - `__tests__/store.test.ts` — `serializeGame`'s expected key list now includes `'cloutTakeover'`.
+  - `__tests__/onboarding.test.ts` — `SavedGame` fixture now includes `cloutTakeover: null`.
+- **Verification:** `npx tsc --noEmit` clean under strict mode. **403 tests across 23 suites — all green** (up from 391/22 at the 6.4 cut).
+- **Outcome:** the Stage 6 catalogue now spans three of the four §11 archetypes (Slow Burn, Lockout, Inbound Lure). Only Decision Point remains, due in 6.5b. The picker now exercises the difficulty-band overlap rule in production for the first time — newbie players in the 1..3 band can face either of the two proactive scams.
+- **Next:** **6.5b — Frozen Withdrawal** (Decision Point, Bank + Mail; mockup already at `../DontFOMO_ScamEvent_FrozenWithdrawal_Mockup.html`). Then 6.6 (teaching modal) and 6.7 (simulation harness).
+
+---
+
+## 2026-05-24 23:00 UTC — Stage 6.5b mockup: Frozen Withdrawal (autonomous run)
+- Created [`../DontFOMO_ScamEvent_FrozenWithdrawal_Mockup.html`](../DontFOMO_ScamEvent_FrozenWithdrawal_Mockup.html) — the third Bank+Mail scam, **Decision Point** archetype (vs the Authority Notice's Lockout). Same family resemblance as 6.4 so the engine pipeline lines up: lockout-style hold modal on Bank, two staggered Mail emails, outcome screens with tells. The framing change is the lesson: this trap fires because the *player* started a large withdrawal — the scam rides on a real action they chose.
+- **The teaching twist:** the correct move is to **do nothing**. The real Bank email (`notices@bank.com`, matching 6.4's canon) says "no action needed, your transfer clears overnight." The fake (`release@bank-secure-clearance.com`) demands a 0.018 BTC "release fee" — classic advance-fee fraud. Legit platforms deduct fees *from* your funds; they never collect upfront to release your own money.
+- **New canonical outcome — "cancelled":** the hold modal exposes a `Cancel the withdrawal · funds stay in Bank` ghost button (mirrored as a secondary CTA inside the real email), giving the Decision Point a **clean third exit**: un-start the action the trap rides on. 0 cash damage, 0 follower change, transfer doesn't complete. Bible §11's "scams are setbacks, never fatal" gets a graceful zero-cost option specifically for Decision Points. Scam Library v1.3 promotes cancel-as-escape to canon for the family.
+- **Sunk-cost surface:** the hold modal renders the in-flight withdrawal — amount ($20,000), destination wallet (truncated `0x…9b4f`), reference (`WD-2026-0517-3140`), pulsing amber "Held — compliance review" status row. Surfacing the pending action is what makes the sunk-cost lever bite (the player feels their money already half-gone).
+- **Engine shape — confirmed doable for 6.5b:** the new `Decision Point + cancel` outcome plugs into the picker pipeline 6.4 just shipped. Needed:
+  - **Catalog entry** in `src/data/scamCatalog.ts` (or `src/data/frozenWithdrawal.ts` alongside `authorityNotice.ts`): archetype `decision-point`, channels `bank` + `mail`, `trigger: 'reactive'` (action-initiated by the player's `withdrawCash(amount)` action over a threshold), difficulty 3, `maxSeverity: 'major'`.
+  - **New Bank state:** `bank.pendingWithdrawal: PendingWithdrawal | null` (amount, destination, ref, holdExpiresAt). Add to `RegulatoryHold`'s sibling pattern; both clear on resolution.
+  - **Three resolution paths** for the generic `resolveScamInstance` action: `caught` (open the real email → transfer completes at `holdExpiresAt`, pay `vigilanceRewardFor('major')`), `fellFor` (pay the fake fee → drain cash to 0, transfer never completes), `cancelled` (new) — return the pending amount to the available balance, scrub the paired emails, no follower change.
+  - **No new engine capability needed beyond the cancelled outcome.** Reuses everything from 6.4: paired-email primitive, `MailAction.scamResolution`, picker pipeline, pacing gate, Bank lockout component, teaching threads. `vigilanceRewardFor` already has the `major` tier.
+- **Est. 25/100** unchanged from the Scam Library spec, plus ~5 for the cancelled outcome path (cancel is just a return-to-baseline reducer — small).
+- **Docs updated this run:** Scam Library v1.3 (Event 7 mockup pin + canon for cancel-as-escape + email domains); parent [`CLAUDE.md`](../CLAUDE.md) §13 6.5b row updated from "Needs mockup" to "Mockup ready" with canon link.
+- **Outcome:** mockup visible in the preview panel; all three paths (pay the fake fee → drained, wait/trust the real email → cleared, cancel the withdrawal → clean exit) are wired. No engine code shipped — intentional, mockup-before-code per CLAUDE.md §3.
+- **Not done / next steps:** KG approval on cancel-as-escape becoming a Decision-Point family convention; if approved, codify a `cancelled` branch in `applyDirectorEffects` alongside `caught` / `fellFor` so future Decision Points (Approval Trap, Lookalike Address, Honeypot Unlock) all inherit it for free. After that, **6.5a — Golden Giveaway** is next on the build queue (its mockup is already ready per parent CLAUDE.md §13).
+
+---
+
+## 2026-05-24 22:30 UTC — Stage 6.4: Authority Notice scam (first proactive Lockout)
+- KG approved the mockup ([`../DontFOMO_ScamEvent_AuthorityNotice_Mockup.html`](../DontFOMO_ScamEvent_AuthorityNotice_Mockup.html)) and the three design calls: drain 100% of bank cash but leave crypto/assets untouched, introduce a `vigilanceRewardFor(severity)` ladder, and make the countdown real (24 in-game hours → auto fell-for).
+- **Catalog — `src/engine/scam-director/catalog.ts`:** added `AUTHORITY_NOTICE_ID = 'authority-notice'` (archetype `lockout`, channels `bank`+`mail`, difficulty 3, `maxSeverity: 'major'`, `trigger: 'proactive'`). Also added the `ScamTrigger` discriminant (`reactive`/`proactive`) and tagged the existing Clipboard Scam as `reactive`. Reactive scams arm in response to player actions and bypass the pacing budget; proactive scams are picked by the Director and gated.
+- **Vigilance reward ladder — `pacing.ts`:** new `VIGILANCE_REWARDS` (minor:25 / major:75 / severe:150) and `vigilanceRewardFor(severity)`. The store's legacy `VIGILANCE_REWARD_FOLLOWERS` becomes a derived re-export equal to `vigilanceRewardFor('minor')`, so the existing Clipboard-scam test contract is preserved literally. Authority Notice pays the `major` tier (+75) on a correct resolution.
+- **Proactive picker — `src/engine/scam-director/picker.ts` (~95 LoC):** `pickProactiveScam(catalog, state, now, rand)` plus a public `proactiveCandidates(catalog, state)` for harness + test introspection. Filters: trigger must be `proactive`, difficulty in the player-skill band, def must not have a live instance, pacing gate (`canArmProactive`) must allow.
+- **Difficulty bands now overlap** (1..3 / 2..4 / 3..5). v1 has one proactive scam (difficulty 3); without overlap a newbie band (1..2) would starve the catalog and the Director would never fire. Overlap also lets the Director surf difficulty smoothly as the player improves instead of jumping bands. 6.3's test for the newbie band was updated; a new test asserts adjacent bands overlap.
+- **Director — `director.ts`:** `tickDirector` now accepts a catalog parameter (defaults to `SCAM_CATALOG`); handles in-flight Authority Notice timeout (auto fell-for on `now >= scheduledAt`); after the reactive Clipboard step, calls `pickProactiveScam` and mints a deployed instance + `authority-notice-deployed` effect. New pure helper `resolveProactiveInstance(state, instanceId, caught, now)` handles the player-tap path used by the store action.
+- **New `DirectorEffect` variants** (in `types.ts`):
+  - `authority-notice-deployed { instanceId, caseRef, expiresAt }`
+  - `authority-notice-resolved { instanceId, caught, reason: 'tapped' | 'expired' }`
+- **`MailAction` extended — `engine/mail/mail.ts`:** new optional `scamResolution: { scamId, instanceId, caught }` metadata. The UI dispatches `resolveScamInstance(instanceId, caught)` generically when the tapped action carries this, so the Mail screen stays scam-agnostic and future paired-email scams (Frozen Withdrawal, etc.) plug in without UI changes.
+- **Content data — `src/data/authorityNotice.ts`:** `BANK_OFFICIAL_ADDRESS` (`notices@bank.com` — the answer key printed on the lock screen and used as the genuine email's `fromAddress`); `buildRegulatoryHoldNotice(instanceId, expiresAt)`; `buildAuthorityNoticePair(instanceId, caseRef, arrivedAt)`. The fake's `fromAddress` is `compliance@fccb-notice.gov.us-treasury.com` — the actual TLD is `.com`, the "gov" is a subdomain trick. Neither email carries `isSuspicious: true` — the player has to spot the fake themselves, which is the lesson.
+- **Teaching content — `src/data/scamTeachings.ts`:** friend-voice `caught` and `fellFor` threads for `authority-notice`, mirroring the existing Clipboard pattern (short lines, blame-shield on fell-for, quiet "respect" on caught).
+- **Bank state — `src/engine/economy/bank.ts`:** new `RegulatoryHold` type + `bank.regulatoryHold: RegulatoryHold | null`. All five bank-reconstruction sites in `store.ts` switched to spread (`{ ...s.bank, ... }`) so future bank fields don't trigger the same five-site bug.
+- **Store wiring — `src/state/store.ts`:** `applyDirectorEffects` extended with two branches — `deployed` (sets the hold, pushes the two paired emails, fires "Regulatory hold placed" banner) and `resolved` (clears the hold + scrubs the paired emails always; on `caught` pays the `major` follower reward + fires "Hold cleared" banner; on `!caught` drains `state.cash` to zero but leaves `holdings` and `assets` untouched + fires "Bank drained" banner, with a wording variant for `reason: 'expired'`). New action `resolveScamInstance(instanceId, caught)` — the generic Mail-UI entry point.
+- **Save shape — `SAVE_VERSION 16 → 17`.** Defensive backfill: `saved.bank.regulatoryHold ?? null`. v16 saves load cleanly.
+- **Bank UI — `src/ui/bank/BankScreen.tsx`:** new in-file `RegulatoryHoldLockout` component renders when `bank.regulatoryHold !== null`. SVG seal, FCCB agency tag, case-ref row, live countdown bound to `state.clock.now`, teal "Open Mail to resolve" CTA (dispatches `openApp('mail')`), and a support line printing `notices@bank.com` — the answer key. Mockup-derived palette inline per CLAUDE.md §13 convention.
+- **Mail UI — `src/ui/mail/MailDetail.tsx` + `MailScreen.tsx`:** `MailDetail` accepts a new optional `onAction(action, message)` prop and wires `onPress` on the action button. `MailScreen` passes a handler that, when the action carries `scamResolution`, closes the detail and dispatches `resolveScamInstance`. Inert actions stay inert.
+- **Tests — new `__tests__/authorityNotice.test.ts` (13 cases):**
+  - Picker: excludes reactive, picks Authority Notice for a fresh player, null while cooldown is running, null while an instance is in flight, null when no in-band candidate exists.
+  - Director: arms + emits `deployed`, auto-resolves as fell-for on timeout, `resolveProactiveInstance` emits `tapped` with the supplied outcome, no-op for unknown ids.
+  - Store: deployment places the hold + both paired emails; correct resolution lifts the hold + pays `vigilanceRewardFor('major')` + scrubs the pair + leaves cash/holdings alone; wrong resolution drains cash to 0 but holdings stay; save round-trip preserves an in-flight hold.
+- **Test scoping** for the new cross-scam interaction: existing scamDirector / scamPacing / clipboardScamFlow suites now constrain to a Clipboard-only catalog (or push the pacing cooldown past the test horizon in the store-level Clipboard flow) so they exercise only their unit-under-test. Cross-scam interactions belong in `authorityNotice.test.ts`.
+- **Verification:** `npx tsc --noEmit` clean. **391 tests across 22 suites — all green.**
+- **Next:** **6.5a — Golden Giveaway** (Inbound Lure, Clout). Needs a mockup. Same picker pipeline; the new ground will be the Clout-feed surface for an Inbound Lure (no lockout this time — the scam *arrives* and sits there).
+
+---
+
+## 2026-05-24 19:10 UTC — Phase 2.6: GigDrop mockup (off-roadmap, autonomous run)
+- Created [`DontFOMO_GigDrop_App_Mockup.html`](../DontFOMO_GigDrop_App_Mockup.html) — a
+  fourth USD-earning surface to sit beside CashSwipe, Sniper, and Rug
+  Radar. Bible §15 had left the "future minigames" slot open; this
+  fills it with a microtask app (captcha tiles, ad watches, ratings,
+  surveys) that pays USD into Bank under a low daily cap (~$30/day).
+- **The point isn't the income.** $30/day is intentionally below
+  CashSwipe and Sniper — GigDrop is filler money. Its real value is
+  hosting **Scam Event 16 — The Task Trap** (Scam Library v1.2): a
+  "VIP recruiter" Inbound Lure DM that demands a 50 USDX "trust
+  deposit" to unlock higher-paying work. Tapping the DM ribbon opens
+  a resolution surface with two actions — Report & delete (vigilance
+  reward) and Pay (wallet drain). Cleanest possible teaching moment
+  for real-world WhatsApp/Telegram task scams.
+- **Slots into Stage 6 cleanly.** With 6.3's pacing layer just
+  shipped, The Task Trap becomes a natural second proactive catalog
+  entry alongside Stage 6.4's planned Authority Notice — both
+  consult `canArmProactive`, both exercise the cooldown + per-window
+  cap gate, and they hit different archetypes (Inbound Lure vs
+  Lockout) and different apps (GigDrop vs Bank+Mail) so the Director
+  has real choice in what to arm.
+- **Mockup wiring:** the prototype's logic mirrors what the RN engine
+  will own — pure gig spawner (5 templates × 4 kinds), one playable
+  tile-captcha minigame (3-of-9, strict mistake budget), payout into
+  a fake "Bank" with the daily cap enforced, rating stat (0–100) that
+  ticks down on misses and up on cleans, banner+buzz on every settle
+  per Bible §5. The scam path is fully click-through so KG can feel
+  both outcomes in the preview.
+- **Style alignment:** matches the established 414×868 device shell,
+  status bar, header pill, HUD strip, glass overlays, breathing
+  primary CTA, top-edge buzz banner. Lime accent (`#A3E635`) chosen
+  as a distinct per-app identity not yet used elsewhere (CashSwipe is
+  the brighter `#22C55E`).
+- **Types & engine shape — confirmed doable:** the eventual RN port
+  is the same template as CashSwipe / Sniper / Rug Radar:
+  ```
+  src/engine/gigDrop/gigDrop.ts   // pure: spawn / accept / submit / settle
+  src/data/gigDrop.ts             // GIG_POOL templates + TILE_SET
+  src/state/...                   // GigState slice + completeGig action
+  src/ui/screens/GigDrop/         // list + minigame overlay + scam overlay
+  ```
+  Key types in the mockup script (`GigKind`, `Gig`, `GigState`, the
+  captcha grading function) are written so a direct TS port is
+  one-to-one. The scam path uses the existing `applyDirectorEffects`
+  drain primitive from 6.2 at a fixed 50 USDX — no new engine
+  capability needed. New `GigState` save field follows CLAUDE.md
+  §13's defensive-defaults pattern (next bump: `SAVE_VERSION 16 → 17`).
+- **Estimated build complexity** (RN port, when scheduled): **38/100.**
+  Drivers: engine + data is small (the gig shape is trivial), the
+  tile-captcha grader is ~25 LoC, the scam Inbound Lure piggybacks
+  on existing wallet-drain + banner+buzz + Director-catalog
+  primitives, and the screens are a list + two overlays.
+- **Docs updated this run:** Design Bible v0.10 (§5 GigDrop row
+  added; §15 open-items note advanced; changelog entry); Scam Library
+  v1.2 (Event 16 added, removed from bonus list, quick-select row);
+  parent [`CLAUDE.md`](../CLAUDE.md) §13 mockup note.
+- **Outcome:** mockup visible in the preview panel; both paths
+  (legitimate gig completion + scam DM open / report / pay) are
+  wired and click-through. No engine code shipped — intentional, per
+  the project's mockup-before-code convention.
+- **Not done / next steps:** KG approval on the lime accent and the
+  microtask UX; spec the precise gig-payout curve (current values
+  illustrative); decide ordering vs Stage 6.4 — recommend the
+  Authority Notice ships first (already in the Director's roadmap)
+  and GigDrop + Task Trap lands as Stage 6.5 or 6.6 so the second
+  proactive scam meets a Director that already has live competitive
+  budgeting.
+
+---
+
+## 2026-05-24 18:00 UTC — Stage 6.3: Scam Director pacing engine + player-skill model
+- Started Stage 6's adaptive layer per [`DontFOMO_React_Migration_Plan.md`](../DontFOMO_React_Migration_Plan.md) §4.2 (Jobs 1 + 2 — pacing and adaptivity). Pure-engine only; no UI, no mockup needed.
+- **Audit before code:** confirmed sub-checkpoints 6.1 (skeleton) and 6.2 (Clipboard Scam end-to-end) were already shipped — `applyDirectorEffects` in `src/state/store.ts` drains holdings, scrubs sensitive clipboard entries, fires the "Wallet drained" banner, pushes friend-voice teaching threads to Messages, and rewards followers on defuse. The prior CLAUDE.md "Known gaps: Clipboard Scam detonation" line was stale and has been corrected (see §13 below).
+- **New types — `src/engine/scam-director/types.ts`:** `ResolutionRecord`, `PacingState`, `PlayerSkill`. `DirectorState` gained `pacing: PacingState`.
+- **New module — `src/engine/scam-director/pacing.ts` (~190 LoC):** `createPacingState`, `recordResolution`, `computePlayerSkill`, `difficultyBandFor`, `proactiveCapFor`, `canArmReactive`, `canArmProactive`, `defaultSeverityFor`. Defensible tuning constants in `PACING_DEFAULTS` (cooldown 1.5d / severe 3d, rolling window 7d, newbie cap 1 / sharp cap 3, sample size 10, band cuts 0.3 / 0.7). Stage 6.7's simulation harness will retune; do not adjust by intuition.
+- **Two-tier arming gate:** `canArmReactive` (player-triggered scams — always permissive) vs `canArmProactive` (Director-chosen scams — cooldown + per-window cap). The Clipboard Scam is reactive; future Authority Notice / Golden Giveaway / Frozen Withdrawal (6.4 / 6.5) will be proactive and consult the gate.
+- **`tickDirector` integration:** on every defuse or detonation, records a `ResolutionRecord` (with realised severity derived from the catalog entry) into `pacing.recentResolutions` and extends `cooldownUntil`. Reactive Clipboard arming still fires unconditionally — but now the cooldown bookkeeping is in place for proactive scams to consult. Same-tick no-op preserves pacing reference identity.
+- **Save shape bump — `SAVE_VERSION 15 → 16`.** Defensive backfill in `store.ts` `loadSaved` and `serializeGame`: a v15 `saved.director` without `pacing` gets a fresh `createPacingState(now)` (CLAUDE.md §13's defensive-default pattern). v15 saves load cleanly; v14-and-below already widened to `createDirectorState(now)`.
+- **Tests — new `__tests__/scamPacing.test.ts` (24 cases):** `createPacingState`, `recordResolution` (cooldown extension by severity, never-shorten, window pruning), `computePlayerSkill` (zero state, single-catch confidence weighting, ceiling at full sample, sliding window), `difficultyBandFor` (newbie/middle/sharp bands), `proactiveCapFor` (monotonic interpolation), `canArmReactive` (always true), `canArmProactive` (cooldown gate, post-cooldown allow, cap-reached deny, newbie one-per-window), `defaultSeverityFor` (band mapping + cap clipping), and a `tickDirector` integration block confirming pacing records both defuse and detonation.
+- **Fixture updates:** two hand-rolled `DirectorState` fixtures in `onboarding.test.ts` and `store.test.ts` gained `pacing: { cooldownUntil: 0, recentResolutions: [] }` to satisfy the new field. The store's `loadSaved` defensive default handles real v15-shaped saves on disk; the fixtures are just typed literals.
+- **Verification:** `npx tsc --noEmit` clean. **376 tests across 21 suites — all green** (was 302/17 at last CLAUDE.md update; intermediate growth was unrecorded).
+- **Next:** **Stage 6.4 — Authority Notice scam (Lockout archetype, Bank + Mail).** First proactive catalog entry. Per CLAUDE.md §3, the in-app fake-notice UI needs a mockup before code. The pacing layer's `canArmProactive` gate will be exercised end-to-end as soon as the second scam exists to compete with the first for budget.
+
+---
+
+## 2026-05-24 07:00 UTC — Phase 2.5: Rug Radar minigame (off-roadmap, KG-approved)
+- KG approved an unscheduled feature insertion: **Rug Radar**, the
+  second minigame. Bible §15 explicitly left this slot open ("future
+  minigames beyond CashSwipe — to be added later"). Decision logged
+  as Phase 2.5 because it slots between the Phase-2 onboarding/
+  Clipboard primer and the Stage-6 Scam Director (which remains the
+  next planned stage per [`DontFOMO_React_Migration_Plan.md`](../DontFOMO_React_Migration_Plan.md)).
+- **Design (mocked + approved):** card-based "spot the scam" minigame.
+  Player is shown a 10-card daily deck — token launches, tweets, DMs,
+  emails, wallet permissions — and judges each LEGIT or SCAM. Honors
+  Bible §4 (pays USD, the income-floor rule) and Bible §11 (3-in-a-row
+  streak pays a follower bonus — the cleanest expression of the
+  vigilance reward). Cards mirror Scam Library v1.1 archetypes so
+  grinding Rug Radar rehearses the same patterns the Scam Director
+  will throw at the player live.
+- **Engine — `src/engine/rugRadar/rugRadar.ts`:** pure TS. Exposes
+  `RugRadarCard`, `RugRadarSession`, `RugRadarState`, `JudgeOutcome`,
+  `SessionSummary`, the constants (`RUG_RADAR_DECK_SIZE = 10`,
+  `RUG_RADAR_STREAK_BONUS_USD = 50`, `RUG_RADAR_STREAK_BONUS_FOLLOWERS = 5`,
+  `RUG_RADAR_PERFECT_DECK_BONUS_USD = 100`), and pure functions
+  `createRugRadar`, `refreshRugRadarDay`, `decksRemainingToday`,
+  `isDeckCapReached`, `startSession`, `judgeCard`, `abandonSession`,
+  `lifetimeAccuracy`. Daily cap reuses CashSwipe's `localDayKey` so
+  "today" stays consistent across both minigames.
+- **Tests — `__tests__/rugRadar.test.ts`:** 29 cases covering day
+  refresh across midnight, deck-cap behaviour, per-judgement payout,
+  streak bonus on every 3rd correct, perfect-deck bonus, lifetime
+  totals across decks, session-clearing on completion, guard throws
+  on misuse, and abandonment.
+- **Data — `src/data/rugRadar.ts`:** the 10-card library ported from
+  the approved mockup (`DontFOMO_RugRadar_App_Mockup.html`). Each
+  card is typed (`token` / `tweet` / `dm` / `email` / `perm`) with a
+  discriminated `content` payload, `isScam` truth, `pay` tuning,
+  `difficulty` and an educational `reason`. `dailyDeck(dayKey)`
+  returns the fixed library for v1; signature is future-proofed for
+  seed-shuffled rotation once the library grows past 10.
+- **Store — `src/state/store.ts`:** added `rugRadar: RugRadarState` to
+  both `SavedGame` and `GameState`; defensive defaults on both sides
+  of `loadSaved` and `serializeGame` per the §13 pattern; bumped
+  `SAVE_VERSION` 14 → 15. Two new actions:
+  - `startRugRadarSession(now)` — no-op if cap spent or session live.
+  - `judgeRugRadarCard(calledScam)` — credits USD (card + streak
+    bonus + perfect bonus), credits followers from streaks, posts
+    the deck-complete banner per Bible §5, and **returns the
+    engine's outcome** so the screen can drive its animation without
+    importing the engine.
+  - New exported type `RugRadarJudgeOutcome` is the store-boundary
+    name for the engine's outcome shape — keeps UI code free of
+    direct engine type imports.
+- **UI — `src/ui/rugRadar/`:**
+  - `RugRadarScreen.tsx`: orchestrates three local view-states (start
+    / game / result), an `Animated.Value` driven card-exit (translate +
+    rotate + fade) on the native thread, the HUD with earned/streak/
+    card progress, the verdict buttons.
+  - `RugRadarCardView.tsx`: discriminated renderer for the four card
+    surfaces. Per-card-type chip palette and tone colours inline per
+    §13's mockup-derived-colour rule; foundation/spacing/typography
+    pulled from `theme.ts`.
+- **Home grid:** added `rugradar` AppId, AppDefinition (amber→red
+  gradient `#FB923C → #B91C1C`, concentric-rings glyph), registered
+  in `APP_SCREENS`. `useAppBadges()` now surfaces a `1` badge on the
+  Rug Radar icon whenever today's deck has not yet been played.
+- **Honest scope flag:** this is **off the Migration Plan roadmap**.
+  Stage 6 — the Scam Director (including the Clipboard Scam
+  detonation half) — remains the next planned stage and is now
+  delayed by this insertion. Re-prioritising at KG's call.
+- **Outcome:** all 350 unit tests across 20 suites pass; `tsc --noEmit`
+  clean under strict mode. Per-card review list on the result screen
+  is deferred (flagged in `RugRadarScreen.tsx`); polish-pass
+  follow-ups: real swipe gestures (currently tap), haptic on each
+  judgement, sound on perfect-deck banner, library expansion past
+  10 with daily-shuffled deck.
+
+## 2026-05-24 06:15 UTC — Stage 6 checkpoints 6.1 + 6.2: the Clipboard Scam fires
+- Two-checkpoint pass: 6.1 builds the Scam Director's skeleton +
+  catalog data shape; 6.2 wires the flagship Clipboard Scam end to
+  end. The arming half shipped in Phase 2 (the player tapping Copy
+  during onboarding plants the sensitive entry). Today's work adds
+  the detonation half — a 1–3 in-game-day window, a drain
+  consequence, the defuse path, and a friend-voice teaching thread.
+- **Engine — `src/engine/scam-director/`:**
+  - `types.ts`: `ScamArchetype` (lockout / slow-burn / inbound-lure
+    / decision-point per Bible §11), `ScamChannel`, the per-instance
+    `ScamLifecycleState` machine (armed → deployed → presented →
+    awaiting-response → resolved → cooldown — Migration Plan §4.3),
+    `ScamSeverity` (Migration Plan §4.4), `ScamEventDef` (catalog),
+    `ScamInstance` (live), `DirectorState` (instances + lifetime
+    counters), and the `DirectorEffect` discriminated union the
+    store consumes.
+  - `catalog.ts`: `SCAM_CATALOG` now carries the first entry — the
+    Clipboard Scam (Scam Library v1.1 Event #5).
+  - `director.ts`: `createDirectorState` + pure `tickDirector`.
+    Scans the clipboard each tick; arms when a sensitive entry is
+    present and no active instance exists; transitions to resolved
+    on detonation (`now >= scheduledAt`) or defuse (sensitive entry
+    gone). Detonation delay is a random 1–3 in-game days (via the
+    existing mulberry32 generator). Defuse beats detonation if both
+    fire on the same tick.
+- **Data — `src/data/scamTeachings.ts`:** friend-voice Mail/Messages
+  content keyed by scam id. The Clipboard Scam's teachings come
+  from **Marcus** (the existing trader-friend NPC), one thread for
+  caught + one for fell-for, four short lines each. Voice per KG:
+  "Hey, I looked into it — looks like you [did X]. lesson is [Y]"
+  with blame-shielding and hope on the fall-for path.
+- **Store — `src/state/store.ts`:**
+  - New `director: DirectorState` slice on GameState/SavedGame with
+    defensive defaults; `freshGame` seeds it via
+    `createDirectorState(now)`.
+  - `applyDirectorEffects` helper folds the Director's effect list
+    into a partial update: `armed` is silent, `detonated` zeroes
+    holdings + clears sensitive clipboard entries (the drainer
+    "consumed" them) + fires a "Wallet drained" banner + appends
+    Marcus's fell-for thread, `defused` adds
+    `VIGILANCE_REWARD_FOLLOWERS` (+25) + appends the caught thread,
+    no banner per Bible §5.
+  - `runDirectorTick` runs the tick from inside the `tick`,
+    `resume`, and `loadSaved` actions. Skips entirely while
+    `onboarding.hasOnboarded === false` — scams cannot fire during
+    setup. The `loadSaved` integration is what surfaces a
+    detonation that came due during the offline gap.
+  - **`SAVE_VERSION` bumped 13 → 14.** v13 wipes per precedent.
+- **Tests:** `__tests__/scamDirector.test.ts` extended to 13 cases
+  (arming, detonation, defuse, defuse-beats-detonation, purity,
+  catalog lookup). New `__tests__/clipboardScamFlow.test.ts` with 6
+  end-to-end cases through the store (arm → tick → detonate → drain
+  + teaching; arm → delete → defuse + reward; pre-detonation
+  no-fire; onboarding gate; loadSaved offline-catch-up). The
+  unemployment anchor is pushed forward in the test fixture to
+  keep multi-day ticks from accidentally crediting cash. **321
+  tests across 19 suites passing; `tsc --noEmit` clean strict.**
+- **Outcome:** the headline mechanic is now real. A player who
+  taps Copy during onboarding has their crypto holdings wiped 1–3
+  in-game days later, sees a "Wallet drained" banner, and receives
+  a four-line Marcus DM explaining what happened and what to do
+  next time. A player who deletes the entry from the Clipboard
+  before the window earns +25 followers and gets a quieter Marcus
+  DM congratulating them. Pacing, the player-skill model,
+  inter-scam cooldowns, and the remaining three scams (Authority
+  Notice / Golden Giveaway / Frozen Withdrawal) ship in
+  6.3 / 6.4 / 6.5.
+
 ## 2026-05-24 03:30 UTC — Onboarding flow + the Clipboard Scam primer
 - Bible §13's first-launch flow + the flagship Slow Burn's arming
   mechanism (Scam Library v1.1 Event #5). Players who tap "Copy to

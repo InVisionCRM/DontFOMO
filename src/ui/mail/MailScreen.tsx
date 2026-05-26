@@ -41,12 +41,35 @@ export function MailScreen() {
   const mail = useGameStore((s) => s.mail) ?? EMPTY_MAIL;
   const clockNow = useGameStore((s) => s.clock.now);
   const openMailMessage = useGameStore((s) => s.openMailMessage);
+  const resolveScamInstance = useGameStore((s) => s.resolveScamInstance);
 
   const [openId, setOpenId] = useState<string | null>(null);
 
   const handleOpen = (id: string): void => {
     setOpenId(id);
     openMailMessage(id); // flips unread → read in the store
+  };
+
+  /**
+   * Mail-action dispatch. A `scamResolution`-tagged action routes to
+   * the Director (Stage 6.4+); other actions are inert today. Closes
+   * the detail view so the banner the store fires becomes visible.
+   */
+  const handleAction = (action: {
+    scamResolution?: {
+      instanceId: string;
+      caught: boolean;
+      decision?: 'cancelled';
+    };
+  }): void => {
+    if (action.scamResolution) {
+      setOpenId(null);
+      resolveScamInstance(
+        action.scamResolution.instanceId,
+        action.scamResolution.caught,
+        action.scamResolution.decision,
+      );
+    }
   };
 
   const unread = unreadCount(mail);
@@ -94,7 +117,11 @@ export function MailScreen() {
         </View>
       </ScrollView>
 
-      <MailDetail message={opened} onBack={() => setOpenId(null)} />
+      <MailDetail
+        message={opened}
+        onBack={() => setOpenId(null)}
+        onAction={handleAction}
+      />
     </View>
   );
 }

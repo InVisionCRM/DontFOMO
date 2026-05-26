@@ -4,7 +4,21 @@
  * The Zustand store works outside React (getState / setState), so the
  * actions and the save helpers can be tested headless through ts-jest.
  */
-import { beforeEach, describe, expect, it } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+
+const mockClear = jest.fn<() => Promise<void>>(() => Promise.resolve());
+const mockSave = jest.fn<(data: unknown) => Promise<void>>(() =>
+  Promise.resolve(),
+);
+
+jest.mock('../src/save', () => ({
+  saveAdapter: {
+    clear: () => mockClear(),
+    save: (data: unknown) => mockSave(data),
+    load: jest.fn(),
+  },
+  SAVE_VERSION: 18,
+}));
 import { DAY_MS, dayNumber } from '../src/engine/time/clock';
 import { createMarket, createRandom } from '../src/engine/market';
 import {
@@ -39,6 +53,8 @@ const SAMPLE_LAUNCH: LaunchTokenInput = {
 
 describe('game store', () => {
   beforeEach(() => {
+    mockClear.mockClear();
+    mockSave.mockClear();
     useGameStore.getState().newGame(1_000);
   });
 
@@ -131,6 +147,24 @@ describe('game store', () => {
       assets: [],
       clipboard: [],
       onboarding: { hasOnboarded: true, pendingSeedPhrase: null },
+      director: {
+        instances: [],
+        lastTickAt: 0,
+        totalArmed: 0,
+        totalCaught: 0,
+        totalFellFor: 0,
+        pacing: { cooldownUntil: 0, recentResolutions: [] },
+      },
+      rugRadar: {
+        dayKey: '2026-01-01',
+        decksUsedToday: 0,
+        lifetimeEarned: 0,
+        lifetimeCorrect: 0,
+        lifetimeAnswered: 0,
+        lifetimeBestStreak: 0,
+        session: null,
+      },
+      cloutTakeover: null,
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
 
@@ -160,8 +194,10 @@ describe('game store', () => {
       'clipboard',
       'clock',
       'cloutFeed',
+      'cloutTakeover',
       'dailyPost',
       'diamonds',
+      'director',
       'followers',
       'handle',
       'holdings',
@@ -172,6 +208,7 @@ describe('game store', () => {
       'onboarding',
       'peakNetWorth',
       'playerTokens',
+      'rugRadar',
       'tunnel',
     ]);
     expect(saved.cash).toBe(STARTING_CASH);
@@ -213,10 +250,10 @@ describe('bank actions', () => {
     // Force rent into a 4-day overdue state.
     useGameStore.setState((s) => ({
       bank: {
+        ...s.bank,
         bills: s.bank.bills.map((b) =>
           b.id === 'rent' ? { ...b, nextDueAt: now - 4 * DAY_MS } : b,
         ),
-        loan: s.bank.loan,
       },
     }));
     useGameStore.getState().payBill('rent', now);
@@ -908,5 +945,23 @@ describe('launchToken', () => {
     expect(state.playerTokens).toHaveLength(1);
     expect(state.playerTokens[0].id).toBe('DEGEN');
     expect(state.market.tokens.DEGEN).toBeDefined();
+  });
+
+  it('resetGame restores onboarding and persists a fresh save', async () => {
+    useGameStore.getState().finishOnboarding();
+    useGameStore.getState().openApp('bank');
+    useGameStore.setState({ cash: 99_999 });
+
+    await useGameStore.getState().resetGame(42_000);
+
+    const state = useGameStore.getState();
+    expect(state.cash).toBe(STARTING_CASH);
+    expect(state.onboarding.hasOnboarded).toBe(false);
+    expect(state.onboarding.pendingSeedPhrase).toBeNull();
+    expect(state.openAppId).toBeNull();
+    expect(mockClear).toHaveBeenCalledTimes(1);
+    expect(mockSave).toHaveBeenCalledTimes(1);
+    const persisted = mockSave.mock.calls[0]?.[0] as SavedGame;
+    expect(persisted.onboarding.hasOnboarded).toBe(false);
   });
 });

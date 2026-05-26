@@ -242,10 +242,51 @@ export function accrueMissedInstallments(
  *  Bank state
  *  ----------------------------------------------------------------*/
 
+/**
+ * A live Authority Notice "regulatory hold" placed on the Bank by
+ * the Scam Director. While non-null, the Bank app renders its lock
+ * screen instead of the dashboard. The hold lifts when the player
+ * resolves the scam from Mail (correct or wrong) or when it expires
+ * (the Director auto-resolves as fell-for and drains cash).
+ *
+ * Stage 6.4. Other scams may add sibling slots here over time
+ * (`exchangeHold`, `walletHold`, etc.) but each one stays as its own
+ * field — the apps render independently.
+ */
+export interface RegulatoryHold {
+  /** Catalog scam id — always `authority-notice` in 6.4. */
+  scamId: string;
+  /** Live `ScamInstance.id` the hold is tied to. */
+  instanceId: string;
+  /** Display case reference for the lock-screen seal. */
+  caseRef: string;
+  /** Epoch ms after which the Director auto-resolves the scam. */
+  expiresAt: number;
+}
+
+/**
+ * In-flight withdrawal held for compliance review (Frozen Withdrawal
+ * scam, 6.5b). Cash is already deducted from `GameState.cash` when
+ * this is set — cancelling returns it; waiting lets the transfer
+ * complete; paying the trap drains remaining bank cash.
+ */
+export interface PendingWithdrawal {
+  scamId: string;
+  instanceId: string;
+  amount: number;
+  destinationWallet: string;
+  reference: string;
+  holdExpiresAt: number;
+}
+
 /** All of the Bank app's persistent state. */
 export interface BankState {
   bills: BillState[];
   loan: LoanState | null;
+  /** Live regulatory-hold lockout, or null when the Bank is open. */
+  regulatoryHold: RegulatoryHold | null;
+  /** Large-withdrawal hold (Decision Point), or null. */
+  pendingWithdrawal: PendingWithdrawal | null;
 }
 
 /**
@@ -260,6 +301,8 @@ export function createBank(now: number): BankState {
       nextDueAt: now + BILL_CYCLE_DAYS * DAY_MS,
     })),
     loan: null,
+    regulatoryHold: null,
+    pendingWithdrawal: null,
   };
 }
 

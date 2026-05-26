@@ -7,13 +7,24 @@
  * streak. The tab-bar / search / notifications panels from the
  * mockup are intentionally deferred to a later polish pass.
  *
+ * When `cloutTakeover` is non-null (Stage 6.5a — Golden Giveaway,
+ * Scam Library v1.1 Event #10), the screen swaps to the full-screen
+ * takeover overlay. The player resolves it from there (Participate
+ * → drain; Verify → side-by-side compare with the real founder →
+ * Report). Dismissing the takeover from inside the overlay does NOT
+ * resolve it — the Inbound Lure deliberately re-arms on dismiss per
+ * Scam Library v1.1.
+ *
  * The player's avatar gradient mirrors the home-screen Clout app
  * icon so the identity reads consistently across the phone.
  */
+import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TweetCard } from './TweetCard';
 import { CloutProfileStrip } from './CloutProfileStrip';
 import { PostFAB } from './PostFAB';
+import { GoldenGiveawayTakeover } from './GoldenGiveawayTakeover';
+import { GoldenGiveawayCompare } from './GoldenGiveawayCompare';
 import { useGameStore } from '../../state/store';
 import {
   canPostToday as canPostTodayEngine,
@@ -41,11 +52,44 @@ export function CloutScreen() {
   const dailyPost = useGameStore((s) => s.dailyPost) ?? EMPTY_DAILY;
   const clockNow = useGameStore((s) => s.clock.now);
   const postDailyClout = useGameStore((s) => s.postDailyClout);
+  const cloutTakeover = useGameStore((s) => s.cloutTakeover);
+  const resolveScamInstance = useGameStore((s) => s.resolveScamInstance);
 
   // "Kyle" is a placeholder display name until onboarding (later
   // stage) lets the player set their own. Handle is the canonical id.
   const displayName = 'Kyle';
   const avatarGradient = APP_BY_ID.clout.gradient;
+
+  const [view, setView] = useState<'takeover' | 'compare'>('takeover');
+
+  if (cloutTakeover) {
+    if (view === 'compare') {
+      return (
+        <GoldenGiveawayCompare
+          takeover={cloutTakeover}
+          onBack={() => setView('takeover')}
+          onReport={() => {
+            setView('takeover');
+            resolveScamInstance(cloutTakeover.instanceId, true);
+          }}
+          onParticipateAnyway={() => {
+            setView('takeover');
+            resolveScamInstance(cloutTakeover.instanceId, false);
+          }}
+        />
+      );
+    }
+    return (
+      <GoldenGiveawayTakeover
+        takeover={cloutTakeover}
+        now={clockNow}
+        onVerify={() => setView('compare')}
+        onConfirmParticipate={() => {
+          resolveScamInstance(cloutTakeover.instanceId, false);
+        }}
+      />
+    );
+  }
 
   const visibleFeed = clampFeed(feed, FEED_LIMIT);
   const canPost = canPostTodayEngine(dailyPost, Date.now());
