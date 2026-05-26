@@ -16,10 +16,14 @@ import { MessagesScreen } from './messages/MessagesScreen';
 import { CloutScreen } from './clout/CloutScreen';
 import { MarketScreen } from './market/MarketScreen';
 import { ClipboardScreen } from './clipboard/ClipboardScreen';
+import { WalletScreen } from './wallet/WalletScreen';
+import { NewsScreen } from './news/NewsScreen';
 
 export const APP_SCREENS: Partial<Record<AppId, ComponentType>> = {
   exchange: ExchangeScreen,
   bank: BankScreen,
+  wallet: WalletScreen,
+  news: NewsScreen,
   cashswipe: CashSwipeScreen,
   mail: MailScreen,
   tunnel: TunnelScreen,

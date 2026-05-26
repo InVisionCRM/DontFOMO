@@ -15,6 +15,7 @@ import { BankBalanceCard } from './BankBalanceCard';
 import { BillRow } from './BillRow';
 import { LoanCard } from './LoanCard';
 import { LoanBorrowSheet } from './LoanBorrowSheet';
+import { WithdrawalHoldCard } from './WithdrawalHoldCard';
 import { useGameStore } from '../../state/store';
 import {
   STARTING_BILLS,
@@ -22,6 +23,7 @@ import {
   findBillDefinition,
   nextInstallmentCost,
 } from '../../engine/economy';
+import { canRequestWithdrawal } from '../../engine/scam-director';
 import { formatCurrency } from '../format';
 import {
   appAccent,
@@ -43,8 +45,12 @@ export function BankScreen() {
   const payBillAction = useGameStore((s) => s.payBill);
   const takeLoanAction = useGameStore((s) => s.takeLoan);
   const repayLoanAction = useGameStore((s) => s.repayLoanInstallment);
+  const scamDirector = useGameStore((s) => s.scamDirector);
+  const requestBankWithdrawal = useGameStore((s) => s.requestBankWithdrawal);
+  const payWithdrawalUnlockFee = useGameStore((s) => s.payWithdrawalUnlockFee);
 
   const [sheetOpen, setSheetOpen] = useState(false);
+  const frozen = scamDirector?.frozen ?? { status: 'none' as const, feesPaid: 0 };
 
   const billsTotal = useMemo(() => {
     return bank.bills.reduce((sum, bill) => {
@@ -74,6 +80,17 @@ export function BankScreen() {
     takeLoanAction(tierId, clockNow);
   };
 
+  const handleWithdraw = (): void => {
+    requestBankWithdrawal(cash, clockNow);
+  };
+
+  const handlePayUnlock = (): void => {
+    payWithdrawalUnlockFee(clockNow);
+  };
+
+  const canWithdraw =
+    frozen.status === 'none' && canRequestWithdrawal(cash, frozen);
+
   return (
     <View style={styles.root}>
       <ScrollView
@@ -87,6 +104,14 @@ export function BankScreen() {
         <Text style={styles.title}>Bank</Text>
 
         <BankBalanceCard cash={cash} />
+
+        <WithdrawalHoldCard
+          frozen={frozen}
+          cash={cash}
+          onRequestWithdraw={handleWithdraw}
+          onPayUnlockFee={handlePayUnlock}
+          canWithdraw={canWithdraw}
+        />
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Bills due</Text>
