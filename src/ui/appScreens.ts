@@ -10,21 +10,29 @@ import type { AppId } from '../data/apps';
 import { ExchangeScreen } from './exchange/ExchangeScreen';
 import { BankScreen } from './bank/BankScreen';
 import { CashSwipeScreen } from './cashSwipe/CashSwipeScreen';
+import { RugRadarScreen } from './rugRadar/RugRadarScreen';
 import { MailScreen } from './mail/MailScreen';
 import { TunnelScreen } from './tunnel/TunnelScreen';
 import { MessagesScreen } from './messages/MessagesScreen';
 import { CloutScreen } from './clout/CloutScreen';
 import { MarketScreen } from './market/MarketScreen';
 import { ClipboardScreen } from './clipboard/ClipboardScreen';
+import { SettingsScreen } from './settings/SettingsScreen';
+import { WalletScreen } from './wallet/WalletScreen';
+import { NewsScreen } from './news/NewsScreen';
 
 export const APP_SCREENS: Partial<Record<AppId, ComponentType>> = {
   exchange: ExchangeScreen,
   bank: BankScreen,
   cashswipe: CashSwipeScreen,
+  rugradar: RugRadarScreen,
   mail: MailScreen,
   tunnel: TunnelScreen,
   messages: MessagesScreen,
   clout: CloutScreen,
   market: MarketScreen,
   clipboard: ClipboardScreen,
+  settings: SettingsScreen,
+  wallet: WalletScreen,
+  news: NewsScreen,
 };

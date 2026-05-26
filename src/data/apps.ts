@@ -1,7 +1,7 @@
 /**
  * apps.ts — the in-game app catalogue.
  * ------------------------------------------------------------------
- * The 12 apps on the phone, stored as DATA (CLAUDE.md §5). Each entry
+ * The 13 apps on the phone, stored as DATA (CLAUDE.md §5). Each entry
  * carries its display name, its icon glyph (a single SVG path), its
  * icon-tile gradient, and whether it lives in the dock or the grid.
  *
@@ -20,6 +20,7 @@ export type AppId =
   | 'market'
   | 'bank'
   | 'cashswipe'
+  | 'rugradar'
   | 'clipboard'
   | 'settings';
 
@@ -113,6 +114,15 @@ export const APPS: readonly AppDefinition[] = [
     iconPath:
       'M7 9m0 2a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2zM14 14m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M17 9v-2a2 2 0 0 0 -2 -2h-10a2 2 0 0 0 -2 2v6a2 2 0 0 0 2 2h2',
     gradient: ['#A3E635', '#65A30D'],
+    inDock: false,
+  },
+  {
+    id: 'rugradar',
+    name: 'Rug Radar',
+    // Concentric radar circles with a centred dot and tick marks at N/S/E/W.
+    iconPath:
+      'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0 -18M12 7a5 5 0 1 0 0 10a5 5 0 0 0 0 -10M12 3v3M12 18v3M3 12h3M18 12h3',
+    gradient: ['#FB923C', '#B91C1C'],
     inDock: false,
   },
   {

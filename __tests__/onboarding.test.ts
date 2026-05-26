@@ -181,6 +181,24 @@ describe('save round-trip', () => {
         },
       ],
       onboarding: { hasOnboarded: false, pendingSeedPhrase: fakePhrase },
+      director: {
+        instances: [],
+        lastTickAt: 0,
+        totalArmed: 0,
+        totalCaught: 0,
+        totalFellFor: 0,
+        pacing: { cooldownUntil: 0, recentResolutions: [] },
+      },
+      rugRadar: {
+        dayKey: '2026-01-01',
+        decksUsedToday: 0,
+        lifetimeEarned: 0,
+        lifetimeCorrect: 0,
+        lifetimeAnswered: 0,
+        lifetimeBestStreak: 0,
+        session: null,
+      },
+      cloutTakeover: null,
     };
     useGameStore.getState().loadSaved(saved, DAY_MS * 3);
     const state = useGameStore.getState();

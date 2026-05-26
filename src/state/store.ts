@@ -54,7 +54,7 @@ import {
   type PlayerTokenDef,
 } from '../engine/economy';
 import {
-  addMessage,
+  addMessage as addMailMessage,
   deleteMessage,
   markRead,
   type MailMessage,
@@ -92,7 +92,41 @@ import {
   deleteEntry as deleteClipboardEntryEngine,
   type ClipboardEntry,
 } from '../engine/clipboard';
+import {
+  RUG_RADAR_STREAK_BONUS_USD,
+  createRugRadar,
+  judgeCard as judgeRugRadarCardEngine,
+  startSession as startRugRadarSessionEngine,
+  type RugRadarState,
+  type SessionSummary,
+} from '../engine/rugRadar';
+import { dailyDeck as rugRadarDailyDeck } from '../data/rugRadar';
 import { phraseToText, pickPhrase } from '../engine/onboarding';
+import {
+  createDirectorState,
+  createPacingState,
+  deployFrozenWithdrawal,
+  resolveScamFromPlayer,
+  tickDirector,
+  vigilanceRewardFor,
+  type DirectorEffect,
+  type DirectorGameSnapshot,
+  type DirectorState,
+} from '../engine/scam-director';
+import { findScamTeaching } from '../data/scamTeachings';
+import {
+  buildAuthorityNoticePair,
+  buildRegulatoryHoldNotice,
+} from '../data/authorityNotice';
+import {
+  buildFrozenWithdrawalPair,
+  FROZEN_WITHDRAWAL_MIN_USD,
+  withdrawalReference,
+} from '../data/frozenWithdrawal';
+import {
+  buildGoldenGiveawayTakeover,
+  type GoldenGiveawayTakeover,
+} from '../data/goldenGiveaway';
 import { TOKEN_BY_ID } from '../data/tokens';
 import { createStartingMail } from '../data/mail';
 import { createStartingTunnel } from '../data/tunnel';
@@ -100,6 +134,7 @@ import { createStartingMessages } from '../data/messages';
 import { createStartingClout, DEFAULT_BIO } from '../data/clout';
 import { ASSET_CATALOG } from '../data/assets';
 import type { AppId } from '../data/apps';
+import { saveAdapter } from '../save';
 
 /**
  * Starting cash for a fresh game. Onboarding (Bible §13) does not
@@ -120,6 +155,14 @@ const MARKET_CATCHUP_CAP = 600;
 
 /** A holding smaller than this is treated as dust and dropped. */
 const DUST = 1e-8;
+
+/**
+ * Follower reward for defusing the Clipboard Scam (severity: minor).
+ * Re-exported for the existing Clipboard-flow tests; new code should
+ * call `vigilanceRewardFor(severity)` directly so the reward scales
+ * with the catalog entry. See `VIGILANCE_REWARDS` in the engine.
+ */
+export const VIGILANCE_REWARD_FOLLOWERS = vigilanceRewardFor('minor');
 
 /**
  * Entropy for ongoing market ticks. Not part of the saved state — the
@@ -223,6 +266,19 @@ export interface SavedGame {
   clipboard: ClipboardEntry[];
   /** Onboarding gate + transient seed-phrase slot. */
   onboarding: OnboardingState;
+  /** Scam Director — live scam instances + lifetime counters. */
+  director: DirectorState;
+  /** Rug Radar minigame state — daily cap, live session, lifetime totals. */
+  rugRadar: RugRadarState;
+  /**
+   * Live Golden Giveaway takeover, or null when none is in flight.
+   * Stage 6.5a. When non-null, the Clout app renders the full-screen
+   * takeover over the feed; "Verify @handle" opens the side-by-side
+   * compare with the real founder. Mirrors the `bank.regulatoryHold`
+   * pattern from 6.4 but lives at the top level because Clout has no
+   * dedicated state slice in v1.
+   */
+  cloutTakeover: GoldenGiveawayTakeover | null;
 }
 
 export interface GameState {
@@ -268,6 +324,15 @@ export interface GameState {
   clipboard: ClipboardEntry[];
   /** Onboarding gate + transient seed-phrase slot (Bible §13). */
   onboarding: OnboardingState;
+  /** Scam Director state — live instances + lifetime counters. */
+  director: DirectorState;
+  /** Rug Radar minigame state — daily cap, live session, lifetime totals. */
+  rugRadar: RugRadarState;
+  /**
+   * Live Golden Giveaway takeover, or null when none is in flight
+   * (Stage 6.5a). See `SavedGame.cloutTakeover`.
+   */
+  cloutTakeover: GoldenGiveawayTakeover | null;
   /** The top-edge banner currently being shown; null = none. */
   banner: BannerMessage | null;
   /** Which in-game app is open; null = the home screen. */
@@ -275,6 +340,11 @@ export interface GameState {
 
   /** Start a brand-new game at time `now` (epoch ms). */
   newGame: (now: number) => void;
+  /**
+   * Wipe on-device progress and return to onboarding. Clears the save
+   * file, resets every slice to `freshGame`, then writes the new save.
+   */
+  resetGame: (now: number) => Promise<void>;
   /** Advance the calendar clock to `now` — the regular foreground tick. */
   tick: (now: number) => void;
   /** Advance the market one step — the fast market tick. */
@@ -310,6 +380,27 @@ export interface GameState {
   deleteMailMessage: (id: string) => void;
   /** Push a new mail message into the inbox (newest first). */
   pushMailMessage: (msg: MailMessage) => void;
+  /**
+   * Resolve a live proactive scam instance — the player tapped one of
+   * the paired action buttons in Mail (Stage 6.4+). The Director
+   * applies the outcome's bookkeeping and the store applies the
+   * consequence side-effects (drain or reward, lift hold, teaching).
+   */
+  resolveScamInstance: (
+    instanceId: string,
+    caught: boolean,
+    decision?: 'cancelled',
+  ) => void;
+  /**
+   * Start a bank withdrawal to an external wallet. Amounts at or above
+   * `FROZEN_WITHDRAWAL_MIN_USD` may trigger the Frozen Withdrawal scam
+   * (6.5b) when pacing permits.
+   */
+  initiateBankWithdrawal: (
+    amount: number,
+    destinationWallet: string,
+    now: number,
+  ) => void;
   /** Open a Tunnel chat — zeroes its unread count. */
   openTunnelChat: (chatId: string) => void;
   /** Push a new message into a Tunnel chat. */
@@ -370,6 +461,35 @@ export interface GameState {
    * pending phrase. The phone shell takes over after this fires.
    */
   finishOnboarding: () => void;
+  /**
+   * Rug Radar — start today's deck. No-op if the daily cap is spent
+   * or a session is already live. The deck is drawn from
+   * `dailyDeck(dayKey)` so reload mid-session is stable.
+   */
+  startRugRadarSession: (now: number) => void;
+  /**
+   * Rug Radar — judge the current card. `calledScam = true` means the
+   * player said it was a scam. Pays out USD / streak bonuses /
+   * follower bonuses, and on the final card credits the perfect-
+   * deck bonus and posts the end-of-deck banner. Returns the engine's
+   * outcome so the screen can drive its card-exit animation and the
+   * deck-complete transition without calling the engine itself.
+   */
+  judgeRugRadarCard: (calledScam: boolean) => RugRadarJudgeOutcome | null;
+}
+
+/**
+ * What `judgeRugRadarCard` hands back to the screen. Mirrors the
+ * engine's `JudgeOutcome` but renamed at the store boundary so the
+ * UI doesn't import an engine type directly.
+ */
+export interface RugRadarJudgeOutcome {
+  /** True when the player called the card correctly. */
+  correct: boolean;
+  /** True when the just-judged card completed the deck. */
+  deckComplete: boolean;
+  /** The end-of-deck summary, present only on the final card. */
+  summary: SessionSummary | null;
 }
 
 /** The fresh-game state slice (everything except the actions). */
@@ -396,6 +516,9 @@ function freshGame(now: number): Pick<
   | 'assets'
   | 'clipboard'
   | 'onboarding'
+  | 'director'
+  | 'rugRadar'
+  | 'cloutTakeover'
   | 'banner'
   | 'openAppId'
 > {
@@ -422,6 +545,9 @@ function freshGame(now: number): Pick<
     assets: [],
     clipboard: [],
     onboarding: createOnboardingState(),
+    director: createDirectorState(now),
+    rugRadar: createRugRadar(now),
+    cloutTakeover: null,
     banner: null,
     openAppId: null,
   };
@@ -461,20 +587,429 @@ function paramsFor(
     owned.has(id) ? playerTokenParams(followers) : TOKEN_BY_ID[id];
 }
 
+/**
+ * Apply the Scam Director's effects to a state snapshot, returning
+ * a partial update touching only the fields each effect actually
+ * mutates. Pure — caller merges the partial into the next state.
+ *
+ * Each effect maps deliberately:
+ *  - `armed`     → silent (Bible §11 — the mistake is invisible at
+ *                  the moment of action; only the Clipboard badge
+ *                  hints at it).
+ *  - `detonated` → drain crypto, clear the sensitive clipboard
+ *                  entries (the drainer "consumed" them so the
+ *                  Director doesn't immediately rearm), fire a
+ *                  danger banner, and push the friend-voice
+ *                  fell-for thread into Messages.
+ *  - `defused`   → vigilance reward in followers (Bible §11), push
+ *                  the friend-voice caught thread into Messages.
+ *                  No banner — Bible §5 keeps wins quiet/pull-based.
+ */
+function applyDirectorEffects(
+  state: GameState,
+  effects: readonly DirectorEffect[],
+  now: number,
+): Partial<GameState> {
+  if (effects.length === 0) return {};
+
+  let holdings = state.holdings;
+  let clipboard = state.clipboard;
+  let messages = state.messages;
+  let mail = state.mail;
+  let followers = state.followers;
+  let banner = state.banner;
+  let bank = state.bank;
+  let cash = state.cash;
+  let cloutTakeover = state.cloutTakeover;
+  const touched = {
+    holdings: false,
+    clipboard: false,
+    messages: false,
+    mail: false,
+    followers: false,
+    banner: false,
+    bank: false,
+    cash: false,
+    cloutTakeover: false,
+  };
+
+  for (const effect of effects) {
+    if (effect.type === 'clipboard-scam-detonated') {
+      holdings = {};
+      touched.holdings = true;
+      clipboard = clipboard.filter((e) => !e.isSensitive);
+      touched.clipboard = true;
+      banner = bannerOf(
+        'Wallet drained',
+        'Your crypto was scraped from the clipboard. The bank is untouched.',
+      );
+      touched.banner = true;
+      const teaching = findScamTeaching('clipboard-scam');
+      if (teaching) {
+        for (const line of teaching.fellFor) {
+          messages = addConversationMessage(
+            messages,
+            teaching.contactConversationId,
+            {
+              id: `${effect.instanceId}-${line.idSuffix}`,
+              text: line.text,
+              sentAt: now,
+            },
+          );
+        }
+        touched.messages = true;
+      }
+    } else if (effect.type === 'clipboard-scam-defused') {
+      followers = followers + VIGILANCE_REWARD_FOLLOWERS;
+      touched.followers = true;
+      const teaching = findScamTeaching('clipboard-scam');
+      if (teaching) {
+        for (const line of teaching.caught) {
+          messages = addConversationMessage(
+            messages,
+            teaching.contactConversationId,
+            {
+              id: `${effect.instanceId}-${line.idSuffix}`,
+              text: line.text,
+              sentAt: now,
+            },
+          );
+        }
+        touched.messages = true;
+      }
+    } else if (effect.type === 'authority-notice-deployed') {
+      // Place the bank hold and push the two paired emails. The Mail
+      // app screen routes the action-button tap to `resolveScamInstance`
+      // via the `scamResolution` metadata on each MailAction.
+      const notice = buildRegulatoryHoldNotice(
+        effect.instanceId,
+        effect.expiresAt,
+      );
+      bank = {
+        ...bank,
+        regulatoryHold: {
+          scamId: 'authority-notice',
+          instanceId: effect.instanceId,
+          caseRef: notice.caseRef,
+          expiresAt: notice.expiresAt,
+        },
+      };
+      touched.bank = true;
+      const pair = buildAuthorityNoticePair(
+        effect.instanceId,
+        notice.caseRef,
+        now,
+      );
+      mail = addMailMessage(mail, pair.fake);
+      mail = addMailMessage(mail, pair.real);
+      touched.mail = true;
+      banner = bannerOf(
+        'Bank',
+        'Regulatory hold placed. Check Mail to resolve.',
+      );
+      touched.banner = true;
+    } else if (effect.type === 'authority-notice-resolved') {
+      // Either path (correct / wrong) lifts the hold and removes the
+      // two paired emails. Difference is the consequence + teaching.
+      if (
+        bank.regulatoryHold &&
+        bank.regulatoryHold.instanceId === effect.instanceId
+      ) {
+        bank = { ...bank, regulatoryHold: null };
+        touched.bank = true;
+      }
+      mail = mail.filter(
+        (m) =>
+          m.id !== `${effect.instanceId}-fake` &&
+          m.id !== `${effect.instanceId}-real`,
+      );
+      touched.mail = true;
+
+      const teaching = findScamTeaching('authority-notice');
+      const lines = effect.caught ? teaching?.caught : teaching?.fellFor;
+      if (teaching && lines) {
+        for (const line of lines) {
+          messages = addConversationMessage(
+            messages,
+            teaching.contactConversationId,
+            {
+              id: `${effect.instanceId}-${line.idSuffix}`,
+              text: line.text,
+              sentAt: now,
+            },
+          );
+        }
+        touched.messages = true;
+      }
+
+      if (effect.caught) {
+        followers = followers + vigilanceRewardFor('major');
+        touched.followers = true;
+        banner = bannerOf(
+          'Bank',
+          'Hold cleared. The bank confirmed the routine charge.',
+        );
+        touched.banner = true;
+      } else {
+        // Drain all bank cash. Crypto + assets untouched (Bible §11
+        // "graduated consequences" — Cash Swipe + Rug Radar + the
+        // Thursday check guarantee a comeback).
+        if (cash > 0) {
+          cash = 0;
+          touched.cash = true;
+        }
+        const subtitle =
+          effect.reason === 'expired'
+            ? "You ignored the hold; your cash was 'settled' to a scammer."
+            : 'You wired your cash to a fake compliance settlement wallet.';
+        banner = bannerOf('Bank drained', subtitle);
+        touched.banner = true;
+      }
+    } else if (effect.type === 'frozen-withdrawal-deployed') {
+      const reference = withdrawalReference(effect.instanceId);
+      bank = {
+        ...bank,
+        pendingWithdrawal: {
+          scamId: 'frozen-withdrawal',
+          instanceId: effect.instanceId,
+          amount: effect.amount,
+          destinationWallet: effect.destinationWallet,
+          reference,
+          holdExpiresAt: effect.expiresAt,
+        },
+      };
+      touched.bank = true;
+      const pair = buildFrozenWithdrawalPair(
+        effect.instanceId,
+        reference,
+        effect.amount,
+        effect.destinationWallet,
+        now,
+      );
+      mail = addMailMessage(mail, pair.genuine);
+      mail = addMailMessage(mail, pair.trap);
+      touched.mail = true;
+      banner = bannerOf(
+        'Bank',
+        'Withdrawal on hold. Check Mail — match the sender to your Bank screen.',
+      );
+      touched.banner = true;
+    } else if (effect.type === 'frozen-withdrawal-resolved') {
+      const pendingHold =
+        bank.pendingWithdrawal?.instanceId === effect.instanceId
+          ? bank.pendingWithdrawal
+          : null;
+      if (pendingHold) {
+        bank = { ...bank, pendingWithdrawal: null };
+        touched.bank = true;
+      }
+      mail = mail.filter(
+        (m) =>
+          m.id !== `${effect.instanceId}-genuine` &&
+          m.id !== `${effect.instanceId}-trap`,
+      );
+      touched.mail = true;
+
+      const teaching = findScamTeaching('frozen-withdrawal');
+      const lines =
+        effect.outcome === 'paid'
+          ? teaching?.fellFor
+          : effect.outcome === 'waited'
+            ? teaching?.caught
+            : undefined;
+      if (teaching && lines) {
+        for (const line of lines) {
+          messages = addConversationMessage(
+            messages,
+            teaching.contactConversationId,
+            {
+              id: `${effect.instanceId}-${line.idSuffix}`,
+              text: line.text,
+              sentAt: now,
+            },
+          );
+        }
+        touched.messages = true;
+      }
+
+      if (effect.outcome === 'waited') {
+        followers = followers + vigilanceRewardFor('major');
+        touched.followers = true;
+        banner = bannerOf(
+          'Bank',
+          'Withdrawal released. Funds are on their way to your wallet.',
+        );
+        touched.banner = true;
+      } else if (effect.outcome === 'paid') {
+        if (cash > 0) {
+          cash = 0;
+          touched.cash = true;
+        }
+        banner = bannerOf(
+          'Bank drained',
+          'You paid a fake release fee. Your withdrawal never completed.',
+        );
+        touched.banner = true;
+      } else if (effect.outcome === 'cancelled' && pendingHold) {
+        cash = cash + pendingHold.amount;
+        touched.cash = true;
+        banner = bannerOf(
+          'Bank',
+          'Withdrawal cancelled. Funds returned to your balance.',
+        );
+        touched.banner = true;
+      }
+    } else if (effect.type === 'golden-giveaway-deployed') {
+      // Pin the takeover snapshot; the Clout screen renders the
+      // full-screen overlay while this is non-null. Banner is the
+      // single buzz the player gets — the Clout app icon's existing
+      // badge model surfaces the rest pull-style (Bible §5).
+      cloutTakeover = buildGoldenGiveawayTakeover(
+        effect.instanceId,
+        effect.expiresAt,
+      );
+      touched.cloutTakeover = true;
+      banner = bannerOf(
+        'Clout',
+        'A "giveaway" took over Clout. Open Clout to handle it.',
+      );
+      touched.banner = true;
+    } else if (effect.type === 'golden-giveaway-resolved') {
+      // Clear the takeover (whichever path got us here) and apply the
+      // outcome. The teaching thread always lands so the post-scam
+      // teach rule (Bible §11) holds on both outcomes.
+      if (
+        cloutTakeover &&
+        cloutTakeover.instanceId === effect.instanceId
+      ) {
+        cloutTakeover = null;
+        touched.cloutTakeover = true;
+      }
+      const teaching = findScamTeaching('golden-giveaway');
+      const lines = effect.caught ? teaching?.caught : teaching?.fellFor;
+      if (teaching && lines) {
+        for (const line of lines) {
+          messages = addConversationMessage(
+            messages,
+            teaching.contactConversationId,
+            {
+              id: `${effect.instanceId}-${line.idSuffix}`,
+              text: line.text,
+              sentAt: now,
+            },
+          );
+        }
+        touched.messages = true;
+      }
+      if (effect.caught) {
+        // Pay the vigilance reward on the `tapped` (Report) path. For
+        // `expired` (player let the 3-day window pass without
+        // engaging) we still credit caught — that IS the safe path on
+        // an Inbound Lure (Bible §11) — but pay no follower bonus.
+        // Rewarding inaction at the full minor tier would distort
+        // the player-skill model the pacing layer reads from.
+        if (effect.reason === 'tapped') {
+          followers = followers + vigilanceRewardFor('minor');
+          touched.followers = true;
+          banner = bannerOf(
+            'Clout',
+            'Fake account reported. Your wallet stayed safe.',
+          );
+          touched.banner = true;
+        }
+        // No banner on `expired` — the takeover quietly de-arms.
+      } else {
+        // Drain 30% cash + 30% of each crypto holding (Scam Library
+        // v1.1 Event 10). Bank balance, Market assets, and the player's
+        // launched tokens' supply are untouched — the trap only takes
+        // what the player actually sent.
+        if (cash > 0) {
+          cash = cash * 0.7;
+          touched.cash = true;
+        }
+        let holdingsChanged = false;
+        const drained: Record<string, number> = {};
+        for (const [ticker, amount] of Object.entries(holdings)) {
+          if (amount > 0) {
+            const remaining = amount * 0.7;
+            if (remaining > DUST) {
+              drained[ticker] = remaining;
+            }
+            holdingsChanged = true;
+          } else {
+            drained[ticker] = amount;
+          }
+        }
+        if (holdingsChanged) {
+          holdings = drained;
+          touched.holdings = true;
+        }
+        banner = bannerOf(
+          'Wallet drained',
+          "You 'participated' in the fake giveaway. 30% of your cash and crypto is gone.",
+        );
+        touched.banner = true;
+      }
+    }
+    // `clipboard-scam-armed` is intentionally silent.
+  }
+
+  const out: Partial<GameState> = {};
+  if (touched.holdings) out.holdings = holdings;
+  if (touched.clipboard) out.clipboard = clipboard;
+  if (touched.messages) out.messages = messages;
+  if (touched.mail) out.mail = mail;
+  if (touched.followers) out.followers = followers;
+  if (touched.banner) out.banner = banner;
+  if (touched.bank) out.bank = bank;
+  if (touched.cash) out.cash = cash;
+  if (touched.cloutTakeover) out.cloutTakeover = cloutTakeover;
+  return out;
+}
+
+/**
+ * Run one Director tick against the supplied state and fold its
+ * effects into a partial update. Skipped entirely while onboarding
+ * is in progress — scams cannot fire during setup.
+ */
+function runDirectorTick(
+  state: GameState,
+  now: number,
+  netWorth: number,
+): Partial<GameState> {
+  if (!state.onboarding.hasOnboarded) {
+    return {};
+  }
+  const snapshot: DirectorGameSnapshot = {
+    followers: state.followers,
+    netWorth,
+    clipboard: state.clipboard,
+  };
+  const result = tickDirector(state.director, snapshot, now, marketRand);
+  const projected: GameState = { ...state, director: result.state };
+  const effectsPartial = applyDirectorEffects(projected, result.effects, now);
+  return { director: result.state, ...effectsPartial };
+}
+
 export const useGameStore = create<GameState>()((set) => ({
   ...freshGame(Date.now()),
 
   newGame: (now) => set(freshGame(now)),
+  resetGame: async (now) => {
+    set(freshGame(now));
+    await saveAdapter.clear();
+    await saveAdapter.save(serializeGame(useGameStore.getState()));
+  },
   tick: (now) =>
     set((s) => {
       const clock = tickClock(s.clock, now);
       const netWorth = netWorthOf(s.cash, s.holdings, s.market, s.assets ?? []);
       const peakNetWorth = Math.max(s.peakNetWorth, netWorth);
+      let partial: Partial<GameState> = { clock, peakNetWorth };
       if (isCheckDue(s.lastUnemploymentCheckAt, now)) {
         const amount = unemploymentAmount(peakNetWorth);
-        return {
-          clock,
-          peakNetWorth,
+        partial = {
+          ...partial,
           cash: s.cash + amount,
           lastUnemploymentCheckAt: now,
           banner: bannerOf(
@@ -483,7 +1018,11 @@ export const useGameStore = create<GameState>()((set) => ({
           ),
         };
       }
-      return { clock, peakNetWorth };
+      // Scam Director runs after unemployment so a detonation banner
+      // wins over an unemployment banner on the same tick.
+      const projected: GameState = { ...s, ...partial };
+      const directorPartial = runDirectorTick(projected, now, netWorth);
+      return { ...partial, ...directorPartial };
     }),
   tickMarket: () =>
     set((s) => ({
@@ -509,10 +1048,10 @@ export const useGameStore = create<GameState>()((set) => ({
       const peakNetWorth = Math.max(s.peakNetWorth, netWorth);
       const due = isCheckDue(s.lastUnemploymentCheckAt, now);
       const amount = due ? unemploymentAmount(peakNetWorth) : 0;
-      return {
+      let partial: Partial<GameState> = {
         clock: resumed.clock,
         market,
-        bank: loan === s.bank.loan ? s.bank : { bills: s.bank.bills, loan },
+        bank: loan === s.bank.loan ? s.bank : { ...s.bank, loan },
         peakNetWorth,
         ...(due
           ? {
@@ -525,16 +1064,30 @@ export const useGameStore = create<GameState>()((set) => ({
             }
           : {}),
       };
+      // Run the Director against the post-catch-up snapshot — any
+      // scheduled detonation that came due during the offline gap
+      // fires here.
+      const projected: GameState = { ...s, ...partial };
+      const directorPartial = runDirectorTick(projected, now, netWorth);
+      return { ...partial, ...directorPartial };
     }),
   loadSaved: (saved, now) =>
-    set(() => {
+    set((s) => {
       // Normalize the loaded shape — any field missing because of a
       // partial save (e.g. one persisted from a stale hot-reload
       // state pre-schema-bump) gets a sensible default so we never
       // re-poison the store. Proper migrations are Stage 7.
       const holdings = saved.holdings ?? {};
       const playerTokens = saved.playerTokens ?? [];
-      const bank = saved.bank ?? createBank(now);
+      // v16→v17 backfill: pre-Authority-Notice bank state has no
+      // `regulatoryHold` field; default to `null` (no live hold).
+      const bank = saved.bank
+        ? {
+            ...saved.bank,
+            regulatoryHold: saved.bank.regulatoryHold ?? null,
+            pendingWithdrawal: saved.bank.pendingWithdrawal ?? null,
+          }
+        : createBank(now);
       const cashSwipe = saved.cashSwipe ?? createCashSwipe(now);
       const seededPeakNetWorth = saved.peakNetWorth ?? STARTING_CASH;
       const seededLastCheckAt = saved.lastUnemploymentCheckAt ?? now;
@@ -551,6 +1104,16 @@ export const useGameStore = create<GameState>()((set) => ({
       // played, so default to `hasOnboarded: true` to skip the flow.
       const seededOnboarding =
         saved.onboarding ?? { hasOnboarded: true, pendingSeedPhrase: null };
+      // v15→v16 backfill: pre-pacing director slices get a fresh
+      // PacingState anchored at `now`. Stage 7's migration framework
+      // will replace this defensive pattern.
+      const seededDirector: DirectorState = saved.director
+        ? { ...saved.director, pacing: saved.director.pacing ?? createPacingState(now) }
+        : createDirectorState(now);
+      const seededRugRadar = saved.rugRadar ?? createRugRadar(now);
+      // v17→v18 backfill: pre-Golden-Giveaway saves have no
+      // `cloutTakeover` field; default to `null` (no live takeover).
+      const seededCloutTakeover = saved.cloutTakeover ?? null;
 
       const resumed = resumeClock(saved.clock, now);
       const loan = bank.loan
@@ -571,7 +1134,7 @@ export const useGameStore = create<GameState>()((set) => ({
       const peakNetWorth = Math.max(seededPeakNetWorth, netWorth);
       const due = isCheckDue(seededLastCheckAt, now);
       const amount = due ? unemploymentAmount(peakNetWorth) : 0;
-      return {
+      const loaded: Partial<GameState> = {
         clock: resumed.clock,
         cash: saved.cash + amount,
         followers: saved.followers,
@@ -579,7 +1142,7 @@ export const useGameStore = create<GameState>()((set) => ({
         market,
         holdings,
         playerTokens,
-        bank: { bills: bank.bills, loan },
+        bank: { ...bank, loan, regulatoryHold: bank.regulatoryHold ?? null },
         cashSwipe,
         peakNetWorth,
         lastUnemploymentCheckAt: due ? now : seededLastCheckAt,
@@ -593,6 +1156,9 @@ export const useGameStore = create<GameState>()((set) => ({
         assets: seededAssets,
         clipboard: seededClipboard,
         onboarding: seededOnboarding,
+        director: seededDirector,
+        rugRadar: seededRugRadar,
+        cloutTakeover: seededCloutTakeover,
         banner: due
           ? bannerOf(
               'Unemployment',
@@ -601,6 +1167,11 @@ export const useGameStore = create<GameState>()((set) => ({
           : null,
         openAppId: null,
       };
+      // Director tick after offline gap — any detonation that came
+      // due while the player was away fires here.
+      const projected: GameState = { ...s, ...loaded };
+      const directorPartial = runDirectorTick(projected, now, netWorth);
+      return { ...loaded, ...directorPartial };
     }),
   buyToken: (tokenId, usd) =>
     set((s) => {
@@ -689,10 +1260,10 @@ export const useGameStore = create<GameState>()((set) => ({
       return {
         cash: s.cash - cost,
         bank: {
+          ...s.bank,
           bills: s.bank.bills.map((b) =>
             b.id === billId ? applyBillPayment(b, now) : b,
           ),
-          loan: s.bank.loan,
         },
         banner: bannerOf('Bank', `Paid ${def.name} ${fmtUSD(cost)}`),
       };
@@ -705,7 +1276,7 @@ export const useGameStore = create<GameState>()((set) => ({
       const { loan, cashCredit } = createLoan(tier, now);
       return {
         cash: s.cash + cashCredit,
-        bank: { bills: s.bank.bills, loan },
+        bank: { ...s.bank, loan },
         banner: bannerOf(
           'Bank',
           `Borrowed ${fmtUSD(cashCredit)} — funds added to cash`,
@@ -720,7 +1291,7 @@ export const useGameStore = create<GameState>()((set) => ({
       const nextLoan = applyInstallment(s.bank.loan, now);
       return {
         cash: s.cash - cost,
-        bank: { bills: s.bank.bills, loan: nextLoan },
+        bank: { ...s.bank, loan: nextLoan },
         banner: bannerOf('Bank', `Repaid ${fmtUSD(cost)} toward your loan`),
       };
     }),
@@ -741,7 +1312,63 @@ export const useGameStore = create<GameState>()((set) => ({
   deleteMailMessage: (id) =>
     set((s) => ({ mail: deleteMessage(s.mail ?? [], id) })),
   pushMailMessage: (msg) =>
-    set((s) => ({ mail: addMessage(s.mail ?? [], msg) })),
+    set((s) => ({ mail: addMailMessage(s.mail ?? [], msg) })),
+  resolveScamInstance: (instanceId, caught, decision) =>
+    set((s) => {
+      const now = Date.now();
+      const result = resolveScamFromPlayer(
+        s.director,
+        instanceId,
+        { caught, decision },
+        now,
+      );
+      if (result.effects.length === 0) return {};
+      const projected: GameState = { ...s, director: result.state };
+      const partial = applyDirectorEffects(projected, result.effects, now);
+      return { director: result.state, ...partial };
+    }),
+  initiateBankWithdrawal: (amount, destinationWallet, now) =>
+    set((s) => {
+      if (!s.onboarding.hasOnboarded) return {};
+      const trimmed = destinationWallet.trim();
+      if (amount <= 0 || amount > s.cash || trimmed.length < 8) return {};
+      if (s.bank.regulatoryHold || s.bank.pendingWithdrawal) return {};
+
+      const cashAfter = s.cash - amount;
+
+      if (amount < FROZEN_WITHDRAWAL_MIN_USD) {
+        return {
+          cash: cashAfter,
+          banner: bannerOf(
+            'Bank',
+            `Sent ${fmtUSD(amount)} to ${trimmed.slice(0, 10)}…`,
+          ),
+        };
+      }
+
+      const deploy = deployFrozenWithdrawal(
+        s.director,
+        { amount, destinationWallet: trimmed },
+        now,
+        marketRand,
+      );
+      if (deploy.effects.length === 0) {
+        return {
+          cash: cashAfter,
+          banner: bannerOf(
+            'Bank',
+            `Sent ${fmtUSD(amount)} to ${trimmed.slice(0, 10)}…`,
+          ),
+        };
+      }
+      const projected: GameState = {
+        ...s,
+        cash: cashAfter,
+        director: deploy.state,
+      };
+      const partial = applyDirectorEffects(projected, deploy.effects, now);
+      return { cash: cashAfter, director: deploy.state, ...partial };
+    }),
   openTunnelChat: (chatId) =>
     set((s) => ({ tunnel: markChatRead(s.tunnel ?? [], chatId) })),
   pushTunnelMessage: (chatId, msg) =>
@@ -866,6 +1493,63 @@ export const useGameStore = create<GameState>()((set) => ({
     set(() => ({
       onboarding: { hasOnboarded: true, pendingSeedPhrase: null },
     })),
+  startRugRadarSession: (now) =>
+    set((s) => {
+      const current = s.rugRadar ?? createRugRadar(now);
+      const deck = rugRadarDailyDeck(current.dayKey);
+      const next = startRugRadarSessionEngine(current, deck, now);
+      if (next === current) return {};
+      return { rugRadar: next };
+    }),
+  judgeRugRadarCard: (calledScam) => {
+    // Action returns the engine outcome — see the interface for why.
+    // Read once, compute once, then dispatch the resulting partial.
+    const s = useGameStore.getState();
+    const current = s.rugRadar ?? createRugRadar(s.clock.now);
+    if (!current.session) return null;
+
+    const out = judgeRugRadarCardEngine(current, calledScam);
+    const followers = Math.max(
+      0,
+      (s.followers ?? 0) + out.followersAwarded,
+    );
+    const cashFromCard =
+      out.payout + (out.streakBonusFired ? RUG_RADAR_STREAK_BONUS_USD : 0);
+    const cashFromPerfect = out.summary?.perfectBonus ?? 0;
+    const nextCash = (s.cash ?? 0) + cashFromCard + cashFromPerfect;
+
+    // Bible §5: meaningful actions confirm with a banner. We banner
+    // only on deck completion — per-card feedback is the card itself
+    // animating away (the screen handles the per-card stamp/state).
+    let banner = s.banner;
+    if (out.deckComplete && out.summary) {
+      const accuracy = Math.round(
+        (out.summary.correctCount / out.summary.totalCount) * 100,
+      );
+      const title =
+        out.summary.perfectBonus > 0 ? 'Flawless deck' : 'Deck complete';
+      const body =
+        `${out.summary.correctCount}/${out.summary.totalCount} (${accuracy}%) · ` +
+        `${fmtUSD(out.summary.totalEarned)}` +
+        (out.summary.totalFollowers > 0
+          ? ` · +${out.summary.totalFollowers} followers`
+          : '');
+      banner = bannerOf(title, body);
+    }
+
+    set({
+      rugRadar: out.state,
+      cash: nextCash,
+      followers,
+      banner,
+    });
+
+    return {
+      correct: out.correct,
+      deckComplete: out.deckComplete,
+      summary: out.summary,
+    };
+  },
 }));
 
 /**
@@ -884,7 +1568,11 @@ export function serializeGame(state: GameState): SavedGame {
     market: state.market,
     holdings: state.holdings ?? {},
     playerTokens: state.playerTokens ?? [],
-    bank: state.bank,
+    bank: {
+      ...state.bank,
+      regulatoryHold: state.bank.regulatoryHold ?? null,
+      pendingWithdrawal: state.bank.pendingWithdrawal ?? null,
+    },
     cashSwipe: state.cashSwipe,
     peakNetWorth: state.peakNetWorth ?? STARTING_CASH,
     lastUnemploymentCheckAt: state.lastUnemploymentCheckAt ?? state.clock.now,
@@ -898,5 +1586,10 @@ export function serializeGame(state: GameState): SavedGame {
     assets: state.assets ?? [],
     clipboard: state.clipboard ?? [],
     onboarding: state.onboarding ?? createOnboardingState(),
+    director: state.director
+      ? { ...state.director, pacing: state.director.pacing ?? createPacingState(state.clock.now) }
+      : createDirectorState(state.clock.now),
+    rugRadar: state.rugRadar ?? createRugRadar(state.clock.now),
+    cloutTakeover: state.cloutTakeover ?? null,
   };
 }

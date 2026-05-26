@@ -23,9 +23,27 @@
  * v11 added Clout (bio + feed + dailyPost) + the Diamonds balance;
  * v12 added the Market (owned assets) — completes peakNetWorth;
  * v13 added the Clipboard history + the onboarding slice (handle and
- *      bio are now set in onboarding rather than hard-coded defaults).
+ *      bio are now set in onboarding rather than hard-coded defaults);
+ * v14 added the Scam Director slice (live instances + lifetime
+ *      counters; the first scam in the catalogue, the Clipboard
+ *      Scam, can now arm + detonate + defuse).
+ * v15 added the Rug Radar minigame slice (daily cap + live session
+ *      + lifetime totals).
+ * v16 added the Scam Director pacing slice (6.3 — pressure budget +
+ *      cooldown + rolling-window resolutions feeding the player-skill
+ *      derivation). Saves from v15 backfill `director.pacing` to a
+ *      fresh `createPacingState(now)` via the defensive default in
+ *      the store's `loadSaved`.
+ * v17 added `bank.regulatoryHold` for the Authority Notice scam
+ *      (6.4 — the Director's first proactive Lockout). Saves from
+ *      v16 backfill the field to `null` via the defensive default.
+ * v18 added `cloutTakeover` for the Golden Giveaway scam (6.5a — the
+ *      Director's first proactive Inbound Lure on Clout). Saves from
+ *      v17 backfill the field to `null` via the defensive default.
+ * v19 added `bank.pendingWithdrawal` for the Frozen Withdrawal scam
+ *      (6.5b — Decision Point). Saves from v18 backfill to `null`.
  */
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 19;
 
 /**
  * The envelope every save is wrapped in. `version` lets the loader

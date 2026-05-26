@@ -14,11 +14,43 @@
  * Director (Stage 6) will spawn messages with this flag set.
  */
 
+/**
+ * Resolves a live scam instance when the player taps the action.
+ * Stage 6.4 uses this for paired emails (Authority Notice; later
+ * Frozen Withdrawal) — the Mail screen dispatches a generic
+ * `resolveScamInstance(instanceId, caught)` so it doesn't need to
+ * know any scam-specific consequence logic.
+ */
+export interface MailActionScamResolution {
+  /** Catalog id of the scam this action resolves. */
+  scamId: string;
+  /** The live `ScamInstance` id. */
+  instanceId: string;
+  /**
+   * True iff this action is the player's correct choice — i.e.
+   * tapping it counts as catching the scam. The paired fake email's
+   * action sets this to false.
+   */
+  caught: boolean;
+  /**
+   * Decision Point exit — un-start the action the trap rides on.
+   * When `'cancelled'`, `caught` is ignored; no drain, no vigilance
+   * reward (Frozen Withdrawal 6.5b).
+   */
+  decision?: 'cancelled';
+}
+
 /** Optional action button rendered inside the body of a mail. */
 export interface MailAction {
   label: string;
   /** Semantic kind — drives colour and (later) the consequence engine. */
   kind: 'phish' | 'safe' | 'info';
+  /**
+   * If present, tapping the action resolves a live scam instance
+   * with the supplied outcome. Required for Director-spawned scam
+   * emails (Stage 6.4+); absent for ordinary mail.
+   */
+  scamResolution?: MailActionScamResolution;
 }
 
 /** A single mail in the player's inbox. */
@@ -47,6 +79,8 @@ export interface MailMessage {
   isSuspicious?: boolean;
   /** Optional in-body action button. Inert in v1; wired in Stage 6. */
   action?: MailAction;
+  /** Optional secondary button (e.g. cancel withdrawal on the safe email). */
+  secondaryAction?: MailAction;
 }
 
 /** Count of unread messages — drives the inbox header and the icon badge. */

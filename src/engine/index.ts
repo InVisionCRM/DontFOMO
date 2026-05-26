@@ -14,6 +14,7 @@
 export * from './time';
 export * from './market';
 export * from './economy';
+export * from './rugRadar';
 export * from './clipboard';
 export * from './onboarding';
 export * from './scam-director';
