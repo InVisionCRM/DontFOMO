@@ -6,6 +6,33 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-26 09:15 UTC — Production home + profile polish (SAVE v14)
+- Low-scope pass to make the live phone shell feel like a real product:
+  portfolio truth on the home screen, onboarding name carried into Clout,
+  and a believable status bar — no mock layers, all wired to the store.
+- **Store (`src/state/store.ts`):**
+  - New persisted fields: `displayName` (set in onboarding
+    `setProfile`) and `netWorthHistory` (ring buffer, cap 24) for the
+    home sparkline. `computeNetWorth` exported for UI selectors.
+  - `netWorthSnapshot` runs on `tick`, `tickMarket`, `resume`, and
+    `loadSaved` so peak net worth and sparkline samples stay current.
+  - Pre-v14 saves derive `displayName` from the handle slug on load.
+  - **`SAVE_VERSION` bumped 13 → 14.** v13 saves wipe per precedent.
+- **Home (`src/ui/HomeWidgets.tsx`):** Portfolio widget shows full net
+  worth (cash + crypto + owned assets), a live `Sparkline` tinted by
+  session P&amp;L, a signed session % line, and a compact cash/crypto/
+  assets breakdown. Clout widget shows game day + daily post streak.
+- **Clout (`src/ui/clout/CloutScreen.tsx`):** Uses the real
+  `displayName` from the store instead of the hard-coded "Kyle".
+  `approxFollowingCount` in the engine drives the profile strip's
+  following count.
+- **Status bar (`src/ui/PhoneStatusBar.tsx`, `format.ts`):** New
+  `formatStatusTime` adds meridiem (e.g. "9:41 AM").
+- **Preview:** `docs/previews/home-production-polish.html` (+ PNG
+  screenshot) documents the updated home layout.
+- **Tests:** `store`, `onboarding`, and `clout` suites updated; **304
+  tests passing; `tsc --noEmit` clean.**
+
 ## 2026-05-24 03:30 UTC — Onboarding flow + the Clipboard Scam primer
 - Bible §13's first-launch flow + the flagship Slow Burn's arming
   mechanism (Scam Library v1.1 Event #5). Players who tap "Copy to

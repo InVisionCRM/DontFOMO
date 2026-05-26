@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DON'T FOMO — Home (production polish preview)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #050508;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+      color: #F2F3F7;
+    }
+    .phone {
+      width: 390px;
+      height: 844px;
+      border-radius: 44px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 40px 120px rgba(0,0,0,0.65), inset 0 0 0 1px rgba(255,255,255,0.08);
+      background: linear-gradient(165deg, #1a1030 0%, #0c0d12 45%, #12141c 100%);
+    }
+    .wallpaper-blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: 0.45;
+    }
+    .blob-a { width: 220px; height: 220px; background: #7C5CFF; top: -40px; left: -30px; }
+    .blob-b { width: 180px; height: 180px; background: #D4537E; bottom: 120px; right: -40px; }
+    .status {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 24px 0;
+      font-size: 15px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .status-icons { display: flex; gap: 6px; align-items: center; opacity: 0.95; }
+    .battery {
+      width: 25px; height: 12px; border: 1px solid rgba(255,255,255,0.55);
+      border-radius: 3px; padding: 1.5px;
+    }
+    .battery-fill { width: 70%; height: 100%; background: #fff; border-radius: 1px; }
+    .content { padding: 12px 20px 0; position: relative; z-index: 1; }
+    .widgets { display: flex; gap: 12px; margin-top: 8px; }
+    .glass {
+      flex: 1;
+      height: 150px;
+      padding: 16px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      backdrop-filter: blur(20px);
+      display: flex;
+      flex-direction: column;
+    }
+    .widget-top {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .widget-sub { font-size: 11px; opacity: 0.6; font-weight: 500; }
+    .widget-value {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-top: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .sparkline { margin-top: 6px; }
+    .delta { font-size: 11px; font-weight: 600; margin-top: 2px; color: #16C784; }
+    .breakdown { font-size: 10px; opacity: 0.6; margin-top: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .clout-meta { margin-top: auto; font-size: 11px; font-weight: 600; opacity: 0.9; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px 0;
+      margin-top: 28px;
+      padding: 0 4px;
+    }
+    .app { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .icon {
+      width: 60px; height: 60px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    }
+    .app-label { font-size: 11px; opacity: 0.85; }
+    .badge {
+      position: absolute; top: -4px; right: -4px;
+      min-width: 18px; height: 18px; border-radius: 9px;
+      background: #EA3943; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      border: 2px solid #0c0d12;
+    }
+    .icon-wrap { position: relative; }
+    .dock-wrap {
+      position: absolute; left: 12px; right: 12px; bottom: 28px;
+    }
+    .dock {
+      height: 92px; border-radius: 20px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      backdrop-filter: blur(20px);
+      display: flex; align-items: center; justify-content: space-around;
+      padding: 0 12px;
+    }
+    .home-bar {
+      position: absolute; bottom: 9px; left: 50%; transform: translateX(-50%);
+      width: 130px; height: 5px; background: rgba(255,255,255,0.85); border-radius: 3px;
+    }
+    .dots { display: flex; gap: 7px; justify-content: center; margin-top: auto; padding-bottom: 140px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.32); }
+    .dot.active { background: rgba(255,255,255,0.95); }
+    .caption {
+      text-align: center; margin-top: 24px; font-size: 12px; color: rgba(255,255,255,0.45);
+      max-width: 390px; line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="phone" id="preview">
+      <div class="wallpaper-blob blob-a"></div>
+      <div class="wallpaper-blob blob-b"></div>
+      <div class="status">
+        <span>9:41 AM</span>
+        <div class="status-icons">
+          <span>▮▮▮▮</span>
+          <span>⌁</span>
+          <div class="battery"><div class="battery-fill"></div></div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="widgets">
+          <div class="glass">
+            <div class="widget-top">
+              <span>Portfolio</span>
+              <span class="widget-sub">Tue, May 26</span>
+            </div>
+            <div class="widget-value">$1,284.50</div>
+            <svg class="sparkline" width="150" height="28" viewBox="0 0 150 28">
+              <polyline fill="none" stroke="#16C784" stroke-width="2.5" stroke-linecap="round"
+                points="0,22 25,20 50,18 75,14 100,16 125,12 150,10" />
+            </svg>
+            <div class="delta">+2.8% session</div>
+            <div class="breakdown">Cash $842.00 · Crypto $442.50</div>
+          </div>
+          <div class="glass">
+            <div class="widget-top">
+              <span>Clout</span>
+              <span class="widget-sub">@kyleg</span>
+            </div>
+            <div class="widget-value">1,240</div>
+            <div class="widget-sub" style="margin-top:4px">followers</div>
+            <div class="clout-meta">Day 12 · 3d streak</div>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="app"><div class="icon" style="background:linear-gradient(135deg,#1D9BF0,#0d6efd)">𝕏</div><span class="app-label">Clout</span></div>
+          <div class="app"><div class="icon" style="background:linear-gradient(135deg,#3B82F6,#2563eb)">◈</div><span class="app-label">Exchange</span></div>
+          <div class="app"><div class="icon-wrap"><div class="icon" style="background:linear-gradient(135deg,#2F8FFF,#1d4ed8)">✉</div><span class="badge">2</span></div><span class="app-label">Mail</span></div>
+          <div class="app"><div class="icon" style="background:linear-gradient(135deg,#2AABEE,#0ea5e9)">◎</div><span class="app-label">Tunnel</span></div>
+          <div class="app"><div class="icon" style="background:linear-gradient(135deg,#30D158,#16a34a)">💬</div><span class="app-label">Messages</span></div>
+          <div class="app"><div class="icon" style="background:linear-gradient(135deg,#EC4899,#db2777)">🏠</div><span class="app-label">Market</span></div>
+          <div class="app"><div class="icon" style="background:linear-gradient(135deg,#2DD4BF,#0d9488)">🏦</div><span class="app-label">Bank</span></div>
+          <div class="app"><div class="icon-wrap"><div class="icon" style="background:linear-gradient(135deg,#94A3B8,#64748b)">📋</div><span class="badge">1</span></div><span class="app-label">Clipboard</span></div>
+        </div>
+        <div class="dots"><div class="dot active"></div><div class="dot"></div></div>
+      </div>
+      <div class="dock-wrap">
+        <div class="dock">
+          <div class="icon" style="width:58px;height:58px;background:linear-gradient(135deg,#22C55E,#16a34a)">$</div>
+          <div class="icon" style="width:58px;height:58px;background:linear-gradient(135deg,#EF4444,#dc2626)">⚡</div>
+          <div class="icon" style="width:58px;height:58px;background:linear-gradient(135deg,#F7A83A,#ea580c)">◇</div>
+          <div class="icon" style="width:58px;height:58px;background:linear-gradient(135deg,#8E8E93,#52525b)">⚙</div>
+        </div>
+      </div>
+      <div class="home-bar"></div>
+    </div>
+    <p class="caption">Production home polish — live net worth + session sparkline, cash/crypto breakdown, post streak on Clout widget, AM/PM status bar, persisted display name in Clout app (SAVE v14).</p>
+  </div>
+</body>
+</html>

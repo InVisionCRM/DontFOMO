@@ -15,6 +15,16 @@ export function formatTime(epochMs: number): string {
   return `${hour12}:${m < 10 ? `0${m}` : m}`;
 }
 
+/** Status-bar clock with meridiem, e.g. "9:41 AM". */
+export function formatStatusTime(epochMs: number): string {
+  const d = new Date(epochMs);
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  const period = h < 12 ? 'AM' : 'PM';
+  return `${hour12}:${m < 10 ? `0${m}` : m} ${period}`;
+}
+
 /** Format an epoch-ms timestamp as a short date, e.g. "Fri, May 22". */
 export function formatDate(epochMs: number): string {
   return new Date(epochMs).toLocaleDateString('en-US', {

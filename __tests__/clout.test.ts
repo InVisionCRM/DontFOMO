@@ -11,6 +11,7 @@ import {
   STREAK_GRACE_CAP,
   STREAK_MILESTONE,
   STREAK_RAMP_REWARDS,
+  approxFollowingCount,
   applyDailyPost,
   canPostToday,
   clampFeed,
@@ -193,5 +194,13 @@ describe('feed helpers', () => {
     const feed = [tweet('a', 1), tweet('b', 2), tweet('c', 3)];
     expect(clampFeed(feed, 2)).toHaveLength(2);
     expect(clampFeed(feed, 5)).toHaveLength(3);
+  });
+});
+
+describe('approxFollowingCount', () => {
+  it('stays in a believable band for early and mid accounts', () => {
+    expect(approxFollowingCount(0)).toBe(24);
+    expect(approxFollowingCount(500)).toBeGreaterThan(24);
+    expect(approxFollowingCount(50_000)).toBe(999);
   });
 });

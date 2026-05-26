@@ -40,6 +40,7 @@ describe('onboarding store actions', () => {
       useGameStore.getState().setProfile('Kyle G', '  surviving the trenches  ');
       const state = useGameStore.getState();
       expect(state.handle).toBe('@kyleg');
+      expect(state.displayName).toBe('Kyle G');
       expect(state.bio).toBe('surviving the trenches');
     });
     it('lowercases and strips non-alphanumerics from the handle', () => {
@@ -157,7 +158,9 @@ describe('save round-trip', () => {
       cash: 100,
       followers: 0,
       handle: '@x',
+      displayName: 'X',
       market: createMarket(createRandom(1)),
+      netWorthHistory: [100],
       holdings: {},
       playerTokens: [],
       bank: createBank(0),

@@ -13,12 +13,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useGameStore } from '../state/store';
-import { formatTime } from './format';
+import { formatStatusTime } from './format';
 import { color, fontSize, fontWeight, tabularNums } from '../theme/theme';
 
 export function PhoneStatusBar() {
   const insets = useSafeAreaInsets();
-  const time = useGameStore((s) => formatTime(s.clock.now));
+  const time = useGameStore((s) => formatStatusTime(s.clock.now));
 
   return (
     <View style={[styles.row, { height: Math.max(insets.top, 44) }]}>

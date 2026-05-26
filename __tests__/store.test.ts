@@ -73,6 +73,12 @@ describe('game store', () => {
     expect(after).toBe(before + 1);
   });
 
+  it('tickMarket appends a net-worth sparkline sample', () => {
+    const before = useGameStore.getState().netWorthHistory.length;
+    useGameStore.getState().tickMarket();
+    expect(useGameStore.getState().netWorthHistory.length).toBe(before + 1);
+  });
+
   it('openApp and closeApp set which app is open', () => {
     useGameStore.getState().openApp('exchange');
     expect(useGameStore.getState().openAppId).toBe('exchange');
@@ -114,7 +120,9 @@ describe('game store', () => {
       cash: 12_345,
       followers: 678,
       handle: '@whale',
+      displayName: 'Whale',
       market: createMarket(createRandom(1)),
+      netWorthHistory: [12_345],
       holdings: { NEURA: 42 },
       playerTokens: [],
       bank: createBank(0),
@@ -162,6 +170,7 @@ describe('game store', () => {
       'cloutFeed',
       'dailyPost',
       'diamonds',
+      'displayName',
       'followers',
       'handle',
       'holdings',
@@ -169,6 +178,7 @@ describe('game store', () => {
       'mail',
       'market',
       'messages',
+      'netWorthHistory',
       'onboarding',
       'peakNetWorth',
       'playerTokens',

@@ -223,3 +223,11 @@ export function pushTweet(feed: readonly Tweet[], tweet: Tweet): Tweet[] {
 export function clampFeed(feed: readonly Tweet[], limit: number): Tweet[] {
   return feed.length <= limit ? [...feed] : feed.slice(0, limit);
 }
+
+/**
+ * Flavour "following" count for the profile strip — scales with
+ * followers but stays in a believable band for early-game accounts.
+ */
+export function approxFollowingCount(followers: number): number {
+  return Math.max(24, Math.min(999, Math.round(followers * 0.12 + 18)));
+}

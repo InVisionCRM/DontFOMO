@@ -16,6 +16,7 @@ import { CloutProfileStrip } from './CloutProfileStrip';
 import { PostFAB } from './PostFAB';
 import { useGameStore } from '../../state/store';
 import {
+  approxFollowingCount,
   canPostToday as canPostTodayEngine,
   clampFeed,
   type Tweet,
@@ -34,6 +35,7 @@ const SCREEN_BG = '#000000';
 const MUTED_COLOR = '#71767B';
 
 export function CloutScreen() {
+  const displayName = useGameStore((s) => s.displayName);
   const handle = useGameStore((s) => s.handle);
   const bio = useGameStore((s) => s.bio) ?? '';
   const followers = useGameStore((s) => s.followers) ?? 0;
@@ -42,10 +44,8 @@ export function CloutScreen() {
   const clockNow = useGameStore((s) => s.clock.now);
   const postDailyClout = useGameStore((s) => s.postDailyClout);
 
-  // "Kyle" is a placeholder display name until onboarding (later
-  // stage) lets the player set their own. Handle is the canonical id.
-  const displayName = 'Kyle';
   const avatarGradient = APP_BY_ID.clout.gradient;
+  const followingApprox = approxFollowingCount(followers);
 
   const visibleFeed = clampFeed(feed, FEED_LIMIT);
   const canPost = canPostTodayEngine(dailyPost, Date.now());
@@ -64,6 +64,7 @@ export function CloutScreen() {
           followers={followers}
           streakDays={dailyPost.currentStreakDays}
           canPostToday={canPost}
+          followingApprox={followingApprox}
           avatarGradient={avatarGradient}
         />
 
