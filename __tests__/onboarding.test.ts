@@ -39,6 +39,7 @@ describe('onboarding store actions', () => {
     it('slugifies the display name into the handle and trims the bio', () => {
       useGameStore.getState().setProfile('Kyle G', '  surviving the trenches  ');
       const state = useGameStore.getState();
+      expect(state.displayName).toBe('Kyle G');
       expect(state.handle).toBe('@kyleg');
       expect(state.bio).toBe('surviving the trenches');
     });
@@ -156,6 +157,7 @@ describe('save round-trip', () => {
       clock: { startedAt: 0, lastSeenAt: 0, now: 0 },
       cash: 100,
       followers: 0,
+      displayName: 'Tester',
       handle: '@x',
       market: createMarket(createRandom(1)),
       holdings: {},
@@ -188,6 +190,34 @@ describe('save round-trip', () => {
     expect(state.clipboard[0]?.isSensitive).toBe(true);
     expect(state.onboarding.hasOnboarded).toBe(false);
     expect(state.onboarding.pendingSeedPhrase).toEqual(fakePhrase);
+  });
+
+  it('a pre-v14 save without displayName derives it from the handle', () => {
+    const v13: Partial<SavedGame> = {
+      clock: { startedAt: 0, lastSeenAt: 0, now: 0 },
+      cash: 100,
+      followers: 0,
+      handle: '@kyle_g',
+      market: createMarket(createRandom(1)),
+      holdings: {},
+      playerTokens: [],
+      bank: createBank(0),
+      cashSwipe: createCashSwipe(0),
+      peakNetWorth: 100,
+      lastUnemploymentCheckAt: DAY_MS * 3,
+      mail: [],
+      tunnel: [],
+      messages: [],
+      bio: 'bio',
+      cloutFeed: [],
+      dailyPost: { lastPostAt: 0, currentStreakDays: 0, graceDays: 0 },
+      diamonds: 0,
+      assets: [],
+      clipboard: [],
+      onboarding: { hasOnboarded: true, pendingSeedPhrase: null },
+    };
+    useGameStore.getState().loadSaved(v13 as unknown as SavedGame, DAY_MS * 3);
+    expect(useGameStore.getState().displayName).toBe('Kyle G');
   });
 
   it('a pre-v13 save (no clipboard / onboarding fields) loads with hasOnboarded=true', () => {

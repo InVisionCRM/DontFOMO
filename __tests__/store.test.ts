@@ -47,6 +47,7 @@ describe('game store', () => {
     expect(state.cash).toBe(STARTING_CASH);
     expect(state.followers).toBe(0);
     expect(state.handle).toBe(DEFAULT_HANDLE);
+    expect(state.displayName).toBe('New Player');
     expect(state.openAppId).toBeNull();
     expect(state.holdings).toEqual({});
     expect(state.playerTokens).toEqual([]);
@@ -113,6 +114,7 @@ describe('game store', () => {
       clock: { startedAt: 0, lastSeenAt: 0, now: 0 },
       cash: 12_345,
       followers: 678,
+      displayName: 'Whale',
       handle: '@whale',
       market: createMarket(createRandom(1)),
       holdings: { NEURA: 42 },
@@ -138,6 +140,7 @@ describe('game store', () => {
     expect(state.cash).toBe(12_345);
     expect(state.followers).toBe(678);
     expect(state.handle).toBe('@whale');
+    expect(state.displayName).toBe('Whale');
     expect(state.holdings).toEqual({ NEURA: 42 });
     expect(state.playerTokens).toEqual([]);
     expect(state.bank.bills).toHaveLength(STARTING_BILLS.length);
@@ -162,6 +165,7 @@ describe('game store', () => {
       'cloutFeed',
       'dailyPost',
       'diamonds',
+      'displayName',
       'followers',
       'handle',
       'holdings',

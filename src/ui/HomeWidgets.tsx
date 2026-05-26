@@ -12,6 +12,10 @@ import { GlassSurface } from './GlassSurface';
 import { formatCurrency, formatDate } from './format';
 import { useGameStore } from '../state/store';
 import { dayNumber } from '../engine/time/clock';
+import { holdingsValue } from '../engine/economy';
+import { ownedValue } from '../engine/assets/assets';
+import { ASSET_CATALOG } from '../data/assets';
+import { canPostToday } from '../engine/clout';
 import { color, fontSize, fontWeight, radius, spacing, tabularNums } from '../theme/theme';
 
 /** Widget-specific layout metrics (not part of the global type scale). */
@@ -24,10 +28,20 @@ const FLAME =
 
 export function HomeWidgets() {
   const cash = useGameStore((s) => s.cash);
+  const holdings = useGameStore((s) => s.holdings);
+  const market = useGameStore((s) => s.market);
+  const assets = useGameStore((s) => s.assets ?? []);
   const followers = useGameStore((s) => s.followers);
+  const displayName = useGameStore((s) => s.displayName);
   const handle = useGameStore((s) => s.handle);
+  const dailyPost = useGameStore((s) => s.dailyPost);
   const dateLabel = useGameStore((s) => formatDate(s.clock.now));
   const day = useGameStore((s) => dayNumber(s.clock));
+
+  const netWorth =
+    cash + holdingsValue(holdings, market) + ownedValue(ASSET_CATALOG, assets);
+  const postStreak = dailyPost?.currentStreakDays ?? 0;
+  const postReady = canPostToday(dailyPost ?? { lastPostAt: 0, currentStreakDays: 0, graceDays: 0 }, Date.now());
 
   return (
     <View style={styles.row}>
@@ -36,7 +50,7 @@ export function HomeWidgets() {
           <Text style={styles.label}>Portfolio</Text>
           <Text style={styles.sub}>{dateLabel}</Text>
         </View>
-        <Text style={[styles.value, tabularNums]}>{formatCurrency(cash)}</Text>
+        <Text style={[styles.value, tabularNums]}>{formatCurrency(netWorth)}</Text>
         <Svg
           width="100%"
           height={28}
@@ -54,30 +68,40 @@ export function HomeWidgets() {
             strokeLinejoin="round"
           />
         </Svg>
-        <Text style={styles.sub}>Starting balance</Text>
+        <Text style={styles.sub}>
+          {formatCurrency(cash)} cash · Day {day}
+        </Text>
       </GlassSurface>
 
       <GlassSurface radius={radius.lg} style={styles.card}>
         <View style={styles.top}>
           <Text style={styles.label}>Clout</Text>
-          <Text style={styles.sub}>{handle}</Text>
+          <Text style={styles.sub} numberOfLines={1}>
+            {displayName}
+          </Text>
         </View>
         <Text style={[styles.value, tabularNums]}>
           {followers.toLocaleString('en-US')}
         </Text>
-        <Text style={styles.sub}>followers</Text>
+        <Text style={styles.sub}>{handle} · followers</Text>
         <View style={styles.flameRow}>
           <Svg width={14} height={14} viewBox="0 0 24 24">
             <Path
               d={FLAME}
-              fill="none"
+              fill={postStreak > 0 ? color.warning : 'none'}
               stroke={color.warning}
               strokeWidth={2}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           </Svg>
-          <Text style={styles.dayText}>{`Day ${day}`}</Text>
+          <Text style={styles.dayText}>
+            {postStreak > 0
+              ? `${postStreak}-day post streak`
+              : postReady
+                ? 'Post today — streak starts'
+                : `Day ${day}`}
+          </Text>
         </View>
       </GlassSurface>
     </View>

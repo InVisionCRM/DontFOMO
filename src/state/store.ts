@@ -115,6 +115,23 @@ export const STARTING_CASH = 500;
  */
 export const DEFAULT_HANDLE = '@new_player';
 
+/** Display name shown in Clout and home widgets before onboarding sets one. */
+export const DEFAULT_DISPLAY_NAME = 'New Player';
+
+/**
+ * Derive a readable display name from a handle when saves predate
+ * the `displayName` field (v14 migration default).
+ */
+export function displayNameFromHandle(handle: string): string {
+  const slug = handle.startsWith('@') ? handle.slice(1) : handle;
+  if (!slug || slug === 'new_player') return DEFAULT_DISPLAY_NAME;
+  return slug
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 /** The most market ticks an offline catch-up will ever simulate. */
 const MARKET_CATCHUP_CAP = 600;
 
@@ -193,6 +210,8 @@ export interface SavedGame {
   clock: GameClock;
   cash: number;
   followers: number;
+  /** Player-chosen name from onboarding Profile step. */
+  displayName: string;
   handle: string;
   market: MarketState;
   holdings: Record<string, number>;
@@ -232,6 +251,8 @@ export interface GameState {
   cash: number;
   /** Clout (X) follower count — the master reputation stat. */
   followers: number;
+  /** Player-chosen display name — shown in Clout and home widgets. */
+  displayName: string;
   /** The player's Clout handle. */
   handle: string;
   /** The live crypto market simulation. */
@@ -378,6 +399,7 @@ function freshGame(now: number): Pick<
   | 'clock'
   | 'cash'
   | 'followers'
+  | 'displayName'
   | 'handle'
   | 'market'
   | 'holdings'
@@ -403,6 +425,7 @@ function freshGame(now: number): Pick<
     clock: createClock(now),
     cash: STARTING_CASH,
     followers: 0,
+    displayName: DEFAULT_DISPLAY_NAME,
     handle: DEFAULT_HANDLE,
     market: createMarket(createRandom(now)),
     holdings: {},
@@ -575,6 +598,8 @@ export const useGameStore = create<GameState>()((set) => ({
         clock: resumed.clock,
         cash: saved.cash + amount,
         followers: saved.followers,
+        displayName:
+          saved.displayName ?? displayNameFromHandle(saved.handle),
         handle: saved.handle,
         market,
         holdings,
@@ -834,7 +859,7 @@ export const useGameStore = create<GameState>()((set) => ({
       if (!trimmedName) return {}; // a profile requires a name
       const slug = trimmedName.toLowerCase().replace(/[^a-z0-9_]/g, '');
       const handle = slug.length > 0 ? `@${slug}` : s.handle;
-      return { handle, bio: bio.trim() };
+      return { displayName: trimmedName, handle, bio: bio.trim() };
     }),
   generateWallet: (seed) =>
     set((s) => ({
@@ -880,6 +905,7 @@ export function serializeGame(state: GameState): SavedGame {
     clock: state.clock,
     cash: state.cash,
     followers: state.followers,
+    displayName: state.displayName ?? displayNameFromHandle(state.handle),
     handle: state.handle,
     market: state.market,
     holdings: state.holdings ?? {},

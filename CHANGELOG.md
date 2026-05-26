@@ -6,6 +6,32 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-26 12:15 UTC — Production polish: identity, widgets, haptics, badges
+- Low-scope pass to make the live phone feel less placeholder and more
+  like a shipping mobile game — no mock layers, all wired to the real
+  Zustand store.
+- **Store — `displayName` (SAVE_VERSION 14 → 13 wipes per precedent):**
+  persisted from onboarding `setProfile`; `displayNameFromHandle`
+  back-fills v13 saves missing the field. Clout and home widgets now
+  show the name the player actually typed instead of the hard-coded
+  "Kyle".
+- **Home widgets:** Portfolio card shows full **net worth** (cash +
+  crypto + owned assets) with a cash + day sub-line; Clout card shows
+  the player's display name, handle, and a streak nudge ("Post today —
+  streak starts" / "N-day post streak") driven by `dailyPost`.
+- **Status bar:** subtle `Day N` pill beside the live clock — matches
+  the real-time calendar (Bible §2).
+- **App badges:** Clout icon gets a `1` badge when `canPostToday` —
+  quiet pull-based nudge per Bible §5.
+- **Banner:** light `expo-haptics` impact on show (`src/ui/haptics.ts`);
+  sound still deferred.
+- **Preview:** `docs/previews/production-polish-home.html` + PNG capture
+  script (`scripts/capture-preview.mjs`) document the updated home +
+  Clout chrome.
+- **Tests:** onboarding + store suites extended for `displayName` and
+  v14 migration default. **17 suites / 303 tests passing; `tsc --noEmit`
+  clean.**
+
 ## 2026-05-24 03:30 UTC — Onboarding flow + the Clipboard Scam primer
 - Bible §13's first-launch flow + the flagship Slow Burn's arming
   mechanism (Scam Library v1.1 Event #5). Players who tap "Copy to

@@ -19,6 +19,7 @@ import {
   type Conversation,
 } from '../engine/messages';
 import { findSensitive, type ClipboardEntry } from '../engine/clipboard';
+import { canPostToday, type DailyPostState } from '../engine/clout';
 import type { AppId } from '../data/apps';
 
 /**
@@ -31,6 +32,11 @@ const EMPTY_MAIL: readonly MailMessage[] = [];
 const EMPTY_TUNNEL: readonly TunnelChat[] = [];
 const EMPTY_MESSAGES: readonly Conversation[] = [];
 const EMPTY_CLIPBOARD: readonly ClipboardEntry[] = [];
+const EMPTY_DAILY_POST: DailyPostState = {
+  lastPostAt: 0,
+  currentStreakDays: 0,
+  graceDays: 0,
+};
 
 /**
  * Returns a map of app id → badge count. Apps without a badge are
@@ -48,10 +54,13 @@ export function useAppBadges(): Partial<Record<AppId, number>> {
   const tunnel = useGameStore((s) => s.tunnel) ?? EMPTY_TUNNEL;
   const messages = useGameStore((s) => s.messages) ?? EMPTY_MESSAGES;
   const clipboard = useGameStore((s) => s.clipboard) ?? EMPTY_CLIPBOARD;
+  const dailyPost = useGameStore((s) => s.dailyPost) ?? EMPTY_DAILY_POST;
+  const cloutBadge = canPostToday(dailyPost, Date.now()) ? 1 : 0;
   return {
     mail: unreadCount(mail),
     tunnel: totalUnreadTunnel(tunnel),
     messages: totalUnreadMessages(messages),
+    clout: cloutBadge > 0 ? cloutBadge : undefined,
     clipboard: findSensitive(clipboard) === null ? 0 : 1,
   };
 }

@@ -13,16 +13,21 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useGameStore } from '../state/store';
+import { dayNumber } from '../engine/time/clock';
 import { formatTime } from './format';
 import { color, fontSize, fontWeight, tabularNums } from '../theme/theme';
 
 export function PhoneStatusBar() {
   const insets = useSafeAreaInsets();
   const time = useGameStore((s) => formatTime(s.clock.now));
+  const day = useGameStore((s) => dayNumber(s.clock));
 
   return (
     <View style={[styles.row, { height: Math.max(insets.top, 44) }]}>
-      <Text style={[styles.time, tabularNums]}>{time}</Text>
+      <View style={styles.left}>
+        <Text style={[styles.time, tabularNums]}>{time}</Text>
+        <Text style={styles.dayPill}>Day {day}</Text>
+      </View>
 
       <View style={styles.right}>
         <View style={styles.signal}>
@@ -69,6 +74,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
+  },
+  left: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dayPill: {
+    fontSize: 11,
+    fontWeight: fontWeight.semibold,
+    color: 'rgba(255,255,255,0.55)',
+    letterSpacing: 0.2,
   },
   time: {
     fontSize: fontSize.body,
