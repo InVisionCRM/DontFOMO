@@ -18,6 +18,7 @@ import { MarketScreen } from './market/MarketScreen';
 import { ClipboardScreen } from './clipboard/ClipboardScreen';
 import { WalletScreen } from './wallet/WalletScreen';
 import { SettingsScreen } from './settings/SettingsScreen';
+import { NewsScreen } from './news/NewsScreen';
 
 export const APP_SCREENS: Partial<Record<AppId, ComponentType>> = {
   exchange: ExchangeScreen,
@@ -31,4 +32,5 @@ export const APP_SCREENS: Partial<Record<AppId, ComponentType>> = {
   clipboard: ClipboardScreen,
   wallet: WalletScreen,
   settings: SettingsScreen,
+  news: NewsScreen,
 };

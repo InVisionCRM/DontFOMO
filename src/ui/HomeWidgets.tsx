@@ -14,6 +14,7 @@ import { formatCurrency, formatDate, formatSignedPercent } from './format';
 import { useGameStore, STARTING_CASH } from '../state/store';
 import { computeNetWorth } from '../engine/economy/netWorth';
 import { dayNumber } from '../engine/time/clock';
+import { resolveDisplayName } from '../engine/player/identity';
 import {
   color,
   fontSize,
@@ -46,7 +47,9 @@ export function HomeWidgets() {
   const portfolioHistory = useGameStore((s) => s.portfolioHistory);
   const followers = useGameStore((s) => s.followers);
   const handle = useGameStore((s) => s.handle);
+  const displayName = useGameStore((s) => s.displayName);
   const dailyPost = useGameStore((s) => s.dailyPost);
+  const cloutLabel = resolveDisplayName(displayName, handle);
   const dateLabel = useGameStore((s) => formatDate(s.clock.now));
   const day = useGameStore((s) => dayNumber(s.clock));
 
@@ -78,7 +81,9 @@ export function HomeWidgets() {
       <GlassSurface radius={radius.lg} style={styles.card}>
         <View style={styles.top}>
           <Text style={styles.label}>Clout</Text>
-          <Text style={styles.sub}>{handle}</Text>
+          <Text style={styles.sub} numberOfLines={1}>
+            {cloutLabel}
+          </Text>
         </View>
         <Text style={[styles.value, tabularNums]}>
           {followers.toLocaleString('en-US')}

@@ -7,6 +7,7 @@
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useGameStore } from '../../state/store';
+import { formatCountdownShort } from '../format';
 import { fontWeight, tabularNums } from '../../theme/theme';
 
 interface EmptyCapProps {
@@ -15,15 +16,6 @@ interface EmptyCapProps {
 
 const TITLE_COLOR = '#EAFBF0';
 const TEXT_COLOR = '#9FE8BD';
-
-function formatCountdown(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m`;
-  return 'a few seconds';
-}
 
 export function EmptyCap({ remainingMs }: EmptyCapProps) {
   const resetCashSwipeToday = useGameStore((s) => s.resetCashSwipeToday);
@@ -34,7 +26,7 @@ export function EmptyCap({ remainingMs }: EmptyCapProps) {
         <Text style={styles.text}>
           You've earned your $1,000 for today. Come back in{' '}
           <Text style={[styles.countdown, tabularNums]}>
-            {formatCountdown(remainingMs)}
+            {formatCountdownShort(remainingMs)}
           </Text>
           .
         </Text>

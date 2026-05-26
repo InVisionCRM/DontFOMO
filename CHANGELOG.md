@@ -6,6 +6,23 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-26 14:05 UTC — Production polish pass 3: News app, cap HUD, Messages unread, home identity
+- **News app (production v1):** `NewsScreen` + `NewsArticleRow` registered
+  in `appScreens.ts` (no longer a placeholder). Seed headlines in
+  `src/data/news.ts`; `buildNewsFeed` merges verified Clout posts as
+  live "breaking" rows. Timestamps anchor to `clock.startedAt` — no
+  extra save field.
+- **CashSwipe:** HUD shows `Daily cap reached · resets in …` via shared
+  `formatCountdownShort` (also used by `EmptyCap`).
+- **Messages:** header unread pill mirrors Tunnel (same `totalUnreadCount`
+  engine helper).
+- **Home:** Clout widget subtitle uses `resolveDisplayName` instead of
+  raw handle.
+- **Tests:** `news.test.ts`, `format.test.ts` (countdown). **317 tests
+  pass.**
+- **Preview:** `docs/previews/production-polish-pass3-2026-05-26.html`
+  (+ PNG) — Home, News, CashSwipe cap HUD, Messages.
+
 ## 2026-05-26 10:15 UTC — Production polish pass 2: believable app detail (Bank, Wallet, Market, Tunnel, Mail)
 - **Bank:** `mostUrgentBill` + `formatBillDueLine` in the bank engine;
   a "Next up" chip under the balance card surfaces the most urgent bill

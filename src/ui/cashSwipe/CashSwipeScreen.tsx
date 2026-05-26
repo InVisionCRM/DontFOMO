@@ -204,6 +204,7 @@ export function CashSwipeScreen() {
         earned={earned}
         remaining={remaining}
         capped={capped}
+        resetInMs={capped ? msUntilLocalMidnight(tick) : 0}
         excitement={excitementAnim}
       />
     </View>

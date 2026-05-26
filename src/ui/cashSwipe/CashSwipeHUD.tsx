@@ -5,12 +5,15 @@
  */
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { formatCountdownShort } from '../format';
 import { fontWeight, tabularNums } from '../../theme/theme';
 
 interface CashSwipeHUDProps {
   earned: number;
   remaining: number;
   capped: boolean;
+  /** When capped — ms until the daily swipe pool resets. */
+  resetInMs?: number;
   /**
    * 0..1 animated value driven by sustained swipe activity. Higher =
    * the earned amount scales up, glows, and shakes. Native-driver
@@ -34,6 +37,7 @@ export function CashSwipeHUD({
   earned,
   remaining,
   capped,
+  resetInMs = 0,
   excitement,
 }: CashSwipeHUDProps) {
   // A continuously-running -1 → +1 loop. Multiplied by an
@@ -116,7 +120,11 @@ export function CashSwipeHUD({
           </Animated.Text>
         </View>
 
-        {!capped && (
+        {capped ? (
+          <Text style={[styles.left, tabularNums]}>
+            Daily cap reached · resets in {formatCountdownShort(resetInMs)}
+          </Text>
+        ) : (
           <Text style={[styles.left, tabularNums]}>
             {remaining.toLocaleString('en-US')} swipes left today
           </Text>

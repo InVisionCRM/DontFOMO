@@ -12,7 +12,11 @@ import Svg, { Path } from 'react-native-svg';
 import { ConversationRow } from './ConversationRow';
 import { MessagesDetail } from './MessagesDetail';
 import { useGameStore } from '../../state/store';
-import { findConversation, type Conversation } from '../../engine/messages';
+import {
+  findConversation,
+  totalUnreadCount,
+  type Conversation,
+} from '../../engine/messages';
 import { fontWeight } from '../../theme/theme';
 
 /**
@@ -41,6 +45,7 @@ export function MessagesScreen() {
   const opened = openId
     ? findConversation(conversations, openId) ?? null
     : null;
+  const unread = totalUnreadCount(conversations);
 
   return (
     <View style={styles.root}>
@@ -49,7 +54,16 @@ export function MessagesScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Messages</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Messages</Text>
+          {unread > 0 && (
+            <View style={styles.unreadPill}>
+              <Text style={styles.unreadText}>
+                {unread > 99 ? '99+' : unread}
+              </Text>
+            </View>
+          )}
+        </View>
         <View style={styles.search} pointerEvents="none">
           <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
             <Path
@@ -98,13 +112,32 @@ const styles = StyleSheet.create({
     paddingTop: 66,
     paddingBottom: 40,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    marginBottom: 6,
+  },
   title: {
     fontSize: 30,
     fontWeight: fontWeight.bold,
     letterSpacing: -0.6,
     color: '#FFFFFF',
-    paddingHorizontal: 16,
-    marginBottom: 6,
+  },
+  unreadPill: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 7,
+    borderRadius: 11,
+    backgroundColor: '#0A84FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadText: {
+    fontSize: 12,
+    fontWeight: fontWeight.bold,
+    color: '#FFFFFF',
   },
   search: {
     marginHorizontal: 16,

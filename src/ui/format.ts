@@ -72,6 +72,18 @@ export function formatTokenAmount(amount: number): string {
  * "Yesterday", within a week → short weekday ("Mon"), older → short
  * month/day ("May 21").
  */
+/**
+ * Short countdown for daily caps — e.g. "4h 12m", "38m", "a few seconds".
+ */
+export function formatCountdownShort(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return 'a few seconds';
+}
+
 export function formatRelativeTime(at: number, now: number): string {
   const a = new Date(at);
   const n = new Date(now);

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DON'T FOMO — Production polish pass 3</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: #0a0a0c;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+      color: #fff;
+      padding: 32px 24px 48px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 28px;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      justify-content: center;
+      max-width: 1320px;
+      margin: 0 auto;
+    }
+    .phone {
+      width: 300px;
+      height: 620px;
+      border-radius: 36px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      flex-direction: column;
+    }
+    .label {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.45);
+      margin-top: 10px;
+      letter-spacing: 0.04em;
+    }
+    .status {
+      padding: 44px 18px 8px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      font-variant-numeric: tabular-nums;
+    }
+    /* Home */
+    .home {
+      background: linear-gradient(180deg, #1a1a2e 0%, #0d0d14 100%);
+      padding: 0 14px;
+    }
+    .widgets {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .widget {
+      flex: 1;
+      height: 130px;
+      border-radius: 18px;
+      padding: 14px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      display: flex;
+      flex-direction: column;
+    }
+    .widget-top {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 600;
+      opacity: 0.85;
+    }
+    .widget-value {
+      font-size: 22px;
+      font-weight: 700;
+      margin-top: auto;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.5px;
+    }
+    .spark {
+      height: 24px;
+      margin: 6px 0 4px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 140 28'%3E%3Cpolyline fill='none' stroke='%234ADE80' stroke-width='2.5' points='0,22 28,18 56,20 84,14 112,16 140,12'/%3E%3C/svg%3E") no-repeat center;
+      background-size: 100% 100%;
+    }
+    .widget-sub { font-size: 10px; opacity: 0.55; }
+    .streak { display: flex; align-items: center; gap: 4px; margin-top: auto; font-size: 10px; font-weight: 600; color: #fbbf24; }
+    /* News */
+    .news { background: #0F0A0C; }
+    .news-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px 4px;
+    }
+    .news-title { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+    .breaking-pill {
+      font-size: 11px;
+      font-weight: 700;
+      color: #FDA4AF;
+      background: rgba(225,29,72,0.25);
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+    .news-sub { font-size: 12px; color: rgba(255,255,255,0.45); padding: 0 16px 12px; }
+    .article {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .article-top {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      margin-bottom: 6px;
+    }
+    .outlet { color: #FB7185; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .time { color: rgba(255,255,255,0.4); }
+    .article-title { font-size: 16px; font-weight: 700; line-height: 1.25; }
+    .article-sum { font-size: 13px; color: rgba(255,255,255,0.55); margin-top: 6px; line-height: 1.35; }
+    .chip {
+      display: inline-block;
+      margin-top: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .chip-breaking { background: rgba(225,29,72,0.22); color: #FDA4AF; }
+    .chip-markets { background: rgba(59,130,246,0.18); color: #93C5FD; }
+    /* CashSwipe */
+    .cashswipe {
+      background: linear-gradient(180deg, #1F6A44 0%, #07261A 100%);
+      position: relative;
+    }
+    .hud {
+      margin: 100px 18px 0;
+      padding: 20px 24px;
+      border-radius: 24px;
+      background: rgba(7, 38, 26, 0.78);
+      border: 1px solid rgba(143, 224, 179, 0.35);
+      text-align: center;
+      box-shadow: 0 14px 26px rgba(0,0,0,0.55);
+    }
+    .hud-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #7FD3A4;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .hud-earned {
+      font-size: 52px;
+      font-weight: 700;
+      color: #EAFBF0;
+      margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -2px;
+    }
+    .hud-sub {
+      font-size: 13px;
+      color: #8FE0B3;
+      margin-top: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .bills {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 120px;
+      background: linear-gradient(135deg, #2d8a4e, #1a5c32);
+      border-radius: 12px 12px 0 0;
+      opacity: 0.35;
+    }
+    /* Messages */
+    .messages { background: #000; }
+    .msg-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 16px 8px;
+    }
+    .msg-title { font-size: 28px; font-weight: 700; }
+    .unread-pill {
+      min-width: 22px;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 11px;
+      background: #0A84FF;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .search {
+      margin: 0 16px 10px;
+      padding: 9px 13px;
+      border-radius: 11px;
+      background: #1C1C1E;
+      color: #7C7C80;
+      font-size: 14px;
+    }
+    .conv {
+      padding: 12px 16px;
+      display: flex;
+      gap: 12px;
+      border-bottom: 1px solid #1C1C1E;
+    }
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ec4899, #be185d);
+      flex-shrink: 0;
+    }
+    .conv-body { flex: 1; min-width: 0; }
+    .conv-top { display: flex; justify-content: space-between; font-size: 15px; font-weight: 600; }
+    .conv-preview { font-size: 14px; color: #8E8E93; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conv-time { font-size: 14px; color: #8E8E93; }
+    .badge-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #0A84FF;
+      margin-left: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Production polish pass 3 — Home · News · CashSwipe · Messages</h1>
+  <div class="row">
+    <div>
+      <div class="phone home">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="widgets">
+          <div class="widget">
+            <div class="widget-top"><span>Portfolio</span><span>Tue, May 26</span></div>
+            <div class="widget-value">$2,847.50</div>
+            <div class="spark"></div>
+            <div class="widget-sub">+469.5% since Day 1</div>
+          </div>
+          <div class="widget">
+            <div class="widget-top"><span>Clout</span><span>Alex Rivera</span></div>
+            <div class="widget-value">12,480</div>
+            <div class="widget-sub">followers</div>
+            <div class="streak">🔥 3-day streak · Day 4</div>
+          </div>
+        </div>
+      </div>
+      <p class="label">Home — display name + live net worth</p>
+    </div>
+    <div>
+      <div class="phone news">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="news-header">
+          <div class="news-title">News</div>
+          <span class="breaking-pill">1 breaking</span>
+        </div>
+        <p class="news-sub">Tue, May 26 · 6 stories</p>
+        <div class="article">
+          <div class="article-top">
+            <span class="outlet">The Crypto Desk ✓</span>
+            <span class="time">1h</span>
+          </div>
+          <div class="article-title">BREAKING: anonymous dev refunds entire community after rug pull…</div>
+          <div class="article-sum">BREAKING: anonymous dev refunds entire community after rug pull, citing 'overwhelming guilt.'</div>
+          <span class="chip chip-breaking">Breaking</span>
+        </div>
+        <div class="article">
+          <div class="article-top">
+            <span class="outlet">The Crypto Desk ✓</span>
+            <span class="time">35m</span>
+          </div>
+          <div class="article-title">Lawmakers float 24-hour "cooling off" rule for meme coin launches</div>
+          <div class="article-sum">A draft bill would require new tokens to sit in a waiting period before trading.</div>
+          <span class="chip chip-markets">Markets</span>
+        </div>
+        <div class="article">
+          <div class="article-top">
+            <span class="outlet">PulseWire ✓</span>
+            <span class="time">2h</span>
+          </div>
+          <div class="article-title">Yield farms report record TVL as degens rotate out of JPEGs</div>
+          <div class="article-sum">Liquidity mining dashboards show double-digit inflows week-over-week.</div>
+          <span class="chip chip-markets">DeFi</span>
+        </div>
+      </div>
+      <p class="label">News — production feed (no placeholder)</p>
+    </div>
+    <div>
+      <div class="phone cashswipe">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="hud">
+          <div class="hud-title">Cash Swipe</div>
+          <div class="hud-earned">$1,000</div>
+          <div class="hud-sub">Daily cap reached · resets in 4h 12m</div>
+        </div>
+        <div class="bills"></div>
+      </div>
+      <p class="label">CashSwipe — cap countdown in HUD</p>
+    </div>
+    <div>
+      <div class="phone messages">
+        <div class="status"><span>9:41</span><span>●●●</span></div>
+        <div class="msg-title-row">
+          <div class="msg-title">Messages</div>
+          <span class="unread-pill">2</span>
+        </div>
+        <div class="search">🔍 Search</div>
+        <div class="conv">
+          <div class="avatar"></div>
+          <div class="conv-body">
+            <div class="conv-top">
+              <span>Mom</span>
+              <span class="conv-time">9:12</span>
+            </div>
+            <div class="conv-preview">did you eat today</div>
+          </div>
+          <span class="badge-dot"></span>
+        </div>
+        <div class="conv">
+          <div class="avatar" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8)"></div>
+          <div class="conv-body">
+            <div class="conv-top">
+              <span>Jake</span>
+              <span class="conv-time">Yesterday</span>
+            </div>
+            <div class="conv-preview">bro that chart is insane</div>
+          </div>
+          <span class="badge-dot"></span>
+        </div>
+      </div>
+      <p class="label">Messages — unread header pill</p>
+    </div>
+  </div>
+</body>
+</html>
