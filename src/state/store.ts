@@ -41,7 +41,6 @@ import {
   findLoanTier,
   followersFromDump,
   followersFromPump,
-  holdingsValue,
   isCheckDue,
   nextInstallmentCost,
   playerTokenParams,
@@ -53,6 +52,10 @@ import {
   type CashSwipeState,
   type PlayerTokenDef,
 } from '../engine/economy';
+import {
+  appendPortfolioSample,
+  computeNetWorth,
+} from '../engine/economy/netWorth';
 import {
   addMessage,
   deleteMessage,
@@ -82,7 +85,6 @@ import {
   addOwned,
   findAsset,
   isOwned,
-  ownedValue,
   removeOwned,
   resaleValue,
   type OwnedAsset,
@@ -193,6 +195,8 @@ export interface SavedGame {
   clock: GameClock;
   cash: number;
   followers: number;
+  /** Display name from onboarding Profile step. */
+  displayName: string;
   handle: string;
   market: MarketState;
   holdings: Record<string, number>;
@@ -201,6 +205,8 @@ export interface SavedGame {
   cashSwipe: CashSwipeState;
   /** Highest net worth (cash + crypto) the player has ever reached. */
   peakNetWorth: number;
+  /** Recent net-worth samples for the home Portfolio sparkline. */
+  portfolioHistory: number[];
   /** Last time an unemployment check was credited (epoch ms). */
   lastUnemploymentCheckAt: number;
   /** The Mail inbox — newest first. */
@@ -232,6 +238,8 @@ export interface GameState {
   cash: number;
   /** Clout (X) follower count — the master reputation stat. */
   followers: number;
+  /** Display name shown in Clout, Wallet, Settings. */
+  displayName: string;
   /** The player's Clout handle. */
   handle: string;
   /** The live crypto market simulation. */
@@ -246,6 +254,8 @@ export interface GameState {
   cashSwipe: CashSwipeState;
   /** Lifetime peak net worth — the anchor for the unemployment check. */
   peakNetWorth: number;
+  /** Recent net-worth samples (oldest first) for the home widget chart. */
+  portfolioHistory: number[];
   /** Last time an unemployment check was credited (epoch ms). */
   lastUnemploymentCheckAt: number;
   /** The Mail inbox — newest first. */
@@ -378,6 +388,7 @@ function freshGame(now: number): Pick<
   | 'clock'
   | 'cash'
   | 'followers'
+  | 'displayName'
   | 'handle'
   | 'market'
   | 'holdings'
@@ -385,6 +396,7 @@ function freshGame(now: number): Pick<
   | 'bank'
   | 'cashSwipe'
   | 'peakNetWorth'
+  | 'portfolioHistory'
   | 'lastUnemploymentCheckAt'
   | 'mail'
   | 'tunnel'
@@ -403,6 +415,7 @@ function freshGame(now: number): Pick<
     clock: createClock(now),
     cash: STARTING_CASH,
     followers: 0,
+    displayName: '',
     handle: DEFAULT_HANDLE,
     market: createMarket(createRandom(now)),
     holdings: {},
@@ -410,6 +423,7 @@ function freshGame(now: number): Pick<
     bank: createBank(now),
     cashSwipe: createCashSwipe(now),
     peakNetWorth: STARTING_CASH,
+    portfolioHistory: [STARTING_CASH],
     // Anchor at game start — the first check fires the next Thursday 8pm Eastern.
     lastUnemploymentCheckAt: now,
     mail: createStartingMail(now),
@@ -425,22 +439,6 @@ function freshGame(now: number): Pick<
     banner: null,
     openAppId: null,
   };
-}
-
-/**
- * Compute net worth from a slice of state. Cash + crypto holdings +
- * Market-app asset book value (Bible §14). The full formula now;
- * `peakNetWorth` tracks the running max.
- */
-function netWorthOf(
-  cash: number,
-  holdings: Record<string, number>,
-  market: MarketState,
-  assets: readonly OwnedAsset[],
-): number {
-  return (
-    cash + holdingsValue(holdings, market) + ownedValue(ASSET_CATALOG, assets)
-  );
 }
 
 /** Whole market ticks elapsed across an offline gap, capped. */
@@ -468,7 +466,12 @@ export const useGameStore = create<GameState>()((set) => ({
   tick: (now) =>
     set((s) => {
       const clock = tickClock(s.clock, now);
-      const netWorth = netWorthOf(s.cash, s.holdings, s.market, s.assets ?? []);
+      const netWorth = computeNetWorth(
+        s.cash,
+        s.holdings,
+        s.market,
+        s.assets ?? [],
+      );
       const peakNetWorth = Math.max(s.peakNetWorth, netWorth);
       if (isCheckDue(s.lastUnemploymentCheckAt, now)) {
         const amount = unemploymentAmount(peakNetWorth);
@@ -486,13 +489,26 @@ export const useGameStore = create<GameState>()((set) => ({
       return { clock, peakNetWorth };
     }),
   tickMarket: () =>
-    set((s) => ({
-      market: tickMarketEngine(
+    set((s) => {
+      const market = tickMarketEngine(
         s.market,
         marketRand,
         paramsFor(s.playerTokens, s.followers),
-      ),
-    })),
+      );
+      const netWorth = computeNetWorth(
+        s.cash,
+        s.holdings,
+        market,
+        s.assets ?? [],
+      );
+      return {
+        market,
+        portfolioHistory: appendPortfolioSample(
+          s.portfolioHistory ?? [STARTING_CASH],
+          netWorth,
+        ),
+      };
+    }),
   resume: (now) =>
     set((s) => {
       const resumed = resumeClock(s.clock, now);
@@ -505,7 +521,12 @@ export const useGameStore = create<GameState>()((set) => ({
         marketRand,
         paramsFor(s.playerTokens, s.followers),
       );
-      const netWorth = netWorthOf(s.cash, s.holdings, market, s.assets ?? []);
+      const netWorth = computeNetWorth(
+        s.cash,
+        s.holdings,
+        market,
+        s.assets ?? [],
+      );
       const peakNetWorth = Math.max(s.peakNetWorth, netWorth);
       const due = isCheckDue(s.lastUnemploymentCheckAt, now);
       const amount = due ? unemploymentAmount(peakNetWorth) : 0;
@@ -562,7 +583,7 @@ export const useGameStore = create<GameState>()((set) => ({
         marketRand,
         paramsFor(playerTokens, saved.followers),
       );
-      const netWorth = netWorthOf(
+      const netWorth = computeNetWorth(
         saved.cash,
         holdings,
         market,
@@ -575,6 +596,7 @@ export const useGameStore = create<GameState>()((set) => ({
         clock: resumed.clock,
         cash: saved.cash + amount,
         followers: saved.followers,
+        displayName: saved.displayName ?? '',
         handle: saved.handle,
         market,
         holdings,
@@ -582,6 +604,9 @@ export const useGameStore = create<GameState>()((set) => ({
         bank: { bills: bank.bills, loan },
         cashSwipe,
         peakNetWorth,
+        portfolioHistory:
+          saved.portfolioHistory ??
+          appendPortfolioSample([STARTING_CASH], netWorth),
         lastUnemploymentCheckAt: due ? now : seededLastCheckAt,
         mail: seededMail,
         tunnel: seededTunnel,
@@ -834,7 +859,7 @@ export const useGameStore = create<GameState>()((set) => ({
       if (!trimmedName) return {}; // a profile requires a name
       const slug = trimmedName.toLowerCase().replace(/[^a-z0-9_]/g, '');
       const handle = slug.length > 0 ? `@${slug}` : s.handle;
-      return { handle, bio: bio.trim() };
+      return { displayName: trimmedName, handle, bio: bio.trim() };
     }),
   generateWallet: (seed) =>
     set((s) => ({
@@ -880,6 +905,7 @@ export function serializeGame(state: GameState): SavedGame {
     clock: state.clock,
     cash: state.cash,
     followers: state.followers,
+    displayName: state.displayName ?? '',
     handle: state.handle,
     market: state.market,
     holdings: state.holdings ?? {},
@@ -887,6 +913,7 @@ export function serializeGame(state: GameState): SavedGame {
     bank: state.bank,
     cashSwipe: state.cashSwipe,
     peakNetWorth: state.peakNetWorth ?? STARTING_CASH,
+    portfolioHistory: state.portfolioHistory ?? [STARTING_CASH],
     lastUnemploymentCheckAt: state.lastUnemploymentCheckAt ?? state.clock.now,
     mail: state.mail ?? [],
     tunnel: state.tunnel ?? [],

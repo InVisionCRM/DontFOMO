@@ -6,6 +6,33 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-26 08:57 UTC — Production polish: identity, portfolio widget, Wallet + Settings
+- **Player identity (`displayName`):** `setProfile` now persists the
+  typed display name (not just the slugified handle). Clout, Wallet,
+  and Settings read it via `resolveDisplayName` — pre-v14 saves
+  title-case the handle slug. Removed the hardcoded "Kyle" placeholder.
+- **Portfolio widget:** shows live **net worth** (cash + crypto +
+  Market assets), a green/red `Sparkline` fed by `portfolioHistory`
+  (ring buffer, capped at 12, appended each market tick), and a
+  signed % delta vs Day-1 starting cash.
+- **Clout widget:** streak line now reads `N-day streak · Day X`
+  when a daily-post streak is active.
+- **Wallet app (production v1):** profile strip, total balance hero,
+  cash/crypto breakdown, simulated-wallet disclaimer — registered in
+  `appScreens.ts` (no longer a placeholder).
+- **Settings app (production v1):** iOS-style grouped rows for
+  player identity, game day/date, net worth, peak, diamonds, version.
+- **Engine:** `computeNetWorth` + `appendPortfolioSample` in
+  `src/engine/economy/netWorth.ts`; `resolveDisplayName` +
+  `followingCountApprox` + `PLAYER_AVATAR_GRADIENT` in
+  `src/engine/player/identity.ts`.
+- **`SAVE_VERSION` bumped 13 → 14.** v13 saves wipe per precedent.
+- **Preview:** `docs/previews/home-polish-2026-05-26.html` +
+  `home-polish-2026-05-26.png` (static home-screen mock of the
+  updated widgets).
+- **Tests:** onboarding `displayName` assertion; new identity +
+  netWorth suites; serialize key list updated. **309 tests pass.**
+
 ## 2026-05-24 03:30 UTC — Onboarding flow + the Clipboard Scam primer
 - Bible §13's first-launch flow + the flagship Slow Burn's arming
   mechanism (Scam Library v1.1 Event #5). Players who tap "Copy to

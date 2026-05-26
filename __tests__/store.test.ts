@@ -113,7 +113,9 @@ describe('game store', () => {
       clock: { startedAt: 0, lastSeenAt: 0, now: 0 },
       cash: 12_345,
       followers: 678,
+      displayName: 'Whale',
       handle: '@whale',
+      portfolioHistory: [12_345],
       market: createMarket(createRandom(1)),
       holdings: { NEURA: 42 },
       playerTokens: [],
@@ -162,6 +164,7 @@ describe('game store', () => {
       'cloutFeed',
       'dailyPost',
       'diamonds',
+      'displayName',
       'followers',
       'handle',
       'holdings',
@@ -172,6 +175,7 @@ describe('game store', () => {
       'onboarding',
       'peakNetWorth',
       'playerTokens',
+      'portfolioHistory',
       'tunnel',
     ]);
     expect(saved.cash).toBe(STARTING_CASH);
