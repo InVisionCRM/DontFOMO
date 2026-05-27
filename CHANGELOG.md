@@ -6,6 +6,19 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-27 — Clout bottom tab bar (Home / Search / Notifications / Profile)
+
+UI-only port of the four-tab bottom bar from `DontFOMO_X_App_Mockup.html`. No engine, store, or save changes; one new component file, one new placeholder shell, and a rework of `CloutScreen` to switch between tabs on local state.
+
+- **`src/ui/clout/CloutTabBar.tsx`** (new) — fixed-position 78pt bar (22pt safe-area padding) with four tabs: Home, Search, Notifications, Profile. Icons are inline SVGs (home, search, bell, user) styled to match the mockup (active `#E7E9EA` at stroke-width 2.6, inactive `#71767B` at 2). Each tab is a `Pressable` with `accessibilityRole="tab"`, `accessibilityState={{ selected }}`, and a 44pt minimum hit area per CLAUDE.md §7.
+- **`src/ui/clout/CloutTabPlaceholder.tsx`** (new) — quiet stub used by Search / Notifications / Profile while their real shells are still backlog items. Centred title + muted copy, no fake content.
+- **`src/ui/clout/CloutScreen.tsx`** — added local `activeTab` state (default `home`); the Home tab renders the existing profile strip + feed + PostFAB; the other three render the placeholder with tab-specific copy. The bar and FAB are hidden while `cloutTakeover` is active so the Golden Giveaway overlay remains the only interactive surface. In-game app switching stays in the store (`openAppId`); sub-tab state stays local — sub-sections of one app are not top-level navigation per CLAUDE.md §5.
+- Outcome: `npx tsc --noEmit` clean, **458 tests across 27 suites green** (no test changes — UI-only). The Clout home screen still drives all v1 gameplay; the other three tabs now exist as discoverable surfaces for the next backlog items (Notifications shell is up next).
+
+Complexity: **25/100** — pure UI, no engine/save, four placeholder shells. Drivers: visual port from a finished mockup, no new game state, no new tests required.
+
+---
+
 ## 2026-05-27 — Mail UI polish: accessibility, tabular timestamps, and richer row labels
 
 Polish pass on the Mail app: the inbox row, the inbox header, and the detail view. No engine or store changes — UI only, plus new unit-test coverage of the display formatters that drive the inbox timestamps.
