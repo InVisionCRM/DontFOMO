@@ -10,7 +10,7 @@ First unchecked item wins. The automation agent marks `[x]` when an item lands o
 - [x] Mail UI polish: sender styling, read/unread, timestamps
 - [x] Clout: bottom tab bar (RN; ref `DontFOMO-design/DontFOMO_X_App_Mockup.html`)
 - [x] Clout: notifications panel shell (read-only v1)
-- [ ] Wallet: empty state, copy, tabular balance figures
+- [x] Wallet: empty state, copy, tabular balance figures
 - [ ] News: category chips + relative timestamps in `src/data/news.ts`
 - [ ] Messages: thread list polish — avatars, preview, unread badges
 - [ ] Settings: save version + last-saved hint

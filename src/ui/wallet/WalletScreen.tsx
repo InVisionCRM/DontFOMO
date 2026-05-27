@@ -5,12 +5,17 @@
  * lives in the Bank app; this is the player's self-custody view.
  */
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { holdingsValue } from '../../engine/economy';
 import { TOKENS } from '../../data/tokens';
 import { useGameStore } from '../../state/store';
-import { formatCurrency } from '../format';
+import {
+  formatCurrency,
+  formatSignedPercent,
+  formatTokenAmount,
+  formatTokenPrice,
+} from '../format';
 import {
   color,
   fontSize,
@@ -23,10 +28,17 @@ import {
 const TOP_PAD = 52;
 const WALLET_ACCENT = '#FBB24A';
 
+/**
+ * Stable empty-holdings reference. A fresh `{}` inside or after the
+ * selector would change identity on every render and re-fire memos.
+ */
+const EMPTY_HOLDINGS: Record<string, number> = {};
+
 export function WalletScreen() {
   const insets = useSafeAreaInsets();
-  const holdings = useGameStore((s) => s.holdings) ?? {};
+  const holdings = useGameStore((s) => s.holdings) ?? EMPTY_HOLDINGS;
   const market = useGameStore((s) => s.market);
+  const openApp = useGameStore((s) => s.openApp);
 
   const rows = useMemo(() => {
     return Object.entries(holdings)
@@ -35,18 +47,24 @@ export function WalletScreen() {
         const token = market.tokens[id];
         const def = TOKENS.find((t) => t.id === id);
         const price = token?.price ?? 0;
+        const dayOpen = token?.dayOpen ?? price;
         const usd = amount * price;
+        const dayChangePct =
+          dayOpen > 0 ? ((price - dayOpen) / dayOpen) * 100 : 0;
         return {
           id,
           name: def?.name ?? id,
           amount,
+          price,
           usd,
+          dayChangePct,
         };
       })
       .sort((a, b) => b.usd - a.usd);
   }, [holdings, market.tokens]);
 
   const totalUsd = holdingsValue(holdings, market);
+  const hasHoldings = rows.length > 0;
 
   return (
     <View style={styles.root}>
@@ -57,38 +75,92 @@ export function WalletScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Wallet</Text>
-        <Text style={styles.subtitle}>Self-custody · not your bank balance</Text>
+        <Text style={styles.title} accessibilityRole="header">
+          Wallet
+        </Text>
+        <Text style={styles.subtitle}>
+          Self-custody · not your bank balance
+        </Text>
 
-        <View style={styles.totalCard}>
+        <View
+          style={styles.totalCard}
+          accessibilityLabel={`Estimated wallet value ${formatCurrency(totalUsd)}`}
+        >
           <Text style={styles.totalLabel}>Estimated value</Text>
           <Text style={[styles.totalAmount, tabularNums]}>
             {formatCurrency(totalUsd)}
           </Text>
+          <Text style={styles.totalHint}>
+            Live USD at the current market price.
+          </Text>
         </View>
 
-        {rows.length === 0 ? (
-          <Text style={styles.empty}>
-            No tokens yet. Buy on Exchange or recover funds after a scam from
-            Bank and Cash Swipe.
-          </Text>
+        {hasHoldings ? (
+          <>
+            <Text style={styles.sectionHead}>Tokens</Text>
+            {rows.map((row) => {
+              const isUp = row.dayChangePct >= 0;
+              return (
+                <View
+                  key={row.id}
+                  style={styles.row}
+                  accessibilityLabel={
+                    `${row.name}, ${formatTokenAmount(row.amount)} ${row.id}, ` +
+                    `worth ${formatCurrency(row.usd)}, ` +
+                    `${formatSignedPercent(row.dayChangePct)} today`
+                  }
+                >
+                  <View style={styles.rowLeft}>
+                    <Text style={styles.rowName}>{row.name}</Text>
+                    <Text style={[styles.rowAmount, tabularNums]}>
+                      {formatTokenAmount(row.amount)} {row.id} ·{' '}
+                      {formatTokenPrice(row.price)}
+                    </Text>
+                  </View>
+                  <View style={styles.rowRight}>
+                    <Text style={[styles.rowUsd, tabularNums]}>
+                      {formatCurrency(row.usd)}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.rowChange,
+                        tabularNums,
+                        { color: isUp ? color.success : color.danger },
+                      ]}
+                    >
+                      {formatSignedPercent(row.dayChangePct)}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </>
         ) : (
-          rows.map((row) => (
-            <View key={row.id} style={styles.row}>
-              <View>
-                <Text style={styles.rowName}>{row.name}</Text>
-                <Text style={[styles.rowAmount, tabularNums]}>
-                  {row.amount.toLocaleString('en-US', {
-                    maximumFractionDigits: 6,
-                  })}{' '}
-                  {row.id}
-                </Text>
-              </View>
-              <Text style={[styles.rowUsd, tabularNums]}>
-                {formatCurrency(row.usd)}
-              </Text>
+          <View style={styles.emptyCard} accessibilityLabel="No tokens yet">
+            <View style={styles.emptyGlyph}>
+              <Text style={styles.emptyGlyphMark}>$</Text>
             </View>
-          ))
+            <Text style={styles.emptyTitle}>Your wallet is empty</Text>
+            <Text style={styles.emptyBody}>
+              Self-custody means you hold the coins yourself — no bank, no
+              middleman. Buy your first token on Exchange to see it land here.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [
+                styles.emptyButton,
+                pressed && styles.emptyButtonPressed,
+              ]}
+              onPress={() => openApp('exchange')}
+              accessibilityRole="button"
+              accessibilityLabel="Open Exchange"
+              hitSlop={8}
+            >
+              <Text style={styles.emptyButtonLabel}>Open Exchange</Text>
+            </Pressable>
+            <Text style={styles.emptyFootnote}>
+              Bank cash and Cash Swipe earnings live in their own apps.
+            </Text>
+          </View>
         )}
       </ScrollView>
     </View>
@@ -135,14 +207,22 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     color: color.text.primary,
   },
-  empty: {
-    marginTop: spacing.xxl,
-    fontSize: fontSize.body,
-    color: color.text.secondary,
-    lineHeight: 22,
+  totalHint: {
+    marginTop: spacing.xs,
+    fontSize: fontSize.caption,
+    color: color.text.tertiary,
+  },
+  sectionHead: {
+    marginTop: spacing.xl,
+    marginBottom: spacing.xs,
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: color.text.tertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   row: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     padding: spacing.lg,
     borderRadius: radius.md,
     backgroundColor: color.bg.surface,
@@ -151,6 +231,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  rowLeft: {
+    flex: 1,
+    paddingRight: spacing.md,
+  },
+  rowRight: {
+    alignItems: 'flex-end',
   },
   rowName: {
     fontSize: fontSize.body,
@@ -165,6 +252,73 @@ const styles = StyleSheet.create({
   rowUsd: {
     fontSize: fontSize.body,
     fontWeight: fontWeight.bold,
+    color: color.text.primary,
+  },
+  rowChange: {
+    marginTop: 2,
+    fontSize: fontSize.label,
+    fontWeight: fontWeight.semibold,
+  },
+  emptyCard: {
+    marginTop: spacing.xl,
+    padding: spacing.xl,
+    borderRadius: radius.lg,
+    backgroundColor: color.bg.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: color.border.hairline,
+    alignItems: 'center',
+  },
+  emptyGlyph: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(251,178,74,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(251,178,74,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  emptyGlyphMark: {
+    fontSize: fontSize.title,
+    fontWeight: fontWeight.bold,
     color: WALLET_ACCENT,
+  },
+  emptyTitle: {
+    fontSize: fontSize.heading,
+    fontWeight: fontWeight.semibold,
+    color: color.text.primary,
+    textAlign: 'center',
+  },
+  emptyBody: {
+    marginTop: spacing.sm,
+    fontSize: fontSize.body,
+    color: color.text.secondary,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  emptyButton: {
+    marginTop: spacing.lg,
+    minHeight: 44,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: WALLET_ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyButtonPressed: {
+    opacity: 0.85,
+  },
+  emptyButtonLabel: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
+    color: '#2A1C05',
+  },
+  emptyFootnote: {
+    marginTop: spacing.md,
+    fontSize: fontSize.caption,
+    color: color.text.tertiary,
+    textAlign: 'center',
   },
 });
