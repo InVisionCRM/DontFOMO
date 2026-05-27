@@ -113,10 +113,15 @@ export function useGameLoop(): void {
     );
     const saveInterval = setInterval(save, SAVE_INTERVAL_MS);
 
-    // Catch up when refocused; checkpoint + save when backgrounded.
+    // Catch up only on background → active. Calling `resume()` on the
+    // active → background edge would replay every foreground tick that
+    // happened during the session as if it were an offline gap (the
+    // market state would advance twice — once live, once via catch-up).
+    // Save on the way out, catch up on the way in.
     const onAppStateChange = (next: AppStateStatus): void => {
-      useGameStore.getState().resume(Date.now());
-      if (next !== 'active') {
+      if (next === 'active') {
+        useGameStore.getState().resume(Date.now());
+      } else {
         save();
       }
     };

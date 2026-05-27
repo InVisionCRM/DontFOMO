@@ -6,6 +6,19 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-27 — Tick loop hardening: fix offline-catch-up double-fire
+
+Two real bugs in the foreground tick + AppState handling, both producing the same symptom — the market jumping further on resume than the actual offline gap warrants.
+
+- **`src/engine/time/clock.ts` — `tickClock` now advances `lastSeenAt` alongside `now`.** Before, `lastSeenAt` only moved on `resumeClock`. After a long foreground session, the next `resume(now)` computed `elapsedMs = now - lastSeenAt` and replayed every foreground tick that had already executed during the session as if it were an offline gap, double-advancing the market. The fix treats a foreground tick as proof the engine is synced with reality and moves the offline anchor with it. `now` is clamped against `lastSeenAt` so a backwards device clock cannot push the anchor into the past.
+- **`src/state/useGameLoop.ts` — AppState handler now only catches up on `background → active`.** Previously it called `resume(Date.now())` on *every* state change, including the `active → background` edge. That replayed the entire foreground session as catch-up at the moment of backgrounding, with no real offline time elapsed. The handler now `resume()`s only when `next === 'active'` and `save()`s on every other transition. Combined with the `tickClock` fix above, an in-session background→active round-trip is now a no-op for the market.
+- **`__tests__/clock.test.ts`:** updated the two `tickClock` cases that asserted the buggy "leaves anchors untouched" behaviour, and added three regression cases: backwards-clock clamp, `tickClock → resumeClock(same now)` reports ~0 elapsed, and `tickClock(1h) → resumeClock(7h)` reports exactly 6h.
+- **Verification:** `npx tsc --noEmit` clean. **441 tests across 26 suites — all green** (up from 438/26).
+- **Complexity:** 25/100 — three small, surgical edits in a pure module and one wiring file; one test file updated. Engine remains React-free.
+- **Outcome:** the BACKLOG.md item *"Tick loop + offline catch-up: fix double-fire or drift; add tests"* is done. Resume catches up exactly the genuine offline gap; foreground ticks no longer get replayed.
+
+---
+
 ## 2026-05-26 — Save audit + corrupt-blob rejection
 
 - **New — `src/save/validate.ts`:** `validateSaveData(data)` checks the migrated blob's identity fields and throws `CorruptSaveError(reason)` on the first structural problem (clock / cash / followers / handle / market.tokens / bank / cashSwipe). Optional fields and lists are not checked — those have defensive `??` defaults in `store.loadSaved` already.

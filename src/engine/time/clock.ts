@@ -49,12 +49,23 @@ export function dayNumber(clock: GameClock): number {
   return Math.floor((clock.now - clock.startedAt) / DAY_MS) + 1;
 }
 
-/** Move the clock to a new `now` (a tick). Pure — returns a new clock. */
+/**
+ * Move the clock to a new `now` (a tick). Pure — returns a new clock.
+ *
+ * `lastSeenAt` is advanced alongside `now`: a foreground tick is proof
+ * the engine has just synced with reality, so the offline anchor moves
+ * forward with it. If this didn't happen, a long foreground session
+ * followed by a background → resume would replay every foreground tick
+ * as catch-up (the market would advance by the full session length
+ * twice — once live, once on resume). `now` is clamped so a backwards
+ * device clock cannot push the anchor into the past.
+ */
 export function tickClock(clock: GameClock, now: number): GameClock {
+  const safeNow = Math.max(now, clock.lastSeenAt);
   return {
     startedAt: clock.startedAt,
-    lastSeenAt: clock.lastSeenAt,
-    now,
+    lastSeenAt: safeNow,
+    now: safeNow,
   };
 }
 
