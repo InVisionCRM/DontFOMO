@@ -43,17 +43,45 @@ describe('dayNumber', () => {
 });
 
 describe('tickClock', () => {
-  it('moves `now` forward and leaves the anchors untouched', () => {
+  it('moves `now` and `lastSeenAt` forward together; start is anchored', () => {
     const ticked = tickClock(createClock(1_000), 5_000);
     expect(ticked.now).toBe(5_000);
     expect(ticked.startedAt).toBe(1_000);
-    expect(ticked.lastSeenAt).toBe(1_000);
+    expect(ticked.lastSeenAt).toBe(5_000);
   });
 
   it('does not mutate the input clock', () => {
     const original = createClock(1_000);
     tickClock(original, 5_000);
     expect(original.now).toBe(1_000);
+    expect(original.lastSeenAt).toBe(1_000);
+  });
+
+  it('clamps a backwards device clock — never moves anchors into the past', () => {
+    const clock = { startedAt: 0, lastSeenAt: 10_000, now: 10_000 };
+    const ticked = tickClock(clock, 4_000);
+    expect(ticked.now).toBe(10_000);
+    expect(ticked.lastSeenAt).toBe(10_000);
+  });
+
+  it('a resume immediately after a tick reports ~zero elapsed time', () => {
+    // Regression guard: pre-fix, `tickClock` left `lastSeenAt` alone,
+    // so a long foreground session followed by `resume(now)` would
+    // replay every foreground tick as if it were offline catch-up.
+    // With the anchor advancing on each tick, the elapsed gap is zero.
+    const start = createClock(0);
+    const afterSession = tickClock(start, DAY_MS);
+    const resumed = resumeClock(afterSession, DAY_MS);
+    expect(resumed.elapsedMs).toBe(0);
+    expect(resumed.elapsedDays).toBe(0);
+  });
+
+  it('resume after a tick only sees the genuine offline gap', () => {
+    const HOUR = 3_600_000;
+    const session = tickClock(createClock(0), HOUR);
+    const resumed = resumeClock(session, HOUR + 6 * HOUR);
+    expect(resumed.elapsedMs).toBe(6 * HOUR);
+    expect(resumed.clock.lastSeenAt).toBe(HOUR + 6 * HOUR);
   });
 });
 
