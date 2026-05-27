@@ -6,6 +6,18 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-27 — Mail UI polish: accessibility, tabular timestamps, and richer row labels
+
+Polish pass on the Mail app: the inbox row, the inbox header, and the detail view. No engine or store changes — UI only, plus new unit-test coverage of the display formatters that drive the inbox timestamps.
+
+- **`src/ui/mail/MailRow.tsx`** — the inbox row now exposes a single composed `accessibilityLabel` that includes read/unread state, suspicious flag, sender, relative time, and subject (so VoiceOver and TalkBack announce the whole row in one pass instead of fragmenting across child views); added an `accessibilityHint` ("Opens the message"). The dot, SUSPICIOUS tag, and timestamp are now `accessible={false}` so they don't double-announce. The relative-time text gained `fontVariant: ['tabular-nums']` so timestamps no longer jitter as their digits change.
+- **`src/ui/mail/MailScreen.tsx`** — Inbox title now carries `accessibilityRole="header"`. The unread sub-line keeps its mockup-faithful "X unread" rendering but exposes a singular/plural accessibility label ("1 unread message" / "5 unread messages"). The decorative search bar is hidden from assistive tech (`accessible={false}`). The empty state is grouped into one readable sentence for screen readers.
+- **`src/ui/mail/MailDetail.tsx`** — subject is now flagged as a header. The sender block gained a composed `accessibilityLabel` that announces "Suspicious sender …, address …" for phish and "From …, address …" otherwise, so the colour-coded address danger signal also reaches non-sighted players.
+- **`__tests__/format.test.ts`** — new 17-test suite covering `formatRelativeTime` (the formatter behind every mail/messages/clout timestamp) plus `formatTime`, `formatCurrency`, `formatTokenPrice`, `formatSignedPercent`, and `formatTokenAmount`. Closes the previous gap where the display formatters had zero direct coverage.
+- **Outcome:** `npx tsc --noEmit` clean; **458 tests across 27 suites passing** (was 441 / 26).
+
+---
+
 ## 2026-05-27 — Bank UI polish: copy, validation, accessibility on withdrawal + hold lockouts
 
 Polish pass on the Bank withdrawal sheet and the two lockout screens (Authority Notice + Frozen Withdrawal). No engine or store changes — UI only.

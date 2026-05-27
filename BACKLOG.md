@@ -7,7 +7,7 @@ First unchecked item wins. The automation agent marks `[x]` when an item lands o
 - [x] Save audit: defensive defaults in both `loadSaved` and `serializeGame`
 - [x] Tick loop + offline catch-up: fix double-fire or drift; add tests
 - [x] Bank UI polish: copy, loading states, a11y labels on withdrawal/hold
-- [ ] Mail UI polish: sender styling, read/unread, timestamps
+- [x] Mail UI polish: sender styling, read/unread, timestamps
 - [ ] Clout: bottom tab bar (RN; ref `DontFOMO-design/DontFOMO_X_App_Mockup.html`)
 - [ ] Clout: notifications panel shell (read-only v1)
 - [ ] Wallet: empty state, copy, tabular balance figures

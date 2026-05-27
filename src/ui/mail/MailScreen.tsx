@@ -86,14 +86,23 @@ export function MailScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.head}>
-          <Text style={styles.title}>Inbox</Text>
-          <Text style={styles.sub}>
+          <Text style={styles.title} accessibilityRole="header">
+            Inbox
+          </Text>
+          <Text
+            style={styles.sub}
+            accessibilityLabel={
+              unread === 0
+                ? 'All caught up'
+                : `${unread} ${unread === 1 ? 'unread message' : 'unread messages'}`
+            }
+          >
             {unread === 0 ? 'All caught up' : `${unread} unread`}
           </Text>
         </View>
 
         {/* Decorative search bar — wiring search is a later concern. */}
-        <View style={styles.search} pointerEvents="none">
+        <View style={styles.search} pointerEvents="none" accessible={false}>
           <Text style={styles.searchText}>Search</Text>
         </View>
 
@@ -107,7 +116,11 @@ export function MailScreen() {
             />
           ))}
           {mail.length === 0 && (
-            <View style={styles.empty}>
+            <View
+              style={styles.empty}
+              accessible
+              accessibilityLabel="No mail. Bills, statements and the occasional opportunity will land here."
+            >
               <Text style={styles.emptyTitle}>No mail</Text>
               <Text style={styles.emptyText}>
                 Bills, statements and the occasional “opportunity” will land here.

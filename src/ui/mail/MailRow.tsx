@@ -30,18 +30,29 @@ const SUSPICIOUS_BORDER = 'rgba(234,57,67,0.40)';
 const SUSPICIOUS_TEXT = '#FFB4B4';
 
 export function MailRow({ message, now, onPress }: MailRowProps) {
+  const relativeTime = formatRelativeTime(message.arrivedAt, now);
+  const a11yLabel = [
+    message.unread ? 'Unread' : 'Read',
+    message.isSuspicious ? 'suspicious' : null,
+    `mail from ${message.from}`,
+    relativeTime,
+    message.subject,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(', ');
+
   return (
     <Pressable
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       onPress={() => onPress(message.id)}
       accessibilityRole="button"
-      accessibilityLabel={`${message.unread ? 'Unread' : 'Read'} mail from ${
-        message.from
-      }: ${message.subject}`}
+      accessibilityLabel={a11yLabel}
+      accessibilityHint="Opens the message"
     >
       <View
         style={[styles.dot, !message.unread && styles.dotRead]}
         pointerEvents="none"
+        accessible={false}
       />
       <View style={styles.body}>
         <View style={styles.topLine}>
@@ -50,12 +61,14 @@ export function MailRow({ message, now, onPress }: MailRowProps) {
               {message.from}
             </Text>
             {message.isSuspicious && (
-              <View style={styles.tag}>
+              <View style={styles.tag} accessible={false}>
                 <Text style={styles.tagText}>SUSPICIOUS</Text>
               </View>
             )}
           </View>
-          <Text style={styles.time}>{formatRelativeTime(message.arrivedAt, now)}</Text>
+          <Text style={styles.time} accessible={false}>
+            {relativeTime}
+          </Text>
         </View>
         <Text style={styles.subject} numberOfLines={1}>
           {message.subject}
@@ -132,6 +145,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.caption,
     color: color.text.secondary,
     flexShrink: 0,
+    fontVariant: ['tabular-nums'],
   },
   subject: {
     fontSize: fontSize.body,
