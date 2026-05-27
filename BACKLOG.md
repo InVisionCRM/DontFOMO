@@ -12,7 +12,7 @@ First unchecked item wins. The automation agent marks `[x]` when an item lands o
 - [x] Clout: notifications panel shell (read-only v1)
 - [x] Wallet: empty state, copy, tabular balance figures
 - [x] News: category chips + relative timestamps in `src/data/news.ts`
-- [ ] Messages: thread list polish — avatars, preview, unread badges
+- [x] Messages: thread list polish — avatars, preview, unread badges
 - [ ] Settings: save version + last-saved hint
 - [ ] Wire `expo-haptics` on one meaningful banner action (Bible §5)
 - [ ] Banner audit: economic actions set banner in store reducers

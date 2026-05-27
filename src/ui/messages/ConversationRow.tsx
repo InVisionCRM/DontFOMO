@@ -1,8 +1,11 @@
 /**
  * ConversationRow.tsx — one row in the Messages list.
  * ------------------------------------------------------------------
- * Blue unread dot, gradient avatar, contact name, time of the last
- * message, preview text. Tapping fires onPress.
+ * Gradient avatar, contact name, preview text, last-message time.
+ * Unread rows get a bold preview and a tinted time stamp; multi-unread
+ * rows replace the dot with a numeric badge. A flagged-suspicious
+ * contact (Hijacked Friend, Bible §11) shows a small chip — the same
+ * affordance Mail and Tunnel use, scaled down for Messages rows.
  *
  * Pure presentational.
  */
@@ -27,8 +30,14 @@ const PRESSED_BG = '#131315';
 const ROW_BORDER = '#161618';
 const NAME_COLOR = '#FFFFFF';
 const TIME_COLOR = '#7C7C80';
+const TIME_UNREAD_COLOR = '#0A84FF';
 const LAST_COLOR = '#8E8E93';
+const LAST_UNREAD_COLOR = '#E7E7EA';
 const UNREAD_DOT = '#0A84FF';
+const BADGE_TEXT = '#FFFFFF';
+const SUSPICIOUS_BG = 'rgba(234,57,67,0.18)';
+const SUSPICIOUS_BORDER = 'rgba(234,57,67,0.40)';
+const SUSPICIOUS_TEXT = '#FFB4B4';
 
 export function ConversationRow({
   conversation,
@@ -36,22 +45,38 @@ export function ConversationRow({
   onPress,
 }: ConversationRowProps) {
   const last = lastMessage(conversation);
-  const hasUnread = conversation.unreadCount > 0;
+  const unreadCount = conversation.unreadCount;
+  const hasUnread = unreadCount > 0;
+  const showCount = unreadCount > 1;
+  const isSuspicious = conversation.isSuspicious === true;
+
+  const a11yParts: string[] = [conversation.contactName];
+  if (hasUnread) a11yParts.push(`${unreadCount} unread`);
+  if (isSuspicious) a11yParts.push('suspicious');
 
   return (
     <Pressable
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       onPress={() => onPress(conversation.id)}
       accessibilityRole="button"
-      accessibilityLabel={
-        hasUnread
-          ? `${conversation.contactName}, ${conversation.unreadCount} unread`
-          : conversation.contactName
-      }
+      accessibilityLabel={a11yParts.join(', ')}
     >
-      {/* Always reserve the unread-dot column so all rows line up. */}
+      {/* Always reserve the unread column so all rows line up. */}
       <View style={styles.dotSlot}>
-        {hasUnread && <View style={styles.dot} />}
+        {hasUnread &&
+          (showCount ? (
+            <View
+              style={styles.badge}
+              accessible={false}
+              pointerEvents="none"
+            >
+              <Text style={styles.badgeText}>
+                {unreadCount > 99 ? '99+' : String(unreadCount)}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.dot} accessible={false} pointerEvents="none" />
+          ))}
       </View>
 
       <LinearGradient
@@ -67,16 +92,29 @@ export function ConversationRow({
 
       <View style={styles.body}>
         <View style={styles.topLine}>
-          <Text style={styles.name} numberOfLines={1}>
-            {conversation.contactName}
-          </Text>
+          <View style={styles.nameWrap}>
+            <Text style={styles.name} numberOfLines={1}>
+              {conversation.contactName}
+            </Text>
+            {isSuspicious && (
+              <View style={styles.tag} accessible={false}>
+                <Text style={styles.tagText}>!</Text>
+              </View>
+            )}
+          </View>
           {last && (
-            <Text style={styles.time}>
+            <Text
+              style={[styles.time, hasUnread && styles.timeUnread]}
+              accessible={false}
+            >
               {formatRelativeTime(last.sentAt, now)}
             </Text>
           )}
         </View>
-        <Text style={styles.last} numberOfLines={1}>
+        <Text
+          style={[styles.last, hasUnread && styles.lastUnread]}
+          numberOfLines={2}
+        >
           {previewText(conversation)}
         </Text>
       </View>
@@ -96,8 +134,9 @@ const styles = StyleSheet.create({
     backgroundColor: PRESSED_BG,
   },
   dotSlot: {
-    width: 10,
+    width: 22,
     alignItems: 'center',
+    justifyContent: 'center',
     flexShrink: 0,
   },
   dot: {
@@ -105,6 +144,22 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 999,
     backgroundColor: UNREAD_DOT,
+  },
+  badge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 999,
+    backgroundColor: UNREAD_DOT,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: fontWeight.bold,
+    color: BADGE_TEXT,
+    fontVariant: ['tabular-nums'],
+    includeFontPadding: false,
   },
   avatar: {
     width: 52,
@@ -131,20 +186,52 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     gap: 8,
   },
-  name: {
+  nameWrap: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 0,
+  },
+  name: {
+    flexShrink: 1,
     fontSize: 16,
     fontWeight: fontWeight.semibold,
     color: NAME_COLOR,
+  },
+  tag: {
+    backgroundColor: SUSPICIOUS_BG,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SUSPICIOUS_BORDER,
+    borderRadius: 999,
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tagText: {
+    fontSize: 11,
+    lineHeight: 12,
+    fontWeight: fontWeight.bold,
+    color: SUSPICIOUS_TEXT,
+    includeFontPadding: false,
   },
   time: {
     fontSize: 12.5,
     color: TIME_COLOR,
     flexShrink: 0,
+    fontVariant: ['tabular-nums'],
+  },
+  timeUnread: {
+    color: TIME_UNREAD_COLOR,
   },
   last: {
     fontSize: 14,
     color: LAST_COLOR,
     marginTop: 3,
+  },
+  lastUnread: {
+    color: LAST_UNREAD_COLOR,
+    fontWeight: fontWeight.semibold,
   },
 });
