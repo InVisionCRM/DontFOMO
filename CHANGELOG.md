@@ -6,6 +6,17 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-27 — News polish (category chips + minute-granularity timestamps)
+
+Polish pass on the News app — no engine, store, or save changes. Adds a horizontal category-chip row above the feed and tightens the relative timestamps.
+
+- **`src/data/news.ts`** — introduces a `NewsCategory` union (`market` / `regulation` / `defi` / `tech` / `culture`), a per-category display label table, and an ordered `NEWS_CATEGORIES` list the chips row iterates. Every headline now carries a `category` field. The seed feed expanded from 4 to 8 entries so every category lands at least one story at game start. Two new pure helpers ship alongside: `formatRelativeTimestamp` (Just now → minutes → hours → days, clamped against future timestamps) and `filterHeadlines` (null = "All").
+- **`src/ui/news/NewsScreen.tsx`** — adds a horizontal `ScrollView` of pill chips above the feed (All + one per category, tinted by category accent), filters the `FlatList` data through `filterHeadlines`, switches the per-headline "9h ago" line to `formatRelativeTimestamp`, prints a small bordered category pill in each card's top-right, and renders a friendly empty state for any category that filters down to zero results. Per CLAUDE.md §13 the category accents stay inline (per-screen palette), not in `theme.ts`. Chips advertise `accessibilityRole="tab"` with `accessibilityState.selected` so screen readers track the active filter.
+- **`__tests__/news.test.ts`** — new suite covering `formatRelativeTimestamp` (sub-minute / sub-hour / sub-day / multi-day / future-clamp buckets), `filterHeadlines` (null passthrough, per-category narrowing, no-match empty), and the seed feed (every category covered, ids unique, every timestamp strictly past).
+- Verification: `npx tsc --noEmit` clean. `npm test` — **474 tests across 29 suites, all passing**.
+
+---
+
 ## 2026-05-27 — Wallet polish (empty state, copy, tabular figures)
 
 Polish pass on the Wallet screen — no engine, store, or save changes. Reworks the empty state into a proper card with a CTA, sharpens the copy, and gets every numeric Text on the screen consistent with the project's formatters and `tabularNums` style.
