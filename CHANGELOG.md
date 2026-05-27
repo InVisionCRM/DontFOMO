@@ -6,6 +6,16 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-27 — Bank UI polish: copy, validation, accessibility on withdrawal + hold lockouts
+
+Polish pass on the Bank withdrawal sheet and the two lockout screens (Authority Notice + Frozen Withdrawal). No engine or store changes — UI only.
+
+- **`src/ui/bank/BankWithdrawSheet.tsx`** — added input validation that surfaces a live-region message and disables Submit when the amount is missing, ≤ $0, exceeds available cash, or the destination wallet is shorter than the store's 8-char minimum. The submit button now reflects a transient `submitting` state and exposes `accessibilityState={{ disabled, busy }}` so VoiceOver and TalkBack announce the action correctly. Both inputs gained `accessibilityLabel`, `accessibilityLabelledBy`, and `accessibilityHint`; the amount input now uses tabular figures. Added `onRequestClose` for the Android hardware back button and labelled the backdrop tap target. Bumped Submit min-height to 48pt and Cancel to 44pt so they hit Apple/Google's tap-target guidelines.
+- **`src/ui/bank/BankScreen.tsx`** — both lockout modals now identify themselves to assistive tech (`accessibilityViewIsModal` + a top-level label), their countdowns expose `accessibilityRole="timer"` with `accessibilityLiveRegion="polite"` so screen readers re-announce the remaining time as it ticks, and the transaction-detail card on the Frozen Withdrawal lockout is grouped into a single readable sentence ("Pending withdrawal. Amount …. To wallet …. Reference ….") rather than four detached strings. CTAs gained `accessibilityHint` lines clarifying what each button does. The Home-screen "Withdraw to wallet" entry button gained a matching hint, and the Bank title is now flagged as a header. Bumped the lockout primary CTA to 48pt min-height and the ghost CTA to 44pt min-height.
+- **Outcome:** `npx tsc --noEmit` clean; **441 tests across 26 suites still passing.** No new tests — every change is presentational and the surfaces are not under render-test coverage.
+
+---
+
 ## 2026-05-27 — Tick loop hardening: fix offline-catch-up double-fire
 
 Two real bugs in the foreground tick + AppState handling, both producing the same symptom — the market jumping further on resume than the actual offline gap warrants.

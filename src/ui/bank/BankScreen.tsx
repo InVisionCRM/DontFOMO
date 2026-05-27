@@ -127,7 +127,9 @@ export function BankScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Bank</Text>
+        <Text style={styles.title} accessibilityRole="header">
+          Bank
+        </Text>
 
         <BankBalanceCard cash={cash} />
 
@@ -139,6 +141,7 @@ export function BankScreen() {
           onPress={() => setWithdrawOpen(true)}
           accessibilityRole="button"
           accessibilityLabel="Withdraw to external wallet"
+          accessibilityHint="Opens a sheet to send cash to an external wallet"
         >
           <Text style={styles.withdrawBtnText}>Withdraw to wallet</Text>
         </Pressable>
@@ -276,9 +279,13 @@ interface RegulatoryHoldLockoutProps {
 function RegulatoryHoldLockout(props: RegulatoryHoldLockoutProps) {
   const remaining = formatRemaining(props.hold.expiresAt - props.now);
   return (
-    <View style={lockStyles.root}>
+    <View
+      style={lockStyles.root}
+      accessibilityViewIsModal
+      accessibilityLabel="Bank account is on a regulatory hold"
+    >
       <View style={lockStyles.modal}>
-        <View style={lockStyles.seal}>
+        <View style={lockStyles.seal} accessible={false}>
           <Svg width={46} height={46} viewBox="0 0 24 24" fill="none">
             <Path
               d="M12 3l8 4v6c0 4.5 -3.5 7.5 -8 8c-4.5 -0.5 -8 -3.5 -8 -8V7z"
@@ -297,19 +304,31 @@ function RegulatoryHoldLockout(props: RegulatoryHoldLockoutProps) {
           </Svg>
         </View>
         <Text style={lockStyles.agency}>Federal Crypto Compliance Bureau</Text>
-        <Text style={lockStyles.title}>Regulatory hold placed</Text>
-        <Text style={lockStyles.sub}>
-          Your account has been frozen pending identity verification. A
-          notice has been sent to your Mail inbox detailing your case and
-          the steps to release the hold.
+        <Text style={lockStyles.title} accessibilityRole="header">
+          Regulatory hold placed
         </Text>
-        <View style={lockStyles.caseRow}>
+        <Text style={lockStyles.sub}>
+          Your account has been frozen pending identity verification. A notice
+          has been sent to your Mail inbox detailing your case and the steps
+          to release the hold.
+        </Text>
+        <View
+          style={lockStyles.caseRow}
+          accessible
+          accessibilityLabel={`Case reference ${props.hold.caseRef}`}
+        >
           <Text style={lockStyles.caseLabel}>Case ref.</Text>
           <Text style={[lockStyles.caseValue, tabularNums]}>
             {props.hold.caseRef}
           </Text>
         </View>
-        <View style={lockStyles.countdownRow}>
+        <View
+          style={lockStyles.countdownRow}
+          accessible
+          accessibilityRole="timer"
+          accessibilityLabel={`Account locked. Resolve within ${remaining}.`}
+          accessibilityLiveRegion="polite"
+        >
           <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
             <Circle cx={12} cy={12} r={9} stroke="#fda4a8" strokeWidth={2} />
             <Path
@@ -332,6 +351,7 @@ function RegulatoryHoldLockout(props: RegulatoryHoldLockoutProps) {
           onPress={props.onOpenMail}
           accessibilityRole="button"
           accessibilityLabel="Open Mail to resolve the hold"
+          accessibilityHint="Switches to the Mail app to read the notice"
         >
           <Text style={lockStyles.ctaText}>Open Mail to resolve</Text>
         </Pressable>
@@ -355,16 +375,32 @@ interface WithdrawalHoldLockoutProps {
 function WithdrawalHoldLockout(props: WithdrawalHoldLockoutProps) {
   const remaining = formatRemaining(props.hold.holdExpiresAt - props.now);
   const amountLabel = formatCurrency(props.hold.amount);
+  const walletShort = truncateWallet(props.hold.destinationWallet);
   return (
-    <View style={lockStyles.root}>
+    <View
+      style={lockStyles.root}
+      accessibilityViewIsModal
+      accessibilityLabel="Pending withdrawal is on a compliance hold"
+    >
       <View style={lockStyles.modal}>
         <Text style={lockStyles.agency}>Pending Compliance Review</Text>
-        <Text style={lockStyles.title}>Your withdrawal is on hold</Text>
-        <Text style={lockStyles.sub}>
-          Large transfers go through a routine check. You will get Mail when it
-          clears. You do not need to do anything.
+        <Text style={lockStyles.title} accessibilityRole="header">
+          Your withdrawal is on hold
         </Text>
-        <View style={lockStyles.txCard}>
+        <Text style={lockStyles.sub}>
+          Large transfers go through a routine check. You will get Mail when
+          it clears — you do not need to do anything.
+        </Text>
+        <View
+          style={lockStyles.txCard}
+          accessible
+          accessibilityLabel={
+            `Pending withdrawal. ` +
+            `Amount ${amountLabel}. ` +
+            `To wallet ${walletShort}. ` +
+            `Reference ${props.hold.reference}.`
+          }
+        >
           <Text style={lockStyles.txLabel}>Pending withdrawal</Text>
           <View style={lockStyles.txRow}>
             <Text style={lockStyles.txKey}>Amount</Text>
@@ -372,9 +408,7 @@ function WithdrawalHoldLockout(props: WithdrawalHoldLockoutProps) {
           </View>
           <View style={lockStyles.txRow}>
             <Text style={lockStyles.txKey}>To wallet</Text>
-            <Text style={lockStyles.txAddr}>
-              {truncateWallet(props.hold.destinationWallet)}
-            </Text>
+            <Text style={lockStyles.txAddr}>{walletShort}</Text>
           </View>
           <View style={lockStyles.txRow}>
             <Text style={lockStyles.txKey}>Reference</Text>
@@ -382,7 +416,12 @@ function WithdrawalHoldLockout(props: WithdrawalHoldLockoutProps) {
               {props.hold.reference}
             </Text>
           </View>
-          <Text style={lockStyles.txStatus}>
+          <Text
+            style={lockStyles.txStatus}
+            accessibilityRole="timer"
+            accessibilityLiveRegion="polite"
+            accessibilityLabel={`Held for compliance review. Resolve within ${remaining}.`}
+          >
             Held — compliance review · resolve within {remaining}
           </Text>
         </View>
@@ -394,6 +433,7 @@ function WithdrawalHoldLockout(props: WithdrawalHoldLockoutProps) {
           onPress={props.onOpenMail}
           accessibilityRole="button"
           accessibilityLabel="Open Mail for updates"
+          accessibilityHint="Switches to the Mail app to check for the clearance notice"
         >
           <Text style={lockStyles.ctaText}>Open Mail for updates</Text>
         </Pressable>
@@ -405,6 +445,7 @@ function WithdrawalHoldLockout(props: WithdrawalHoldLockoutProps) {
           onPress={props.onCancel}
           accessibilityRole="button"
           accessibilityLabel="Cancel the withdrawal"
+          accessibilityHint="Stops the transfer and keeps the funds in your Bank account"
         >
           <Text style={lockStyles.ghostCtaText}>
             Cancel the withdrawal · funds stay in Bank
@@ -530,6 +571,7 @@ const lockStyles = StyleSheet.create({
     marginTop: 14,
     width: '100%',
     paddingVertical: 13,
+    minHeight: 48,
     borderRadius: 12,
     backgroundColor: CTA_GRAD_TOP,
     borderBottomColor: CTA_GRAD_BOTTOM,
@@ -564,10 +606,12 @@ const lockStyles = StyleSheet.create({
     marginTop: 10,
     width: '100%',
     paddingVertical: 12,
+    minHeight: 44,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   ghostCtaText: {
     color: HOLD_SUB,
