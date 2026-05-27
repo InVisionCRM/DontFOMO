@@ -4,7 +4,7 @@
  * Large transfers (≥ FROZEN_WITHDRAWAL_MIN_USD) may trigger the
  * Frozen Withdrawal scam when the Director's pacing allows it.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -22,6 +22,7 @@ import {
   fontWeight,
   radius,
   spacing,
+  tabularNums,
 } from '../../theme/theme';
 
 const SHEET_BG = '#0C2A26';
@@ -43,35 +44,79 @@ export function BankWithdrawSheet({
   const initiateBankWithdrawal = useGameStore((s) => s.initiateBankWithdrawal);
   const [amountText, setAmountText] = useState('20000');
   const [wallet, setWallet] = useState('0xPlayerWallet9b4f');
+  const [submitting, setSubmitting] = useState(false);
+
+  const parsedAmount = useMemo(() => {
+    const n = Number.parseFloat(amountText.replace(/,/g, ''));
+    return Number.isFinite(n) ? n : NaN;
+  }, [amountText]);
+
+  const trimmedWallet = wallet.trim();
+  const amountInvalid = !Number.isFinite(parsedAmount) || parsedAmount <= 0;
+  const amountTooLarge =
+    Number.isFinite(parsedAmount) && parsedAmount > cash;
+  const walletInvalid = trimmedWallet.length < 8;
+  const canSubmit =
+    !submitting && !amountInvalid && !amountTooLarge && !walletInvalid;
+
+  const validationMessage: string | null = (() => {
+    if (amountInvalid) return 'Enter an amount greater than $0.';
+    if (amountTooLarge)
+      return `Amount exceeds your available cash (${formatCurrency(cash)}).`;
+    if (walletInvalid)
+      return 'Destination wallet looks too short — check the address.';
+    return null;
+  })();
 
   const handleSubmit = (): void => {
-    const amount = Number.parseFloat(amountText.replace(/,/g, ''));
-    if (!Number.isFinite(amount)) return;
-    initiateBankWithdrawal(amount, wallet, Date.now());
+    if (!canSubmit) return;
+    setSubmitting(true);
+    initiateBankWithdrawal(parsedAmount, trimmedWallet, Date.now());
     onClose();
+    // Reset for the next time the sheet opens.
+    setSubmitting(false);
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <Pressable style={styles.backdrop} onPress={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable
+        style={styles.backdrop}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss withdrawal sheet"
+      >
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-          <Text style={styles.title}>Withdraw to wallet</Text>
+          <Text style={styles.title} accessibilityRole="header">
+            Withdraw to wallet
+          </Text>
           <Text style={styles.hint}>
             Transfers of {formatCurrency(FROZEN_WITHDRAWAL_MIN_USD)} or more go
-            through a routine compliance review.
+            through a routine compliance review before they clear.
           </Text>
 
-          <Text style={styles.fieldLabel}>Amount (USD)</Text>
+          <Text style={styles.fieldLabel} nativeID="bank-withdraw-amount-label">
+            Amount (USD)
+          </Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, tabularNums]}
             value={amountText}
             onChangeText={setAmountText}
             keyboardType="decimal-pad"
             placeholder="20000"
             placeholderTextColor={color.text.tertiary}
+            accessibilityLabel="Withdrawal amount in US dollars"
+            accessibilityLabelledBy="bank-withdraw-amount-label"
+            accessibilityHint="Enter the amount of cash to withdraw"
           />
 
-          <Text style={styles.fieldLabel}>Destination wallet</Text>
+          <Text style={styles.fieldLabel} nativeID="bank-withdraw-wallet-label">
+            Destination wallet
+          </Text>
           <TextInput
             style={styles.input}
             value={wallet}
@@ -80,29 +125,54 @@ export function BankWithdrawSheet({
             autoCorrect={false}
             placeholder="0x…"
             placeholderTextColor={color.text.tertiary}
+            accessibilityLabel="Destination wallet address"
+            accessibilityLabelledBy="bank-withdraw-wallet-label"
+            accessibilityHint="The external wallet that will receive the funds"
           />
 
-          <Text style={styles.available}>
+          <Text
+            style={styles.available}
+            accessibilityLabel={`Available cash ${formatCurrency(cash)}`}
+          >
             Available: {formatCurrency(cash)}
           </Text>
+
+          {validationMessage && (
+            <Text
+              style={styles.validation}
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+            >
+              {validationMessage}
+            </Text>
+          )}
 
           <Pressable
             style={({ pressed }) => [
               styles.primary,
               pressed && styles.primaryPressed,
+              !canSubmit && styles.primaryDisabled,
             ]}
             onPress={handleSubmit}
+            disabled={!canSubmit}
             accessibilityRole="button"
-            accessibilityLabel="Submit withdrawal"
+            accessibilityLabel={
+              submitting ? 'Submitting withdrawal' : 'Submit withdrawal'
+            }
+            accessibilityHint="Sends the cash to the destination wallet"
+            accessibilityState={{ disabled: !canSubmit, busy: submitting }}
           >
-            <Text style={styles.primaryText}>Submit withdrawal</Text>
+            <Text style={styles.primaryText}>
+              {submitting ? 'Submitting…' : 'Submit withdrawal'}
+            </Text>
           </Pressable>
 
           <Pressable
             style={styles.ghost}
             onPress={onClose}
             accessibilityRole="button"
-            accessibilityLabel="Cancel"
+            accessibilityLabel="Cancel withdrawal"
+            accessibilityHint="Closes this sheet without sending any funds"
           >
             <Text style={styles.ghostText}>Cancel</Text>
           </Pressable>
@@ -163,15 +233,26 @@ const styles = StyleSheet.create({
     fontSize: fontSize.label,
     color: LABEL_COLOR,
   },
+  validation: {
+    marginTop: spacing.sm,
+    fontSize: fontSize.caption,
+    color: color.danger,
+    lineHeight: 16,
+  },
   primary: {
     marginTop: spacing.xl,
     backgroundColor: ACCENT,
     borderRadius: radius.md,
     paddingVertical: spacing.lg,
+    minHeight: 48,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   primaryPressed: {
     opacity: 0.88,
+  },
+  primaryDisabled: {
+    opacity: 0.4,
   },
   primaryText: {
     fontSize: fontSize.body,
@@ -181,7 +262,9 @@ const styles = StyleSheet.create({
   ghost: {
     marginTop: spacing.md,
     paddingVertical: spacing.md,
+    minHeight: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   ghostText: {
     fontSize: fontSize.body,
