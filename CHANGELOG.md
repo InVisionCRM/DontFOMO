@@ -6,6 +6,20 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-27 — Clout Notifications panel (read-only v1)
+
+Replaces the Notifications-tab placeholder inside the Clout app with a real, virtualised list driven by a static seed. Ports the bell-tab layout from `DontFOMO_X_App_Mockup.html` (lines 150–157, 273–275, 433–446). No engine, store, or save changes — pure data + UI.
+
+- **`src/data/cloutNotifications.ts`** (new) — read-only seed of five entries (follow, like, repost, mention, streak) matching the mockup canon. Each entry is a three-segment body (`before` / `bold` / `after`) plus an optional `muted` quote, an icon `kind`, and the hex colour for the icon glyph. Pure data per CLAUDE.md §5; a later milestone will swap the seed for engine-driven notifications.
+- **`src/ui/clout/CloutNotificationsPanel.tsx`** (new) — `FlatList` with header and footer. Inline SVG glyphs for follow / like / repost / streak; the mention row renders the brand-blue `@` badge from the mockup. Each row carries an `accessibilityLabel` that flattens the segmented body so screen readers announce the full notification, prefixed with the kind. Footer copy makes the read-only nature explicit. Per-screen palette stays inline (Clout's X-style black, not `theme.ts`), per the §13 "mockup-derived colours" rule; weights and tokens come from `fontWeight`.
+- **`src/ui/clout/CloutScreen.tsx`** — Notifications tab now renders `<CloutNotificationsPanel />` instead of the placeholder. Tab-bar and tab-switching wiring unchanged from the previous backlog item.
+- **`__tests__/cloutNotifications.test.ts`** (new) — five-case shape suite covering ID uniqueness, non-empty bold segments, 7-char hex icon colours, the mockup-anchored count, and full coverage of the documented kinds. `FlatList.keyExtractor` is ID-based, so duplicates would crash at runtime — caught at test time instead.
+- Outcome: `npx tsc --noEmit` clean, **463 tests across 28 suites green** (was 458 / 27). The bell tab now feels like a real notifications panel; no engine wiring changes the rest of Clout's behaviour.
+
+Complexity: **12/100** — read-only static data, one presentational component (`FlatList` + inline SVGs), one tab swap, five small data tests. Drivers: no engine, no store, no save, no migration; visual port from a finished mockup.
+
+---
+
 ## 2026-05-27 — Clout bottom tab bar (Home / Search / Notifications / Profile)
 
 UI-only port of the four-tab bottom bar from `DontFOMO_X_App_Mockup.html`. No engine, store, or save changes; one new component file, one new placeholder shell, and a rework of `CloutScreen` to switch between tabs on local state.

@@ -30,6 +30,7 @@ import { GoldenGiveawayTakeover } from './GoldenGiveawayTakeover';
 import { GoldenGiveawayCompare } from './GoldenGiveawayCompare';
 import { CloutTabBar, type CloutTab } from './CloutTabBar';
 import { CloutTabPlaceholder } from './CloutTabPlaceholder';
+import { CloutNotificationsPanel } from './CloutNotificationsPanel';
 import { useGameStore } from '../../state/store';
 import {
   canPostToday as canPostTodayEngine,
@@ -149,12 +150,7 @@ export function CloutScreen() {
         />
       )}
 
-      {activeTab === 'notifications' && (
-        <CloutTabPlaceholder
-          title="Notifications"
-          copy="Likes, replies, and follower pings will land here. The Notifications shell is the next backlog item."
-        />
-      )}
+      {activeTab === 'notifications' && <CloutNotificationsPanel />}
 
       {activeTab === 'profile' && (
         <CloutTabPlaceholder
