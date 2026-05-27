@@ -6,6 +6,20 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-27 — Messages thread list polish (preview, unread badges, suspicious chip)
+
+Polish pass on the Messages app — no engine, store, or save changes; the change is confined to one presentational component, `ConversationRow`.
+
+- **`src/ui/messages/ConversationRow.tsx`** — the row now treats unread state visually instead of relying on a single blue dot:
+  - Preview text shifts from `#8E8E93` → near-white `#E7E7EA` and goes semibold when `unreadCount > 0`, matching iMessage's bold-when-unread convention.
+  - The last-message timestamp tints to the system blue (`#0A84FF`) when the row has unread messages, and now uses tabular figures so the column doesn't jitter as digit widths change.
+  - The unread column widens from 10pt to 22pt so it can hold either the dot (single-unread) or a numeric badge (multi-unread, capped at `99+`). Both elements are marked `accessible={false}` because the row's `accessibilityLabel` already announces the count.
+  - The `isSuspicious` flag — already set on the Hijacked Friend primer (Jordan) in `src/data/messages.ts` but previously unused in the UI — now renders a small red "!" chip next to the contact name, mirroring the SUSPICIOUS affordance Mail (`src/ui/mail/MailRow.tsx`) and Tunnel (`TunnelChatRow.tsx`) already use. Scaled down to a 16pt circle because Messages rows are denser than Mail rows.
+  - Preview text bumped from 1 line to 2 lines so a longer last message hints without truncating mid-word.
+  - Accessibility label now joins name + unread count + suspicious flag in a single string the screen reader announces (e.g. "Jordan, 3 unread, suspicious"), replacing the older binary label.
+- **Per-CLAUDE.md §8** — all new colours stay inline as `const`s in this screen (per-app palette), not in `theme.ts` (cross-app tokens only).
+- **No tests added.** `ConversationRow` is a pure presentational component over an already-tested engine (`messages.test.ts` exercises `previewText`, `lastMessage`, `totalUnreadCount`, `markConversationRead`, `addConversationMessage`, `contactInitials`). The polish changes which `View` and `Text` nodes render against the same data; behaviour is unchanged. Verified with `npx tsc --noEmit` (strict-mode clean) and the full Jest suite (**474 tests across 29 suites, all green**).
+
 ## 2026-05-27 — News polish (category chips + minute-granularity timestamps)
 
 Polish pass on the News app — no engine, store, or save changes. Adds a horizontal category-chip row above the feed and tightens the relative timestamps.
