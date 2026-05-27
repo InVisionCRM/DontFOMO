@@ -6,6 +6,19 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-27 — Wallet polish (empty state, copy, tabular figures)
+
+Polish pass on the Wallet screen — no engine, store, or save changes. Reworks the empty state into a proper card with a CTA, sharpens the copy, and gets every numeric Text on the screen consistent with the project's formatters and `tabularNums` style.
+
+- **`src/ui/wallet/WalletScreen.tsx`** — replaces the bare empty-state line with a centred card (accent glyph, headline, body, primary "Open Exchange" button via `openApp('exchange')`, footnote pointing at Bank / Cash Swipe). Holdings rows now use `formatTokenAmount` / `formatTokenPrice` for consistency with the rest of the app and add a per-token day-change percentage from `dayOpen`. The total card gained a one-line hint explaining the live USD value. Every numeric Text wears `tabularNums`. Added `accessibilityLabel`s on the total card and each holding row (flattened "name, amount, USD, % today"), `accessibilityRole="header"` on the title, and `accessibilityRole="button"` plus an explicit label on the CTA. The CTA respects the 44pt minimum touch target per CLAUDE.md §7.
+- **Selector hygiene** — hoisted the `holdings` empty-object fallback to a module-level `EMPTY_HOLDINGS` constant per the §13 "stable-reference Zustand selectors" rule (the previous `?? {}` was a fresh object on every render and re-fired the `useMemo`).
+- Per-screen palette (`WALLET_ACCENT`, `#1a1408` card fill) stays inline per the §13 "mockup-derived colours" rule; `theme.ts` is unchanged.
+- Outcome: `npx tsc --noEmit` clean, **463 tests across 28 suites green** (no engine changes — UI-only polish).
+
+Complexity: **8/100** — single presentational file, no engine, no store, no save, no migration, no new dependencies; uses existing formatters and theme tokens.
+
+---
+
 ## 2026-05-27 — Clout Notifications panel (read-only v1)
 
 Replaces the Notifications-tab placeholder inside the Clout app with a real, virtualised list driven by a static seed. Ports the bell-tab layout from `DontFOMO_X_App_Mockup.html` (lines 150–157, 273–275, 433–446). No engine, store, or save changes — pure data + UI.
