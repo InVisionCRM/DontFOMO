@@ -13,7 +13,17 @@
 import { useEffect } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { serializeGame, useGameStore, type SavedGame } from './store';
-import { isSaveLoadable, migrateEnvelope, saveAdapter } from '../save';
+import {
+  CorruptSaveError,
+  FutureSaveError,
+  MIN_SUPPORTED_VERSION,
+  MissingMigrationError,
+  SAVE_VERSION,
+  TooOldSaveError,
+  migrateSave,
+  saveAdapter,
+  validateSaveData,
+} from '../save';
 import { MARKET_TICK_MS } from '../engine/market';
 
 /** How often the calendar clock ticks in the foreground (ms). */
@@ -33,26 +43,51 @@ export function useGameLoop(): void {
     };
 
     // Load a saved game (if any), then catch up to real time.
+    // Cross-version saves are migrated through the chain in
+    // `src/save/migrations.ts`. Pre-`MIN_SUPPORTED_VERSION` saves and
+    // saves from a newer build than this one are unrecoverable; we
+    // warn and start fresh (pre-launch policy — revisit before App
+    // Store ship; see SaveAdapter.ts).
     saveAdapter
-      .load<SavedGame>()
+      .load()
       .then((envelope) => {
         if (cancelled) return;
-        if (envelope && isSaveLoadable(envelope.version)) {
-          const migrated = migrateEnvelope(envelope);
-          if (migrated.version !== envelope.version) {
+        if (!envelope) {
+          console.log('[DontFOMO] no save found — starting a fresh game.');
+          useGameStore.getState().resume(Date.now());
+          save();
+          return;
+        }
+        try {
+          const migrated = migrateSave(envelope, SAVE_VERSION);
+          const validated = validateSaveData(migrated.data);
+          useGameStore.getState().loadSaved(validated, Date.now());
+          if (envelope.version === SAVE_VERSION) {
+            console.log('[DontFOMO] save loaded.');
+          } else {
             console.log(
-              `[DontFOMO] save migrated v${envelope.version} → v${migrated.version}.`,
+              `[DontFOMO] save migrated v${envelope.version} → v${SAVE_VERSION}.`,
             );
           }
-          useGameStore.getState().loadSaved(migrated.data, Date.now());
-          console.log('[DontFOMO] save loaded.');
-        } else {
-          if (envelope) {
+        } catch (error) {
+          if (error instanceof TooOldSaveError) {
             console.warn(
-              `[DontFOMO] unsupported save version ${envelope.version} — starting fresh.`,
+              `[DontFOMO] save v${error.version} is below MIN_SUPPORTED_VERSION ${MIN_SUPPORTED_VERSION} — starting fresh.`,
+            );
+          } else if (error instanceof FutureSaveError) {
+            console.warn(
+              `[DontFOMO] save v${error.version} is newer than this build (v${error.target}) — starting fresh.`,
+            );
+          } else if (error instanceof MissingMigrationError) {
+            console.warn(
+              `[DontFOMO] no migration registered for v${error.from} → v${error.from + 1} — starting fresh.`,
+            );
+          } else if (error instanceof CorruptSaveError) {
+            console.warn(
+              `[DontFOMO] save is corrupt (${error.reason}) — starting fresh.`,
             );
           } else {
-            console.log('[DontFOMO] no save found — starting a fresh game.');
+            console.warn('[DontFOMO] save migration failed — starting fresh:', error);
           }
           useGameStore.getState().resume(Date.now());
         }

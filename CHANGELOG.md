@@ -6,12 +6,43 @@ after any coding work is mandatory.
 
 ---
 
-## 2026-05-26 17:30 UTC — Save migration framework (Stage 7)
+## 2026-05-26 — Save audit + corrupt-blob rejection
 
-- **`src/save/migrations.ts`:** registered v16→v17 (`bank.regulatoryHold`), v17→v18 (`cloutTakeover`), v18→v19 (`bank.pendingWithdrawal`); `migrateEnvelope` chains steps; `isSaveLoadable` rejects only forward-incompatible saves.
-- **`useGameLoop.ts`:** loads any save at or below `SAVE_VERSION` — runs migrations when registered, then `loadSaved` defensive defaults for older blobs. Retires the version-mismatch wipe.
-- **Tests — `__tests__/saveMigrations.test.ts`:** 7 cases (loadable guard, v18→v19, v16→v19 chain, no-op at v15).
-- **Outcome:** bumping `SAVE_VERSION` no longer orphans on-device progress when a migration is added.
+- **New — `src/save/validate.ts`:** `validateSaveData(data)` checks the migrated blob's identity fields and throws `CorruptSaveError(reason)` on the first structural problem (clock / cash / followers / handle / market.tokens / bank / cashSwipe). Optional fields and lists are not checked — those have defensive `??` defaults in `store.loadSaved` already.
+- **`src/save/index.ts`:** re-exports `CorruptSaveError` and `validateSaveData`.
+- **`src/state/useGameLoop.ts`:** load path is now `adapter.load → migrateSave → validateSaveData → store.loadSaved`. A corrupt blob (e.g. truncated AsyncStorage write, external edit) is caught and logged with the field-level reason instead of silently restarting the player at $1000 / `@newhandle` with the corrupt state's partial fields layered on top.
+- **`store.serializeGame` left as-is** after audit: every defaultable field already had a `??`, and the `state.bank` spread is intentionally fail-loud (a TypeError on undefined bank surfaces in the save-failed warning while the on-disk save survives — defending it would silently overwrite a good save with a fresh-bank one).
+- **New — `__tests__/saveAudit.test.ts` (14 cases):** happy path, one rejection per core field with a descriptive `reason`, NaN / wrong-type rejections, and the round-trip invariant — `serializeGame(useGameStore.getState())` always validates clean.
+- **Verification:** `npx tsc --noEmit` clean. **438 tests across 26 suites — all green** (up from 424/25).
+- **Outcome:** the BACKLOG.md item *"Save audit: defensive defaults in both `loadSaved` and `serializeGame`"* is done. The save subsystem now has three layered defences: migrations (cross-version), validation (corrupt blob), and defensive backfills in `loadSaved` (partial in-memory state, e.g. hot-reload poisoning).
+
+---
+
+## 2026-05-26 — Save migration framework
+
+- **New — `src/save/migrations.ts`:** forward-only migration chain. `MIGRATIONS` registry (v15→16, v16→17, v17→18, v18→19) + `migrateSave(envelope, target)` runner. Each migration is a pure transform `(data, ctx) => data'` where `ctx.savedAt` is the envelope's write timestamp (used by v15→16 for the pacing-state anchor). Three typed errors: `TooOldSaveError`, `FutureSaveError`, `MissingMigrationError`.
+- **`src/save/SaveAdapter.ts`:** added `MIN_SUPPORTED_VERSION = 15` constant and the `MigrationContext` type. Extended `SaveMigration.migrate` from `(data) => unknown` to `(data, ctx) => unknown` — no existing callers; signature change is safe.
+- **`src/save/index.ts`:** re-exports `MIN_SUPPORTED_VERSION`, `MIGRATIONS`, `migrateSave`, the three error classes, and `MigrationContext`.
+- **`src/state/useGameLoop.ts`:** **fixed the silent save-wipe bug.** The previous loader used `envelope.version === SAVE_VERSION` and routed every mismatch to `resume()`, which then autosaved a fresh game over the old one within milliseconds. Replaced with `migrateSave` + typed-error catch. Behavior now:
+  - exact match → load directly (today's log message preserved)
+  - in `[MIN_SUPPORTED_VERSION, SAVE_VERSION)` → migrate, then load, log `save migrated vN → vM`
+  - below floor → warn `below MIN_SUPPORTED_VERSION`, start fresh (pre-launch policy; see SaveAdapter.ts comment for the App-Store-launch revisit)
+  - newer than this build → warn `newer than this build`, start fresh
+  - missing migration in the chain → warn, start fresh
+- **Defensive backfills in `store.loadSaved` left in place** as an independent safety net for partial in-memory state (hot-reload poisoning). They are idempotent and run on top of the migrated data.
+- **New — `__tests__/saveMigrations.test.ts` (11 cases):** invariants (identity, TooOld, Future, registry contiguous from MIN to SAVE), each step in isolation, idempotence on already-modern data, full v15→SAVE_VERSION walk, unrelated-field preservation across the chain.
+- **Verification:** `npx tsc --noEmit` clean. **424 tests across 25 suites — all green** (up from 413/24).
+- **Outcome:** the BACKLOG.md item *"Save migration framework in `src/save/`: vN→vN+1 migrations, retire save wipes, test one migration path"* is done. The next shape bump (v19 → v20) adds one entry to `MIGRATIONS` and one test case; the loader does not need to change again.
+
+---
+
+## 2026-05-26 — Parent CLAUDE.md realigned with shipped code
+
+- **§3 working contract:** removed the "Mockup before code for any new UI" bullet. KG dropped this gate on 2026-05-24 (recorded in the 6.5a changelog entry); the rule was still in the brief.
+- **§4 tech stack:** split into "Installed and in use" and "Planned — not yet installed." The old table listed five libraries that are not in `package.json` (`expo-router`, `react-native-mmkv`, `react-native-reanimated`, `expo-haptics`, `react-native-wagmi-charts`) as though they were live. "Installed" now reflects what's actually shipped: AsyncStorage, react-native-svg, expo-blur, expo-linear-gradient, expo-status-bar, react-native-safe-area-context, Zustand, Jest + ts-jest, plus Expo SDK 54 / RN 0.81 / TS strict. `react-native-wagmi-charts` called out as deferred — the Exchange uses an in-house `CandlestickChart`.
+- **§6 project structure:** rewritten to show the real `CryptoLife/` ↔ `cryptolife/` layout. Replaced `app/  Expo Router entry` (no such directory) with `App.tsx` + `index.ts`. Removed the empty `cryptolife/docs/` line (design docs live one level up). Added `BACKLOG.md`. Corrected `LocalSaveAdapter` → `AsyncStorageSaveAdapter` to match the actual filename.
+- **§13 current status:** replaced the 2026-05-22 "design phase complete, scaffold the project" snapshot with the 2026-05-26 reality — 12+ apps wired, four scam archetypes live, 413 tests / 24 suites green, save v19, CI + auto-merge running. Next-steps list rewritten to mirror `BACKLOG.md`, with lint/format gate and accessibility audit added.
+- **Outcome:** the standing brief no longer disagrees with the code on five library names, three section topics, and the project's stage. No code touched; doc-only. `BACKLOG.md` items unchanged.
 
 ---
 
