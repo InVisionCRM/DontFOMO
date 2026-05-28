@@ -203,6 +203,20 @@ export function createOnboardingState(): OnboardingState {
 }
 
 /**
+ * Optional haptic intensity attached to a banner (Bible §5). The
+ * Banner component is the only place that consumes it — keeping the
+ * field in the message keeps the store free of any RN/native import.
+ *
+ * - `success`: confirmed money-moved / completed action.
+ * - `warning`: caution-worthy moments.
+ * - `error`: hostile events (drains, lockouts, scam detonations).
+ *
+ * Banners without a haptic level stay silent; the screen update is the
+ * confirmation per Bible §5.
+ */
+export type BannerHaptic = 'success' | 'warning' | 'error';
+
+/**
  * A top-edge banner notification (Bible §5). Lives transiently in the
  * store so any action can fire one and the global `<Banner />` mount
  * can show it; the component dismisses it after a short visible
@@ -213,6 +227,7 @@ export interface BannerMessage {
   id: number;
   title: string;
   body: string;
+  haptic?: BannerHaptic;
 }
 
 /** USD formatter used in banner text. Inlined so the store does not depend on UI. */
@@ -224,8 +239,14 @@ function fmtUSD(n: number): string {
 }
 
 /** Build a fresh BannerMessage with a unique id. */
-function bannerOf(title: string, body: string): BannerMessage {
-  return { id: Date.now() + Math.random(), title, body };
+function bannerOf(
+  title: string,
+  body: string,
+  haptic?: BannerHaptic,
+): BannerMessage {
+  const msg: BannerMessage = { id: Date.now() + Math.random(), title, body };
+  if (haptic) msg.haptic = haptic;
+  return msg;
 }
 
 /**
@@ -1281,7 +1302,11 @@ export const useGameStore = create<GameState>()((set) => ({
             b.id === billId ? applyBillPayment(b, now) : b,
           ),
         },
-        banner: bannerOf('Bank', `Paid ${def.name} ${fmtUSD(cost)}`),
+        banner: bannerOf(
+          'Bank',
+          `Paid ${def.name} ${fmtUSD(cost)}`,
+          'success',
+        ),
       };
     }),
   takeLoan: (tierId, now) =>

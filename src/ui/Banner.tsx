@@ -7,12 +7,15 @@
  * unemployment check, future Mail / Tunnel events — can post one with
  * `useGameStore.getState().postBanner(title, body)`.
  *
- * Sound + `expo-haptics` buzz are explicit polish-pass per CLAUDE.md
- * §9 — only the visual slide ships here.
+ * Banners can carry an optional `haptic` level (Bible §5); when set,
+ * we fire `expo-haptics` here via `fireBannerHaptic`. Banners without
+ * a haptic stay silent — the screen update is the confirmation.
+ * Sound is still polish-pass per CLAUDE.md §9.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { useGameStore, type BannerMessage } from '../state/store';
+import { fireBannerHaptic } from './feedback/haptics';
 import {
   color,
   fontSize,
@@ -36,6 +39,8 @@ export function Banner() {
     if (!banner) return;
     // Always reflect the newest posted banner; replace any in-flight one.
     setDisplayed(banner);
+    // Bible §5: paired buzz for meaningful banners. Silent otherwise.
+    if (banner.haptic) fireBannerHaptic(banner.haptic);
     progress.setValue(0);
     Animated.timing(progress, {
       toValue: 1,
