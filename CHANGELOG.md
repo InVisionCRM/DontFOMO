@@ -6,6 +6,39 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-28 — Stage 7a Phase A: deterministic catalog-token prices (Bible §2)
+
+Implements Bible v0.13 + v0.13 amendment (DontFOMO-design `07d19d4`): the seven catalog tokens become a deterministic function of `(token_seed, world_tick)`, so every player sees the same prices at the same wall-clock moment.
+
+**Engine — `src/engine/market/`:**
+
+- **`deterministicMarket.ts` — `priceAtTick` switched to Ornstein-Uhlenbeck on log-price.** Bounded over years (stationary variance `σ²/(2θ)`); the old GBM model went to `1e+128` at currentTick = 4M. New constants exported: `OU_THETA = 0.001` and `OU_MU_TARGET = 0.2` per Bible §2 *The Shared Market*. The `drift` field in `tokens.ts` is now catalog-token-irrelevant (mean reversion replaces directional drift); player tokens still use GBM.
+- **`snapshots.ts` (new).** Defines `PriceSnapshot`, `MarketSnapshots`, `SNAPSHOT_INTERVAL_TICKS = 28800` (one in-game day), and `nearestSnapshotAtOrBefore(tokenId, tick)`. Engine consults snapshots on cold-start paths to avoid replaying millions of ticks from `WORLD_BIRTHDAY`.
+- **`market.ts` — `seedCatalogTokenState` rewritten to use snapshots.** Cold start jumps to nearest baked snapshot ≤ `currentTick` (at most one snapshot interval of replay), then walks forward `SEED_HISTORY` ticks to build the display history. `tickMarket` dispatches per token: catalog → `priceAtTick` (deterministic, snapshot-aware via `id` parameter), player → existing random walk. `createMarket(rand, nowMs)`, `tickMarket(market, rand, getParams, nowMs)` and `advanceMarket(market, ticks, rand, getParams, endNowMs)` all gained an optional `nowMs` parameter — needed for the deterministic computation; defaults to `Date.now()` for back-compat.
+- **`TokenMarketState`** gained optional `lastTick?: number` — used by tickMarket for incremental walks.
+
+**Generation — `scripts/generateMarketSnapshots.mjs` (new).** Node ES-module script that walks the OU model from world tick 0 through `(now − GENERATION_BUFFER_TICKS)`, sampling every `SNAPSHOT_INTERVAL_TICKS`. Writes `src/data/marketSnapshots.generated.ts` (1036 entries, ~25KB on disk). Math intentionally duplicated from `deterministicMarket.ts` to avoid adding ts-node / tsx as a dev dep; a snapshot-vs-walker correctness test in `__tests__/deterministicMarket.test.ts` catches any drift.
+
+**Store — `src/state/store.ts`:**
+
+- `createMarket(createRandom(now), now)` — passes `now` so the initial market state is at the right world tick.
+- `tickMarket: () => tickMarketEngine(..., s.clock.now)` — uses the game clock as `nowMs` so tests with synthetic clocks (e.g. `newGame(1_000)`) don't trigger a 4M-tick cold start.
+- `resume(now)` and `loadSaved` `advanceMarket` calls — pass `resumed.clock.now`.
+
+**Tests — 5 new + several updated:**
+
+- **`__tests__/deterministicMarket.test.ts`** — 4 new OU/snapshot tests on top of the 26 from PR #20: bounded over 3 in-game months, mean-reverts toward equilibrium, stationary mean ≈ `basePrice × exp(OU_MU_TARGET)`, OU constants are Bible-canonical, snapshot-accelerated walk agrees with un-accelerated walk. Old MIN_PRICE clamp test removed (drift unused under OU).
+- **`__tests__/market.test.ts`** — all tickMarket loops now pass explicit `tickNow(i)` so catalog tokens see successive world ticks. `advanceMarket` test reconstructs its `endNow` schedule to match. `BASE_NOW = WORLD_BIRTHDAY_UTC_MS` so cold start is 0 ticks.
+- **`__tests__/store.test.ts`, `__tests__/onboarding.test.ts`** — `createMarket(createRandom(1), 0)` — second arg keeps cold-start cheap in tests.
+
+**Verification:** `npx tsc --noEmit` clean. **Full suite: 537 tests across 33 suites, all green — 105 s total** (down from a forecasted 15–30 min before snapshots).
+
+**Known gap, flagged for Phase B:** the chart still uses the per-session `state.history` buffer (deterministic per-token internally, but only for ticks the session has actually witnessed). Phase B rewires `CandlestickChart` to compute its visible window directly from `priceAtTick` so every player sees the same chart at every timeframe.
+
+**Outcome:** the Bible §2 architectural decision is now real code. Two players opening the app right now see the same MOONP price (catalog tokens), bounded by the OU model, with cold-start cost capped by the baked snapshot table. Phase B is the chart fix and the save migration to drop catalog `history`/`dayOpen` from disk.
+
+---
+
 ## 2026-05-28 13:01 UTC — Accessibility pass on Wallet
 
 First a11y audit on a shipping screen (CLAUDE.md §7 — touch targets ≥ 44pt, accessibility labels on interactive elements, contrast maintained). Focused on the Wallet app because it has the densest interactive + numeric content of the two backlog candidates (Wallet / Settings). No engine, store, or save-format changes — UI-only plus one pure helper module with its own tests.

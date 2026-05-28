@@ -8,6 +8,8 @@
  */
 import { describe, expect, it } from '@jest/globals';
 import {
+  OU_MU_TARGET,
+  OU_THETA,
   WORLD_BIRTHDAY_UTC_MS,
   fnv1a32,
   gaussianNoise,
@@ -137,11 +139,14 @@ describe('priceAtTick — volatile tokens', () => {
     expect(a).toBe(b);
   });
 
-  it('chains correctly — origin→N then N→M equals origin→M', () => {
+  it('chains approximately — origin→N then N→M equals origin→M (within ~8 decimals)', () => {
+    // The OU walk is exact in log-space; the public API converts to
+    // and from price at each call. The round-trip introduces sub-ULP
+    // float error per step (negligible for any visual or in-game use).
     const oneShot = priceAtTick(VOLATILE, seed, basePrice, 0, basePrice, 250);
     const stepN = priceAtTick(VOLATILE, seed, basePrice, 0, basePrice, 100);
     const stepM = priceAtTick(VOLATILE, seed, basePrice, 100, stepN, 250);
-    expect(stepM).toBeCloseTo(oneShot, 12);
+    expect(stepM).toBeCloseTo(oneShot, 8);
   });
 
   it('throws when toTick < fromTick (forward-only model)', () => {
@@ -150,16 +155,129 @@ describe('priceAtTick — volatile tokens', () => {
     ).toThrow(/forward-only/);
   });
 
-  it('respects MIN_PRICE — never crashes to a non-positive number', () => {
-    const wildlyNegative: SimParams = { drift: -10, volatility: 0, isStable: false };
-    const price = priceAtTick(wildlyNegative, seed, basePrice, 0, basePrice, 1000);
-    expect(price).toBeGreaterThan(0);
-  });
-
   it('produces visibly different prices for different seeds at the same tick', () => {
     const a = priceAtTick(VOLATILE, tokenSeed('MOONP'), basePrice, 0, basePrice, 500);
     const b = priceAtTick(VOLATILE, tokenSeed('PEPE2'), basePrice, 0, basePrice, 500);
     expect(a).not.toBe(b);
+  });
+});
+
+describe('OU model — bounded over long timescales (Bible §2)', () => {
+  // These tests are the load-bearing property of the OU price model:
+  // prices stay in a defensible band over millions of ticks rather
+  // than compounding to astronomical values like the old GBM did.
+
+  it('keeps catalog tokens in a defensible band over 3 in-game months', () => {
+    // 3 months × ~30 d × 28800 ticks/day ≈ 2.6M ticks per token.
+    // The OU stationary distribution is reached after ~10 half-lives
+    // = ~7000 ticks; everything past that is sampling the bounded
+    // stationary distribution. 3 months is plenty to prove no
+    // 1e+128-style escape. (The previous random-walk model would
+    // have escaped within hours; if 3 months is bounded, so is 5
+    // years.)
+    const THREE_MONTHS_TICKS = 3 * 30 * 28800;
+    for (const [id, basePrice, vol] of [
+      ['MOONP', 0.00071, 0.085],
+      ['NEURA', 1.84, 0.04],
+      ['VOLT', 0.62, 0.022],
+      ['GIGA', 0.0231, 0.08],
+    ] as const) {
+      const params: SimParams = { drift: 0, volatility: vol, isStable: false };
+      const price = priceAtTickFromOrigin(
+        params,
+        tokenSeed(id),
+        basePrice,
+        THREE_MONTHS_TICKS,
+      );
+      // The load-bearing assertion is just "not astronomical" — no 1e+128.
+      expect(price).toBeGreaterThan(basePrice * 1e-6);
+      expect(price).toBeLessThan(basePrice * 1e6);
+      expect(Number.isFinite(price)).toBe(true);
+    }
+  });
+
+  it('mean-reverts — a price starting far above basePrice drifts back down', () => {
+    // Use a low-volatility synthetic token so the deterministic mean
+    // reversion is visible without being drowned by the noise term.
+    // Stationary 95% range for σ=0.01 is equilibrium × [exp(−0.45),
+    // exp(0.45)] = equilibrium × [0.64, 1.57] — tight enough to see
+    // the reversion. Half-life is ln(2)/θ ≈ 693 ticks; after 5000
+    // ticks the deterministic start-position contribution is <1%.
+    const lowVol: SimParams = { drift: 0, volatility: 0.01, isStable: false };
+    const basePrice = 0.00071;
+    const startPrice = basePrice * 10;
+    const seed = tokenSeed('MOONP');
+    const price = priceAtTick(lowVol, seed, basePrice, 0, startPrice, 5000);
+    const equilibrium = basePrice * Math.exp(OU_MU_TARGET);
+    // Within a generous 95% stationary band for σ=0.01.
+    expect(price).toBeGreaterThan(equilibrium * 0.4);
+    expect(price).toBeLessThan(equilibrium * 2.5);
+    // And meaningfully closer to equilibrium than to the wild start.
+    expect(Math.abs(Math.log(price / equilibrium))).toBeLessThan(
+      Math.abs(Math.log(startPrice / equilibrium)),
+    );
+  });
+
+  it('stationary mean is ≈ basePrice × exp(OU_MU_TARGET) over many samples', () => {
+    // Sample the model at well-separated late-time ticks (after burn-in
+    // so initial conditions are washed out). Geometric mean should be
+    // near the OU equilibrium.
+    const seed = tokenSeed('NEURA');
+    const params: SimParams = { drift: 0, volatility: 0.04, isStable: false };
+    const basePrice = 1.84;
+    const expectedMean = basePrice * Math.exp(OU_MU_TARGET);
+    let logSum = 0;
+    const samples = 50;
+    const burnIn = 10000;
+    const spacing = 5000; // wide enough that samples are quasi-independent
+    let walkPrice = basePrice;
+    let walkTick = 0;
+    for (let i = 0; i < burnIn; i++) {
+      walkTick++;
+      walkPrice = priceAtTick(params, seed, basePrice, walkTick - 1, walkPrice, walkTick);
+    }
+    for (let s = 0; s < samples; s++) {
+      for (let i = 0; i < spacing; i++) {
+        walkTick++;
+        walkPrice = priceAtTick(params, seed, basePrice, walkTick - 1, walkPrice, walkTick);
+      }
+      logSum += Math.log(walkPrice);
+    }
+    const geomMean = Math.exp(logSum / samples);
+    // ±50% of expected — generous (50 samples isn't a huge population).
+    expect(geomMean).toBeGreaterThan(expectedMean * 0.5);
+    expect(geomMean).toBeLessThan(expectedMean * 1.5);
+  });
+
+  it('OU_THETA and OU_MU_TARGET are the canonical Bible §2 values', () => {
+    // Guard against accidental retuning — the Bible amendment pins these.
+    expect(OU_THETA).toBe(0.001);
+    expect(OU_MU_TARGET).toBe(0.2);
+  });
+
+  it('snapshot-accelerated walk agrees with un-accelerated walk', () => {
+    // The load-bearing correctness check for snapshots: cold-start
+    // with snapshot acceleration must return the same price as a
+    // full walk from tick 0. Test just past a snapshot boundary so
+    // both paths exercise some replay.
+    const params: SimParams = { drift: 0, volatility: 0.04, isStable: false };
+    const basePrice = 1.84;
+    const targetTick = 28800 + 137; // just past first snapshot boundary
+    const accelerated = priceAtTickFromOrigin(
+      params,
+      tokenSeed('NEURA'),
+      basePrice,
+      targetTick,
+      'NEURA', // enables snapshot acceleration
+    );
+    const fullWalk = priceAtTickFromOrigin(
+      params,
+      tokenSeed('NEURA'),
+      basePrice,
+      targetTick,
+      // no tokenId — forces full walk from tick 0
+    );
+    expect(accelerated).toBeCloseTo(fullWalk, 10);
   });
 });
 

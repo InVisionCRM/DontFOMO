@@ -130,7 +130,7 @@ describe('game store', () => {
       cash: 12_345,
       followers: 678,
       handle: '@whale',
-      market: createMarket(createRandom(1)),
+      market: createMarket(createRandom(1), 0),
       holdings: { NEURA: 42 },
       playerTokens: [],
       bank: createBank(0),
