@@ -181,6 +181,18 @@ Two real bugs in the foreground tick + AppState handling, both producing the sam
 
 ---
 
+## 2026-05-26 19:15 UTC — Save audit: centralized defensive defaults (refactor)
+
+Complements the same-day "Save audit + corrupt-blob rejection" entry below — that one added a third defence (`validate.ts`); this one consolidates the existing defensive backfills into a single source of truth so `loadSaved` and `serializeGame` can't drift.
+
+- **`src/state/saveNormalize.ts`** (new): `normalizeSavedGame` backstops every `SavedGame` field (core scalars, bank `regulatoryHold` / `pendingWithdrawal`, director pacing, rug radar, pre-v13 onboarding `hasOnboarded: true`). Shared by `loadSaved` and `serializeGame`.
+- **`src/state/constants.ts`** (new): `STARTING_CASH` and `DEFAULT_HANDLE` extracted out of `store.ts` to break a circular import with `saveNormalize.ts`.
+- **`src/state/store.ts`**: `loadSaved` and `serializeGame` delegate to `normalizeSavedGame`.
+- **`__tests__/saveNormalize.test.ts`** (new): 5 cases — empty partial, legacy bank shape, onboarding backfill, serialize parity, v12 shape.
+- **Outcome.** `npx tsc --noEmit` clean. **425 tests / 26 suites** at the time this branch was cut; rolled forward through the later test additions on merge.
+
+---
+
 ## 2026-05-26 — Save audit + corrupt-blob rejection
 
 - **New — `src/save/validate.ts`:** `validateSaveData(data)` checks the migrated blob's identity fields and throws `CorruptSaveError(reason)` on the first structural problem (clock / cash / followers / handle / market.tokens / bank / cashSwipe). Optional fields and lists are not checked — those have defensive `??` defaults in `store.loadSaved` already.

@@ -104,7 +104,6 @@ import { dailyDeck as rugRadarDailyDeck } from '../data/rugRadar';
 import { phraseToText, pickPhrase } from '../engine/onboarding';
 import {
   createDirectorState,
-  createPacingState,
   deployFrozenWithdrawal,
   resolveScamFromPlayer,
   tickDirector,
@@ -135,20 +134,10 @@ import { createStartingClout, DEFAULT_BIO } from '../data/clout';
 import { ASSET_CATALOG } from '../data/assets';
 import type { AppId } from '../data/apps';
 import { saveAdapter } from '../save';
+import { DEFAULT_HANDLE, STARTING_CASH } from './constants';
+import { normalizeSavedGame } from './saveNormalize';
 
-/**
- * Starting cash for a fresh game. Onboarding (Bible §13) does not
- * currently customise this — the player enters the game with this
- * balance once the flow completes.
- */
-export const STARTING_CASH = 500;
-
-/**
- * Placeholder handle a fresh game holds until onboarding completes.
- * Real handles are derived from the display name the player enters
- * in the Profile step via `setProfile`.
- */
-export const DEFAULT_HANDLE = '@new_player';
+export { STARTING_CASH, DEFAULT_HANDLE } from './constants';
 
 /** The most market ticks an offline catch-up will ever simulate. */
 const MARKET_CATCHUP_CAP = 600;
@@ -1110,92 +1099,52 @@ export const useGameStore = create<GameState>()((set) => ({
     }),
   loadSaved: (saved, now) =>
     set((s) => {
-      // Normalize the loaded shape — any field missing because of a
-      // partial save (e.g. one persisted from a stale hot-reload
-      // state pre-schema-bump) gets a sensible default so we never
-      // re-poison the store. Proper migrations are Stage 7.
-      const holdings = saved.holdings ?? {};
-      const playerTokens = saved.playerTokens ?? [];
-      // v16→v17 backfill: pre-Authority-Notice bank state has no
-      // `regulatoryHold` field; default to `null` (no live hold).
-      const bank = saved.bank
-        ? {
-            ...saved.bank,
-            regulatoryHold: saved.bank.regulatoryHold ?? null,
-            pendingWithdrawal: saved.bank.pendingWithdrawal ?? null,
-          }
-        : createBank(now);
-      const cashSwipe = saved.cashSwipe ?? createCashSwipe(now);
-      const seededPeakNetWorth = saved.peakNetWorth ?? STARTING_CASH;
-      const seededLastCheckAt = saved.lastUnemploymentCheckAt ?? now;
-      const seededMail = saved.mail ?? createStartingMail(now);
-      const seededTunnel = saved.tunnel ?? createStartingTunnel(now);
-      const seededMessages = saved.messages ?? createStartingMessages(now);
-      const seededBio = saved.bio ?? DEFAULT_BIO;
-      const seededCloutFeed = saved.cloutFeed ?? createStartingClout(now);
-      const seededDailyPost = saved.dailyPost ?? createDailyPostState();
-      const seededDiamonds = saved.diamonds ?? 0;
-      const seededAssets = saved.assets ?? [];
-      const seededClipboard = saved.clipboard ?? [];
-      // Pre-v13 saves predate onboarding — those players already
-      // played, so default to `hasOnboarded: true` to skip the flow.
-      const seededOnboarding =
-        saved.onboarding ?? { hasOnboarded: true, pendingSeedPhrase: null };
-      // v15→v16 backfill: pre-pacing director slices get a fresh
-      // PacingState anchored at `now`. Stage 7's migration framework
-      // will replace this defensive pattern.
-      const seededDirector: DirectorState = saved.director
-        ? { ...saved.director, pacing: saved.director.pacing ?? createPacingState(now) }
-        : createDirectorState(now);
-      const seededRugRadar = saved.rugRadar ?? createRugRadar(now);
-      // v17→v18 backfill: pre-Golden-Giveaway saves have no
-      // `cloutTakeover` field; default to `null` (no live takeover).
-      const seededCloutTakeover = saved.cloutTakeover ?? null;
+      const normalized = normalizeSavedGame(saved, now);
 
-      const resumed = resumeClock(saved.clock, now);
-      const loan = bank.loan
-        ? accrueMissedInstallments(bank.loan, resumed.clock.now)
+      const resumed = resumeClock(normalized.clock, now);
+      const loan = normalized.bank.loan
+        ? accrueMissedInstallments(normalized.bank.loan, resumed.clock.now)
         : null;
       const market = advanceMarket(
-        saved.market,
+        normalized.market,
         catchUpTicks(resumed.elapsedMs),
         marketRand,
-        paramsFor(playerTokens, saved.followers),
+        paramsFor(normalized.playerTokens, normalized.followers),
       );
       const netWorth = netWorthOf(
-        saved.cash,
-        holdings,
+        normalized.cash,
+        normalized.holdings,
         market,
-        saved.assets ?? [],
+        normalized.assets,
       );
-      const peakNetWorth = Math.max(seededPeakNetWorth, netWorth);
-      const due = isCheckDue(seededLastCheckAt, now);
+      const peakNetWorth = Math.max(normalized.peakNetWorth, netWorth);
+      const due = isCheckDue(normalized.lastUnemploymentCheckAt, now);
       const amount = due ? unemploymentAmount(peakNetWorth) : 0;
       const loaded: Partial<GameState> = {
         clock: resumed.clock,
-        cash: saved.cash + amount,
-        followers: saved.followers,
-        handle: saved.handle,
+        cash: normalized.cash + amount,
+        followers: normalized.followers,
+        handle: normalized.handle,
         market,
-        holdings,
-        playerTokens,
-        bank: { ...bank, loan, regulatoryHold: bank.regulatoryHold ?? null },
-        cashSwipe,
+        holdings: normalized.holdings,
+        playerTokens: normalized.playerTokens,
+        bank: { ...normalized.bank, loan },
+        cashSwipe: normalized.cashSwipe,
         peakNetWorth,
-        lastUnemploymentCheckAt: due ? now : seededLastCheckAt,
-        mail: seededMail,
-        tunnel: seededTunnel,
-        messages: seededMessages,
-        bio: seededBio,
-        cloutFeed: seededCloutFeed,
-        dailyPost: seededDailyPost,
-        diamonds: seededDiamonds,
-        assets: seededAssets,
-        clipboard: seededClipboard,
-        onboarding: seededOnboarding,
-        director: seededDirector,
-        rugRadar: seededRugRadar,
-        cloutTakeover: seededCloutTakeover,
+        lastUnemploymentCheckAt: due ? now : normalized.lastUnemploymentCheckAt,
+        mail: normalized.mail,
+        tunnel: normalized.tunnel,
+        messages: normalized.messages,
+        bio: normalized.bio,
+        cloutFeed: normalized.cloutFeed,
+        dailyPost: normalized.dailyPost,
+        diamonds: normalized.diamonds,
+        assets: normalized.assets,
+        clipboard: normalized.clipboard,
+        onboarding: normalized.onboarding,
+        director: normalized.director,
+        rugRadar: normalized.rugRadar,
+        cloutTakeover: normalized.cloutTakeover,
         banner: due
           ? bannerOf(
               'Unemployment',
@@ -1610,39 +1559,34 @@ export const useGameStore = create<GameState>()((set) => ({
  * system to write the game to disk.
  */
 export function serializeGame(state: GameState): SavedGame {
-  // Defensive `??` on the optional/nullable slices: if a stale
-  // hot-reload left a field undefined, we'd otherwise persist that
-  // undefined and poison every future load.
-  return {
-    clock: state.clock,
-    cash: state.cash,
-    followers: state.followers,
-    handle: state.handle,
-    market: state.market,
-    holdings: state.holdings ?? {},
-    playerTokens: state.playerTokens ?? [],
-    bank: {
-      ...state.bank,
-      regulatoryHold: state.bank.regulatoryHold ?? null,
-      pendingWithdrawal: state.bank.pendingWithdrawal ?? null,
+  const now = state.clock?.now ?? Date.now();
+  return normalizeSavedGame(
+    {
+      clock: state.clock,
+      cash: state.cash,
+      followers: state.followers,
+      handle: state.handle,
+      market: state.market,
+      holdings: state.holdings,
+      playerTokens: state.playerTokens,
+      bank: state.bank,
+      cashSwipe: state.cashSwipe,
+      peakNetWorth: state.peakNetWorth,
+      lastUnemploymentCheckAt: state.lastUnemploymentCheckAt,
+      mail: state.mail,
+      tunnel: state.tunnel,
+      messages: state.messages,
+      bio: state.bio,
+      cloutFeed: state.cloutFeed,
+      dailyPost: state.dailyPost,
+      diamonds: state.diamonds,
+      assets: state.assets,
+      clipboard: state.clipboard,
+      onboarding: state.onboarding,
+      director: state.director,
+      rugRadar: state.rugRadar,
+      cloutTakeover: state.cloutTakeover,
     },
-    cashSwipe: state.cashSwipe,
-    peakNetWorth: state.peakNetWorth ?? STARTING_CASH,
-    lastUnemploymentCheckAt: state.lastUnemploymentCheckAt ?? state.clock.now,
-    mail: state.mail ?? [],
-    tunnel: state.tunnel ?? [],
-    messages: state.messages ?? [],
-    bio: state.bio ?? DEFAULT_BIO,
-    cloutFeed: state.cloutFeed ?? [],
-    dailyPost: state.dailyPost ?? createDailyPostState(),
-    diamonds: state.diamonds ?? 0,
-    assets: state.assets ?? [],
-    clipboard: state.clipboard ?? [],
-    onboarding: state.onboarding ?? createOnboardingState(),
-    director: state.director
-      ? { ...state.director, pacing: state.director.pacing ?? createPacingState(state.clock.now) }
-      : createDirectorState(state.clock.now),
-    rugRadar: state.rugRadar ?? createRugRadar(state.clock.now),
-    cloutTakeover: state.cloutTakeover ?? null,
-  };
+    now,
+  );
 }
