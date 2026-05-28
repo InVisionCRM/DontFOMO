@@ -24,6 +24,7 @@ import {
   spacing,
   tabularNums,
 } from '../../theme/theme';
+import { buildHoldingA11yLabel } from './walletA11y';
 
 const TOP_PAD = 52;
 const WALLET_ACCENT = '#FBB24A';
@@ -84,7 +85,9 @@ export function WalletScreen() {
 
         <View
           style={styles.totalCard}
-          accessibilityLabel={`Estimated wallet value ${formatCurrency(totalUsd)}`}
+          accessible
+          accessibilityRole="summary"
+          accessibilityLabel={`Estimated wallet value ${formatCurrency(totalUsd)}. Live USD at the current market price.`}
         >
           <Text style={styles.totalLabel}>Estimated value</Text>
           <Text style={[styles.totalAmount, tabularNums]}>
@@ -97,18 +100,23 @@ export function WalletScreen() {
 
         {hasHoldings ? (
           <>
-            <Text style={styles.sectionHead}>Tokens</Text>
+            <Text style={styles.sectionHead} accessibilityRole="header">
+              Tokens
+            </Text>
             {rows.map((row) => {
               const isUp = row.dayChangePct >= 0;
               return (
                 <View
                   key={row.id}
                   style={styles.row}
-                  accessibilityLabel={
-                    `${row.name}, ${formatTokenAmount(row.amount)} ${row.id}, ` +
-                    `worth ${formatCurrency(row.usd)}, ` +
-                    `${formatSignedPercent(row.dayChangePct)} today`
-                  }
+                  accessible
+                  accessibilityLabel={buildHoldingA11yLabel({
+                    name: row.name,
+                    amount: row.amount,
+                    symbol: row.id,
+                    usd: row.usd,
+                    dayChangePct: row.dayChangePct,
+                  })}
                 >
                   <View style={styles.rowLeft}>
                     <Text style={styles.rowName}>{row.name}</Text>
@@ -136,11 +144,20 @@ export function WalletScreen() {
             })}
           </>
         ) : (
-          <View style={styles.emptyCard} accessibilityLabel="No tokens yet">
-            <View style={styles.emptyGlyph}>
+          <View style={styles.emptyCard}>
+            <View
+              style={styles.emptyGlyph}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
               <Text style={styles.emptyGlyphMark}>$</Text>
             </View>
-            <Text style={styles.emptyTitle}>Your wallet is empty</Text>
+            <Text
+              style={styles.emptyTitle}
+              accessibilityRole="header"
+            >
+              Your wallet is empty
+            </Text>
             <Text style={styles.emptyBody}>
               Self-custody means you hold the coins yourself — no bank, no
               middleman. Buy your first token on Exchange to see it land here.
@@ -153,6 +170,7 @@ export function WalletScreen() {
               onPress={() => openApp('exchange')}
               accessibilityRole="button"
               accessibilityLabel="Open Exchange"
+              accessibilityHint="Buy your first token to fund this wallet"
               hitSlop={8}
             >
               <Text style={styles.emptyButtonLabel}>Open Exchange</Text>
