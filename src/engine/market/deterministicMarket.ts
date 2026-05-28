@@ -9,19 +9,44 @@
  * §2, "The Shared Market"). The PRNG is a 32-bit SplitMix mixer; the
  * token seed is FNV-1a of the token id, computed lazily.
  *
- * Compared to the original `market.ts` random walk:
- *   - The price model is identical (`price *= 1 + drift + vol * gauss`)
- *     so charts feel the same.
- *   - `Math.random()` is replaced by `noise(seed, tick)` so the same
- *     tick on two devices yields the same number.
- *   - Prices are sequential — to know `priceAtTick(N)` you must walk
- *     from a known earlier tick. Snapshots (Step 3) make this cheap.
+ * **Price model — Ornstein-Uhlenbeck on log-price (Bible §2, *Price
+ * model*).** For a non-stable catalog token:
+ *
+ *   log_dev(t+1) = (1 − θ) · log_dev(t) + θ · μ_target + σ · Z(seed, t+1)
+ *   price(t)     = basePrice · exp(log_dev(t))
+ *
+ * with `θ = 0.001` (global mean-reversion rate; per-token character
+ * comes from `σ`) and `μ_target = 0.2` (long-run log-equilibrium →
+ * mean price is roughly 1.22 × basePrice, a gentle uplift). `σ` is
+ * the per-tick volatility from `tokens.ts`. `Z` is `gaussianNoise`.
+ *
+ * The model is **bounded** — stationary variance is `σ² / (2θ)`, so
+ * even after millions of ticks the price stays in a defensible band.
+ * The old `drift` parameter is unused under OU (mean reversion
+ * replaces directional drift) — it lives on `SimParams` for player
+ * tokens which still use GBM via `nextPrice` in `market.ts`.
+ *
+ * The walk is sequential — `priceAtTick(N)` needs `priceAtTick(N−1)`.
+ * Snapshots (TODO when the world is ~1 year old) avoid cold-start
+ * replay from tick 0. Pre-v1 the world is young enough that
+ * replaying from origin is fast (~300ms at currentTick ≈ 4M).
  *
  * Stablecoins use the pegged-wobble model from `market.ts` — they
  * settle near $1 each tick and do not accumulate drift, so we evaluate
  * them in O(1) at any tick.
  */
 import type { SimParams } from './market';
+import { nearestSnapshotAtOrBefore } from './snapshots';
+
+/** Global mean-reversion rate. Bible §2 — *The Shared Market*. */
+export const OU_THETA = 0.001;
+
+/**
+ * Long-run log-equilibrium. Bible §2 — *The Shared Market*. Mean
+ * stationary price is roughly `basePrice * exp(OU_MU_TARGET) ≈
+ * 1.22 × basePrice` — a gentle uplift.
+ */
+export const OU_MU_TARGET = 0.2;
 
 /** The world's birthday — Bible §2, "The Shared Market". */
 export const WORLD_BIRTHDAY_UTC_MS = Date.UTC(2026, 0, 1, 0, 0, 0);
@@ -110,28 +135,23 @@ function stablePriceAtTick(
 }
 
 /**
- * Advance a non-stable token's price by a single deterministic tick.
- * Mirrors the `nextPrice` formula in `market.ts` but consumes
- * deterministic noise instead of a `rand()` callback.
- */
-function nextDeterministicPrice(
-  params: SimParams,
-  seed: TokenSeed,
-  tick: number,
-  prevPrice: number,
-): number {
-  const change = params.drift + params.volatility * gaussianNoise(seed, tick);
-  return Math.max(MIN_PRICE, prevPrice * (1 + change));
-}
-
-/**
- * Compute a token's price at `toTick`, replaying from a known
- * `(fromTick, fromPrice)` pair. Stablecoins are evaluated in O(1);
- * volatile tokens replay tick-by-tick.
+ * Compute a token's price at `toTick`, replaying the OU walk from a
+ * known `(fromTick, fromPrice)` pair. Stablecoins are evaluated in
+ * O(1); volatile tokens replay tick-by-tick on `log_dev` then
+ * convert back to price.
  *
  * `toTick === fromTick` returns `fromPrice` unchanged. Going backward
  * (`toTick < fromTick`) is a programming error — the model is
  * forward-only.
+ *
+ * **Snapshot acceleration:** when `tokenId` is provided and the
+ * caller is starting from `fromTick === 0` (the cold-start path),
+ * the function looks up the nearest baked snapshot at or before
+ * `toTick` (see `snapshots.ts`) and jumps forward to it before
+ * walking. Bounds cold-start cost to one snapshot interval
+ * (`SNAPSHOT_INTERVAL_TICKS` = 28800) instead of the full world
+ * history. Without a `tokenId`, snapshots are not consulted —
+ * useful for synthetic test inputs whose ids are not in the table.
  */
 export function priceAtTick(
   params: SimParams,
@@ -140,6 +160,7 @@ export function priceAtTick(
   fromTick: number,
   fromPrice: number,
   toTick: number,
+  tokenId?: string,
 ): number {
   if (toTick < fromTick) {
     throw new Error(
@@ -152,25 +173,41 @@ export function priceAtTick(
   if (toTick === fromTick) {
     return fromPrice;
   }
-  let price = fromPrice;
-  for (let tick = fromTick + 1; tick <= toTick; tick++) {
-    price = nextDeterministicPrice(params, seed, tick, price);
+  // Snapshot acceleration on cold start.
+  if (tokenId && fromTick === 0) {
+    const snap = nearestSnapshotAtOrBefore(tokenId, toTick);
+    if (snap && snap.tick > 0) {
+      fromTick = snap.tick;
+      fromPrice = snap.price;
+      if (fromTick === toTick) {
+        return fromPrice;
+      }
+    }
   }
-  return price;
+  // OU on log-price: log_dev(t+1) = (1−θ)·log_dev(t) + θ·μ + σ·Z(t+1)
+  // Convert fromPrice → log_dev once, walk in log space, convert back.
+  let logDev = Math.log(Math.max(fromPrice, MIN_PRICE) / basePrice);
+  for (let tick = fromTick + 1; tick <= toTick; tick++) {
+    const z = gaussianNoise(seed, tick);
+    logDev = (1 - OU_THETA) * logDev + OU_THETA * OU_MU_TARGET + params.volatility * z;
+  }
+  return Math.max(MIN_PRICE, basePrice * Math.exp(logDev));
 }
 
 /**
  * Convenience: compute a token's price at `tick`, replaying from
- * `(tick 0, basePrice)`. O(tick) — use a snapshot for cold starts
- * when `tick` is large.
+ * `(tick 0, basePrice)`. When `tokenId` is supplied the call uses
+ * the snapshot acceleration in `priceAtTick`; without it, the walk
+ * is full O(tick).
  */
 export function priceAtTickFromOrigin(
   params: SimParams,
   seed: TokenSeed,
   basePrice: number,
   tick: number,
+  tokenId?: string,
 ): number {
-  return priceAtTick(params, seed, basePrice, 0, basePrice, tick);
+  return priceAtTick(params, seed, basePrice, 0, basePrice, tick, tokenId);
 }
 
 /**

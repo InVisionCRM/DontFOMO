@@ -3,9 +3,16 @@
  * ------------------------------------------------------------------
  * The market engine is pure logic, so these tests run headless
  * through ts-jest — no React Native, no device.
+ *
+ * Note on `nowMs`: catalog tokens are deterministic functions of
+ * world tick (Bible §2). To get reproducible, fast tests, every
+ * tickMarket / createMarket / advanceMarket call passes an explicit
+ * `nowMs` derived from `WORLD_BIRTHDAY_UTC_MS`. This also keeps the
+ * cold-start walk to ~0 ticks instead of 4M+.
  */
 import { describe, expect, it } from '@jest/globals';
 import {
+  MARKET_TICK_MS,
   advanceMarket,
   createMarket,
   createRandom,
@@ -14,7 +21,13 @@ import {
   tickMarket,
   toCandles,
 } from '../src/engine/market';
+import { WORLD_BIRTHDAY_UTC_MS } from '../src/engine/market/deterministicMarket';
 import { TOKEN_BY_ID, TOKENS } from '../src/data/tokens';
+
+/** World tick 0 — the cheapest possible cold start. */
+const BASE_NOW = WORLD_BIRTHDAY_UTC_MS;
+/** Wall-clock time of world tick `i` (i counted from BASE_NOW). */
+const tickNow = (i: number): number => BASE_NOW + i * MARKET_TICK_MS;
 
 describe('createRandom', () => {
   it('is deterministic for a given seed', () => {
@@ -49,32 +62,38 @@ describe('gaussian', () => {
 
 describe('createMarket', () => {
   it('gives every token a positive price and a seeded history', () => {
-    const market = createMarket(createRandom(1));
+    const market = createMarket(createRandom(1), BASE_NOW);
     for (const def of TOKENS) {
       const token = market.tokens[def.id];
       expect(token).toBeDefined();
       expect(token.price).toBeGreaterThan(0);
-      expect(token.history.length).toBeGreaterThan(1);
+      expect(token.history.length).toBeGreaterThanOrEqual(1);
     }
   });
 
   it('keeps the stablecoin pinned near $1', () => {
-    const usdx = createMarket(createRandom(5)).tokens.USDX;
+    const usdx = createMarket(createRandom(5), BASE_NOW).tokens.USDX;
     expect(usdx.price).toBeGreaterThan(0.97);
     expect(usdx.price).toBeLessThan(1.03);
   });
 
-  it('is deterministic for a given seed', () => {
-    expect(createMarket(createRandom(99))).toEqual(createMarket(createRandom(99)));
+  it('is deterministic across calls at the same world tick', () => {
+    // Catalog tokens depend on world tick, not the `rand` parameter.
+    expect(createMarket(createRandom(99), BASE_NOW)).toEqual(
+      createMarket(createRandom(99), BASE_NOW),
+    );
+    expect(createMarket(createRandom(7), BASE_NOW)).toEqual(
+      createMarket(createRandom(99), BASE_NOW),
+    );
   });
 });
 
 describe('tickMarket', () => {
   it('keeps every price positive over many ticks', () => {
-    let market = createMarket(createRandom(3));
+    let market = createMarket(createRandom(3), BASE_NOW);
     const rand = createRandom(77);
-    for (let i = 0; i < 400; i++) {
-      market = tickMarket(market, rand);
+    for (let i = 1; i <= 400; i++) {
+      market = tickMarket(market, rand, undefined, tickNow(i));
     }
     for (const def of TOKENS) {
       expect(market.tokens[def.id].price).toBeGreaterThan(0);
@@ -82,10 +101,10 @@ describe('tickMarket', () => {
   });
 
   it('caps each token history length', () => {
-    let market = createMarket(createRandom(3));
+    let market = createMarket(createRandom(3), BASE_NOW);
     const rand = createRandom(8);
-    for (let i = 0; i < 500; i++) {
-      market = tickMarket(market, rand);
+    for (let i = 1; i <= 500; i++) {
+      market = tickMarket(market, rand, undefined, tickNow(i));
     }
     for (const def of TOKENS) {
       expect(market.tokens[def.id].history.length).toBeLessThanOrEqual(150);
@@ -93,28 +112,28 @@ describe('tickMarket', () => {
   });
 
   it('does not mutate the input market', () => {
-    const market = createMarket(createRandom(3));
+    const market = createMarket(createRandom(3), BASE_NOW);
     const before = market.tokens.NEURA.price;
-    tickMarket(market, createRandom(8));
+    tickMarket(market, createRandom(8), undefined, tickNow(1));
     expect(market.tokens.NEURA.price).toBe(before);
   });
 
   it('keeps the stablecoin near its peg as it ticks', () => {
-    let market = createMarket(createRandom(3));
+    let market = createMarket(createRandom(3), BASE_NOW);
     const rand = createRandom(8);
-    for (let i = 0; i < 250; i++) {
-      market = tickMarket(market, rand);
+    for (let i = 1; i <= 250; i++) {
+      market = tickMarket(market, rand, undefined, tickNow(i));
     }
     expect(market.tokens.USDX.price).toBeGreaterThan(0.97);
     expect(market.tokens.USDX.price).toBeLessThan(1.03);
   });
 
-  it('actually moves a volatile token', () => {
-    let market = createMarket(createRandom(3));
+  it('actually moves a volatile token across ticks', () => {
+    let market = createMarket(createRandom(3), BASE_NOW);
     const start = market.tokens.MOONP.price;
     const rand = createRandom(8);
-    for (let i = 0; i < 50; i++) {
-      market = tickMarket(market, rand);
+    for (let i = 1; i <= 50; i++) {
+      market = tickMarket(market, rand, undefined, tickNow(i));
     }
     expect(market.tokens.MOONP.price).not.toBe(start);
   });
@@ -122,12 +141,23 @@ describe('tickMarket', () => {
 
 describe('advanceMarket', () => {
   it('matches applying tickMarket the same number of times', () => {
-    const market = createMarket(createRandom(2));
-    const viaAdvance = advanceMarket(market, 10, createRandom(50));
+    const ticks = 10;
+    const endNow = tickNow(ticks);
+    const market = createMarket(createRandom(2), BASE_NOW);
+    const viaAdvance = advanceMarket(
+      market,
+      ticks,
+      createRandom(50),
+      undefined,
+      endNow,
+    );
     let viaLoop = market;
     const loopRand = createRandom(50);
-    for (let i = 0; i < 10; i++) {
-      viaLoop = tickMarket(viaLoop, loopRand);
+    // advanceMarket walks stepNowMs from endNow back by (ticks-1-i)*MARKET_TICK_MS,
+    // so step i = endNow − (ticks − 1 − i) · MARKET_TICK_MS. Reproduce that.
+    for (let i = 0; i < ticks; i++) {
+      const stepNow = endNow - (ticks - 1 - i) * MARKET_TICK_MS;
+      viaLoop = tickMarket(viaLoop, loopRand, undefined, stepNow);
     }
     expect(viaAdvance).toEqual(viaLoop);
   });
@@ -176,7 +206,7 @@ describe('toCandles', () => {
   });
 
   it('keeps each high the bucket max and each low the bucket min', () => {
-    const prices = createMarket(createRandom(4)).tokens.MOONP.history;
+    const prices = createMarket(createRandom(4), BASE_NOW).tokens.MOONP.history;
     for (const candle of toCandles(prices, 20)) {
       expect(candle.high).toBeGreaterThanOrEqual(
         Math.max(candle.open, candle.close),
@@ -190,7 +220,7 @@ describe('toCandles', () => {
 
 describe('tickMarket with a custom getParams', () => {
   it('ticks a runtime-added token alongside the catalogue tokens', () => {
-    let market = createMarket(createRandom(1));
+    let market = createMarket(createRandom(1), BASE_NOW);
     market = {
       tokens: {
         ...market.tokens,
@@ -202,7 +232,7 @@ describe('tickMarket with a custom getParams', () => {
         ? { drift: 0.01, volatility: 0.05, isStable: false }
         : TOKEN_BY_ID[id];
 
-    market = tickMarket(market, createRandom(9), getParams);
+    market = tickMarket(market, createRandom(9), getParams, tickNow(1));
 
     expect(market.tokens.MYTKN.history.length).toBe(2);
     expect(market.tokens.MYTKN.price).toBeGreaterThan(0);

@@ -552,7 +552,7 @@ function freshGame(now: number): Pick<
     cash: STARTING_CASH,
     followers: 0,
     handle: DEFAULT_HANDLE,
-    market: createMarket(createRandom(now)),
+    market: createMarket(createRandom(now), now),
     holdings: {},
     playerTokens: [],
     bank: createBank(now),
@@ -1056,6 +1056,7 @@ export const useGameStore = create<GameState>()((set) => ({
         s.market,
         marketRand,
         paramsFor(s.playerTokens, s.followers),
+        s.clock.now,
       ),
     })),
   resume: (now) =>
@@ -1069,6 +1070,7 @@ export const useGameStore = create<GameState>()((set) => ({
         catchUpTicks(resumed.elapsedMs),
         marketRand,
         paramsFor(s.playerTokens, s.followers),
+        resumed.clock.now,
       );
       const netWorth = netWorthOf(s.cash, s.holdings, market, s.assets ?? []);
       const peakNetWorth = Math.max(s.peakNetWorth, netWorth);
@@ -1110,6 +1112,7 @@ export const useGameStore = create<GameState>()((set) => ({
         catchUpTicks(resumed.elapsedMs),
         marketRand,
         paramsFor(normalized.playerTokens, normalized.followers),
+        resumed.clock.now,
       );
       const netWorth = netWorthOf(
         normalized.cash,
