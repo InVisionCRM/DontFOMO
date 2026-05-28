@@ -6,6 +6,19 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-28 — Banner audit: Exchange trades now confirm with a banner
+
+Bible §5 calls for a dry top-edge banner on every meaningful, money-moved action; the previous audit caught `payBill`, `takeLoan`, `repayLoanInstallment`, `postDailyClout`, `buyAsset`, `sellAsset`, and `initiateBankWithdrawal`, but the three Exchange-side money movers — `buyToken`, `sellToken`, `launchToken` — were silent. This pass closes that gap.
+
+- **`src/state/store.ts`** — adds a `banner` field to the partial returned by each of the three Exchange reducers:
+  - `buyToken` → `bannerOf('Exchange', \`Bought ${tokenId} — spent ${fmtUSD(usd)}\`)`. The early-return guards (unknown token, non-positive `usd`, insufficient cash) stay banner-free so a rejected trade silently no-ops.
+  - `sellToken` → `bannerOf('Exchange', \`Sold ${tokenId} — received ${fmtUSD(quote.usd)}\`)`. Quote is computed against the clamped `amount`, so the banner always matches the cash actually credited.
+  - `launchToken` → `bannerOf('Exchange', cost > 0 ? \`Launched $${def.id} — spent ${fmtUSD(cost)}\` : \`Launched $${def.id} — your first is on the house\`)`. Picks up both the free first-launch path and the paid second-launch path; rejected launches (cap reached, ticker already taken, can't afford) stay silent.
+  - No haptic field is set on any of the three — per Bible §5 the haptic opt-in stays explicit, and the BACKLOG haptics item ("one meaningful action") is already taken by `payBill`. Adding more haptics is a separate concern.
+- **`__tests__/store.test.ts`** — five new assertions inside the existing `banner notifications` block: `buyToken` posts an `Exchange` banner naming the ticker and the dollar spend; `buyToken` does NOT post a banner when the trade is rejected (over-spend); `sellToken` posts an `Exchange` banner naming the ticker and the proceeds; `launchToken` posts an `Exchange` banner on the free path (mentions "on the house"); `launchToken` posts an `Exchange` banner on the paid path (mentions "spent $").
+- **No save-format change.** Banners are transient and already excluded from `serializeGame` (the existing assertion in this block still passes). Save shape stays at v19.
+- **Outcome.** `npx tsc --noEmit` clean under strict mode; **495 tests across 30 suites, all green** (up from 490/30).
+
 ## 2026-05-28 — Wire `expo-haptics` on `payBill` banner (Bible §5)
 
 First haptic in the project — `expo-haptics` moves from CLAUDE.md §4 "Planned" to "Installed". Bible §5 calls for a true vibration paired with the dry top-edge banner on meaningful, money-moved actions; `payBill` is the canonical first wiring (rent, bills, recurring payments — the everyday confirmation a player feels in the hand).

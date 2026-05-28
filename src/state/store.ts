@@ -1228,6 +1228,7 @@ export const useGameStore = create<GameState>()((set) => ({
         ...(isOwnToken
           ? { followers: s.followers + followersFromPump(s.followers) }
           : {}),
+        banner: bannerOf('Exchange', `Bought ${tokenId} — spent ${fmtUSD(usd)}`),
       };
     }),
   sellToken: (tokenId, tokenAmount) =>
@@ -1259,6 +1260,10 @@ export const useGameStore = create<GameState>()((set) => ({
               ),
             }
           : {}),
+        banner: bannerOf(
+          'Exchange',
+          `Sold ${tokenId} — received ${fmtUSD(quote.usd)}`,
+        ),
       };
     }),
   launchToken: (input) =>
@@ -1285,6 +1290,12 @@ export const useGameStore = create<GameState>()((set) => ({
         cash: s.cash - cost,
         playerTokens: [...s.playerTokens, def],
         market: { tokens: { ...s.market.tokens, [def.id]: state } },
+        banner: bannerOf(
+          'Exchange',
+          cost > 0
+            ? `Launched $${def.id} — spent ${fmtUSD(cost)}`
+            : `Launched $${def.id} — your first is on the house`,
+        ),
       };
     }),
   payBill: (billId, now) =>

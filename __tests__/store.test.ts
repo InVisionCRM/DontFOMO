@@ -738,6 +738,49 @@ describe('banner notifications', () => {
     expect(useGameStore.getState().banner?.haptic).toBeUndefined();
   });
 
+  it('buyToken posts an Exchange banner naming the ticker and spend', () => {
+    useGameStore.getState().buyToken('NEURA', 250);
+    const b = useGameStore.getState().banner;
+    expect(b?.title).toBe('Exchange');
+    expect(b?.body).toContain('NEURA');
+    expect(b?.body).toContain('250.00');
+  });
+
+  it('buyToken does NOT post a banner when the trade is rejected', () => {
+    useGameStore.getState().buyToken('NEURA', STARTING_CASH + 1);
+    expect(useGameStore.getState().banner).toBeNull();
+  });
+
+  it('sellToken posts an Exchange banner naming the ticker and proceeds', () => {
+    useGameStore.getState().buyToken('NEURA', 250);
+    const owned = useGameStore.getState().holdings.NEURA;
+    useGameStore.getState().sellToken('NEURA', owned);
+    const b = useGameStore.getState().banner;
+    expect(b?.title).toBe('Exchange');
+    expect(b?.body).toContain('NEURA');
+    expect(b?.body).toMatch(/\$/);
+  });
+
+  it('launchToken posts an Exchange banner (free path)', () => {
+    useGameStore.getState().launchToken(SAMPLE_LAUNCH);
+    const b = useGameStore.getState().banner;
+    expect(b?.title).toBe('Exchange');
+    expect(b?.body).toContain('$DEGEN');
+    expect(b?.body).toContain('on the house');
+  });
+
+  it('launchToken posts an Exchange banner (paid path)', () => {
+    useGameStore.setState({ cash: 100_000 });
+    useGameStore.getState().launchToken(SAMPLE_LAUNCH); // first — free
+    useGameStore
+      .getState()
+      .launchToken({ ...SAMPLE_LAUNCH, id: 'DEGEN2', name: 'DegenTwo' });
+    const b = useGameStore.getState().banner;
+    expect(b?.title).toBe('Exchange');
+    expect(b?.body).toContain('$DEGEN2');
+    expect(b?.body).toMatch(/spent \$/);
+  });
+
   it('serializeGame does NOT include the transient banner slot', () => {
     useGameStore.getState().postBanner('Bank', 'X');
     const saved = serializeGame(useGameStore.getState());
