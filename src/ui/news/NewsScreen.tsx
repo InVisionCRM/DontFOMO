@@ -4,10 +4,25 @@
  * Headline feed from `src/data/news.ts`. Market price nudges from
  * news can wire into the engine in a later pass.
  */
-import { useMemo } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import {
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createStartingNews, type NewsHeadline } from '../../data/news';
+import {
+  NEWS_CATEGORIES,
+  NEWS_CATEGORY_LABEL,
+  createStartingNews,
+  filterHeadlines,
+  formatRelativeTimestamp,
+  type NewsCategory,
+  type NewsHeadline,
+} from '../../data/news';
 import { useGameStore } from '../../state/store';
 import {
   color,
@@ -20,50 +35,153 @@ import {
 const TOP_PAD = 52;
 const NEWS_ACCENT = '#FB7185';
 
-function formatWhen(publishedAt: number, now: number): string {
-  const hours = Math.max(1, Math.floor((now - publishedAt) / 3_600_000));
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
+/** Per-category chip tint — keeps each topic visually distinct. */
+const CATEGORY_ACCENT: Readonly<Record<NewsCategory, string>> = {
+  market: '#FB7185',
+  regulation: '#60A5FA',
+  defi: '#22C55E',
+  tech: '#A78BFA',
+  culture: '#F59E0B',
+};
 
 export function NewsScreen() {
   const insets = useSafeAreaInsets();
   const clockNow = useGameStore((s) => s.clock.now);
+  const [selected, setSelected] = useState<NewsCategory | null>(null);
 
-  const headlines = useMemo(
-    () => createStartingNews(clockNow),
-    [clockNow],
+  const headlines = useMemo(() => createStartingNews(clockNow), [clockNow]);
+  const filtered = useMemo(
+    () => filterHeadlines(headlines, selected),
+    [headlines, selected],
   );
 
   return (
     <View style={styles.root}>
       <FlatList
-        data={headlines}
+        data={filtered}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[
           styles.list,
           { paddingTop: Math.max(insets.top, TOP_PAD) },
         ]}
         ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.title}>News</Text>
-            <Text style={styles.sub}>Headlines that move the market — eventually</Text>
+          <ListHeader selected={selected} onSelect={setSelected} />
+        }
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>No stories in this section.</Text>
+            <Text style={styles.emptySub}>
+              Try another category — the feed refreshes as the world moves.
+            </Text>
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.outlet}>{item.outlet}</Text>
-            <Text style={styles.headline}>{item.title}</Text>
-            <Text style={styles.summary}>{item.summary}</Text>
-            <Text style={styles.when}>{formatWhen(item.publishedAt, clockNow)}</Text>
-            {item.tags && item.tags.length > 0 && (
-              <Text style={styles.tags}>{item.tags.join(' · ')}</Text>
-            )}
-          </View>
+          <HeadlineCard headline={item} now={clockNow} />
         )}
         showsVerticalScrollIndicator={false}
       />
+    </View>
+  );
+}
+
+interface ListHeaderProps {
+  selected: NewsCategory | null;
+  onSelect: (category: NewsCategory | null) => void;
+}
+
+function ListHeader({ selected, onSelect }: ListHeaderProps) {
+  return (
+    <View style={styles.header}>
+      <Text style={styles.title}>News</Text>
+      <Text style={styles.sub}>Headlines that move the market — eventually</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipsRow}
+        accessibilityRole="tablist"
+      >
+        <Chip
+          label="All"
+          selected={selected === null}
+          onPress={() => onSelect(null)}
+        />
+        {NEWS_CATEGORIES.map((category) => (
+          <Chip
+            key={category}
+            label={NEWS_CATEGORY_LABEL[category]}
+            tint={CATEGORY_ACCENT[category]}
+            selected={selected === category}
+            onPress={() => onSelect(category)}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+interface ChipProps {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  tint?: string;
+}
+
+function Chip({ label, selected, onPress, tint }: ChipProps) {
+  const accent = tint ?? color.brand;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`Show ${label} headlines`}
+      hitSlop={8}
+      style={[
+        styles.chip,
+        selected && {
+          backgroundColor: `${accent}22`,
+          borderColor: accent,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.chipText,
+          selected && { color: accent, fontWeight: fontWeight.bold },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+interface HeadlineCardProps {
+  headline: NewsHeadline;
+  now: number;
+}
+
+function HeadlineCard({ headline, now }: HeadlineCardProps) {
+  const accent = CATEGORY_ACCENT[headline.category];
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardTop}>
+        <Text style={[styles.outlet, { color: NEWS_ACCENT }]}>
+          {headline.outlet}
+        </Text>
+        <View style={[styles.categoryPill, { borderColor: accent }]}>
+          <Text style={[styles.categoryPillText, { color: accent }]}>
+            {NEWS_CATEGORY_LABEL[headline.category]}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.headline}>{headline.title}</Text>
+      <Text style={styles.summary}>{headline.summary}</Text>
+      <Text style={styles.when}>
+        {formatRelativeTimestamp(headline.publishedAt, now)}
+      </Text>
+      {headline.tags && headline.tags.length > 0 && (
+        <Text style={styles.tags}>{headline.tags.join(' · ')}</Text>
+      )}
     </View>
   );
 }
@@ -90,6 +208,26 @@ const styles = StyleSheet.create({
     fontSize: fontSize.label,
     color: color.text.secondary,
   },
+  chipsRow: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+    gap: spacing.sm,
+  },
+  chip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: color.border.hairline,
+    backgroundColor: color.bg.surface,
+    minHeight: 32,
+    justifyContent: 'center',
+  },
+  chipText: {
+    fontSize: fontSize.label,
+    color: color.text.secondary,
+    fontWeight: fontWeight.semibold,
+  },
   card: {
     marginBottom: spacing.md,
     padding: spacing.lg,
@@ -98,12 +236,27 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: color.border.hairline,
   },
+  cardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   outlet: {
     fontSize: fontSize.caption,
     fontWeight: fontWeight.bold,
-    color: NEWS_ACCENT,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
+  },
+  categoryPill: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  categoryPillText: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    letterSpacing: 0.4,
   },
   headline: {
     marginTop: spacing.sm,
@@ -127,5 +280,20 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     fontSize: fontSize.caption,
     color: color.text.tertiary,
+  },
+  empty: {
+    paddingVertical: spacing.huge,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: fontSize.heading,
+    fontWeight: fontWeight.semibold,
+    color: color.text.primary,
+  },
+  emptySub: {
+    marginTop: spacing.sm,
+    fontSize: fontSize.label,
+    color: color.text.secondary,
+    textAlign: 'center',
   },
 });

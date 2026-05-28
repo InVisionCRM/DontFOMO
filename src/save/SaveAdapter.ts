@@ -50,6 +50,23 @@
 export const SAVE_VERSION = 19;
 
 /**
+ * The oldest save schema that can be migrated up to `SAVE_VERSION`.
+ * Saves below this floor cannot be hydrated — the loader will warn and
+ * start a fresh game (the path is intentional, not an accident).
+ *
+ * Raise this whenever an old migration is retired. Lower it whenever a
+ * new migration extends the chain backwards. Today's floor is v15
+ * (the first version after the scam-director pacing slice landed), so
+ * the chain in `migrations.ts` covers v15 → v16 → v17 → v18 → v19.
+ *
+ * Pre-launch policy: warn + start fresh. Before App Store launch this
+ * should be revisited — a shipping game probably wants to either
+ * preserve the old save bytes under an archive key, or surface a UI
+ * "save is too old, start over?" confirmation.
+ */
+export const MIN_SUPPORTED_VERSION = 15;
+
+/**
  * The envelope every save is wrapped in. `version` lets the loader
  * detect old saves and run migrations. `data` is the game state blob —
  * typed loosely here because the engine owns its real shape; the
@@ -85,12 +102,25 @@ export interface SaveAdapter {
   clear(): Promise<void>;
 }
 
+/**
+ * Context passed to every migration. `savedAt` is the envelope's
+ * write timestamp — the only "anchor in time" a migration has when it
+ * needs to synthesize a default for a time-based field (e.g. the
+ * v15 → v16 pacing state defaults to `createPacingState(savedAt)`).
+ *
+ * Migrations are pure: same `(data, ctx)` in → same `data'` out.
+ */
+export interface MigrationContext {
+  /** Unix epoch ms when the envelope being migrated was written. */
+  savedAt: number;
+}
+
 /** A save migration: transforms one schema version up to the next. */
 export interface SaveMigration {
   /** The version this migration upgrades FROM. */
   from: number;
-  /** The version this migration produces. */
+  /** The version this migration produces. Always `from + 1`. */
   to: number;
-  /** Pure transform. Receives the old `data`, returns the new `data`. */
-  migrate: (data: unknown) => unknown;
+  /** Pure transform. Receives the old `data` + ctx, returns the new `data`. */
+  migrate: (data: unknown, ctx: MigrationContext) => unknown;
 }

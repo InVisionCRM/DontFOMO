@@ -192,6 +192,20 @@ export function createOnboardingState(): OnboardingState {
 }
 
 /**
+ * Optional haptic intensity attached to a banner (Bible §5). The
+ * Banner component is the only place that consumes it — keeping the
+ * field in the message keeps the store free of any RN/native import.
+ *
+ * - `success`: confirmed money-moved / completed action.
+ * - `warning`: caution-worthy moments.
+ * - `error`: hostile events (drains, lockouts, scam detonations).
+ *
+ * Banners without a haptic level stay silent; the screen update is the
+ * confirmation per Bible §5.
+ */
+export type BannerHaptic = 'success' | 'warning' | 'error';
+
+/**
  * A top-edge banner notification (Bible §5). Lives transiently in the
  * store so any action can fire one and the global `<Banner />` mount
  * can show it; the component dismisses it after a short visible
@@ -202,6 +216,7 @@ export interface BannerMessage {
   id: number;
   title: string;
   body: string;
+  haptic?: BannerHaptic;
 }
 
 /** USD formatter used in banner text. Inlined so the store does not depend on UI. */
@@ -213,8 +228,14 @@ function fmtUSD(n: number): string {
 }
 
 /** Build a fresh BannerMessage with a unique id. */
-function bannerOf(title: string, body: string): BannerMessage {
-  return { id: Date.now() + Math.random(), title, body };
+function bannerOf(
+  title: string,
+  body: string,
+  haptic?: BannerHaptic,
+): BannerMessage {
+  const msg: BannerMessage = { id: Date.now() + Math.random(), title, body };
+  if (haptic) msg.haptic = haptic;
+  return msg;
 }
 
 /**
@@ -326,6 +347,13 @@ export interface GameState {
   banner: BannerMessage | null;
   /** Which in-game app is open; null = the home screen. */
   openAppId: AppId | null;
+  /**
+   * Wall-clock time (epoch ms) the save adapter last wrote a save, or
+   * `null` if the game hasn't written one yet this session. Ephemeral —
+   * not part of `SavedGame`; rehydrated from the envelope's `savedAt`
+   * when a save is loaded. Surfaced in Settings as the "last saved" hint.
+   */
+  lastSavedAt: number | null;
 
   /** Start a brand-new game at time `now` (epoch ms). */
   newGame: (now: number) => void;
@@ -426,6 +454,13 @@ export interface GameState {
   /** Return to the home screen. */
   closeApp: () => void;
   /**
+   * Record that the save adapter just wrote (or just loaded) a save at
+   * `at` (epoch ms). Sets `lastSavedAt`. Called from `useGameLoop`'s
+   * `save()` after a successful write, and on hydrate with the loaded
+   * envelope's `savedAt`. Surfaced in Settings.
+   */
+  markSaved: (at: number) => void;
+  /**
    * Onboarding — Profile step. Sets the player's display name (used
    * to derive the handle) and bio. Trims and slugifies; no-op on an
    * empty name.
@@ -510,6 +545,7 @@ function freshGame(now: number): Pick<
   | 'cloutTakeover'
   | 'banner'
   | 'openAppId'
+  | 'lastSavedAt'
 > {
   return {
     clock: createClock(now),
@@ -539,6 +575,7 @@ function freshGame(now: number): Pick<
     cloutTakeover: null,
     banner: null,
     openAppId: null,
+    lastSavedAt: null,
   };
 }
 
@@ -1140,6 +1177,7 @@ export const useGameStore = create<GameState>()((set) => ({
         ...(isOwnToken
           ? { followers: s.followers + followersFromPump(s.followers) }
           : {}),
+        banner: bannerOf('Exchange', `Bought ${tokenId} — spent ${fmtUSD(usd)}`),
       };
     }),
   sellToken: (tokenId, tokenAmount) =>
@@ -1171,6 +1209,10 @@ export const useGameStore = create<GameState>()((set) => ({
               ),
             }
           : {}),
+        banner: bannerOf(
+          'Exchange',
+          `Sold ${tokenId} — received ${fmtUSD(quote.usd)}`,
+        ),
       };
     }),
   launchToken: (input) =>
@@ -1197,6 +1239,12 @@ export const useGameStore = create<GameState>()((set) => ({
         cash: s.cash - cost,
         playerTokens: [...s.playerTokens, def],
         market: { tokens: { ...s.market.tokens, [def.id]: state } },
+        banner: bannerOf(
+          'Exchange',
+          cost > 0
+            ? `Launched $${def.id} — spent ${fmtUSD(cost)}`
+            : `Launched $${def.id} — your first is on the house`,
+        ),
       };
     }),
   payBill: (billId, now) =>
@@ -1214,7 +1262,11 @@ export const useGameStore = create<GameState>()((set) => ({
             b.id === billId ? applyBillPayment(b, now) : b,
           ),
         },
-        banner: bannerOf('Bank', `Paid ${def.name} ${fmtUSD(cost)}`),
+        banner: bannerOf(
+          'Bank',
+          `Paid ${def.name} ${fmtUSD(cost)}`,
+          'success',
+        ),
       };
     }),
   takeLoan: (tierId, now) =>
@@ -1404,6 +1456,7 @@ export const useGameStore = create<GameState>()((set) => ({
     set((s) => (s.banner?.id === id ? { banner: null } : {})),
   openApp: (id) => set({ openAppId: id }),
   closeApp: () => set({ openAppId: null }),
+  markSaved: (at) => set({ lastSavedAt: at }),
   setProfile: (displayName, bio) =>
     set((s) => {
       const trimmedName = displayName.trim();

@@ -6,21 +6,230 @@ after any coding work is mandatory.
 
 ---
 
-## 2026-05-26 19:15 UTC — Save audit: centralized defensive defaults
+## 2026-05-28 13:01 UTC — Accessibility pass on Wallet
 
-- **`src/state/saveNormalize.ts`:** `normalizeSavedGame` backstops every `SavedGame` field (core scalars, bank holds, director pacing, rug radar, pre-v13 onboarding). Shared by `loadSaved` and `serializeGame`.
-- **`src/state/constants.ts`:** `STARTING_CASH` and `DEFAULT_HANDLE` extracted to break a circular import.
-- **Tests — `__tests__/saveNormalize.test.ts`:** 5 cases (empty partial, legacy bank, onboarding, serialize parity, v12 shape).
-- **Outcome:** 425 tests / 26 suites green; partial saves no longer diverge between load and persist paths.
+First a11y audit on a shipping screen (CLAUDE.md §7 — touch targets ≥ 44pt, accessibility labels on interactive elements, contrast maintained). Focused on the Wallet app because it has the densest interactive + numeric content of the two backlog candidates (Wallet / Settings). No engine, store, or save-format changes — UI-only plus one pure helper module with its own tests.
+
+- **`src/ui/wallet/walletA11y.ts`** (new) — pure label builders for screen readers:
+  - `describeDayChange(pct)` reads moves as `"up 2.4 percent today"` / `"down 7.2 percent today"` / `"unchanged today"`. The visible row still shows `+2.4%` / `-7.2%`, but VoiceOver and TalkBack now get word-form direction instead of having to sound out `+` and `-` punctuation. The flat band is ±0.05% so a perfectly stable token reads as `unchanged` rather than `up 0.0`.
+  - `buildHoldingA11yLabel({ name, amount, symbol, usd, dayChangePct })` composes one sentence in name → amount → value → change order, e.g. `"Ethereum, 1.5 ETH, worth $4,500.00, up 2.4 percent today"`.
+- **`src/ui/wallet/WalletScreen.tsx`** — applied the audit:
+  - Total card: `accessible` + `accessibilityRole="summary"`; label now includes the "live USD at the current market price" gloss so the card reads as one element instead of three separate text nodes.
+  - Holdings rows: `accessible` so the row is one focusable group; label sourced from `buildHoldingA11yLabel` (the previous inline label used `formatSignedPercent`, which embeds the bare `+`/`-` glyph).
+  - "Tokens" section head: gained `accessibilityRole="header"` so screen readers announce the landmark.
+  - Empty state: empty-glyph circle (`$` decoration) hidden from screen readers with `accessibilityElementsHidden` + `importantForAccessibility="no-hide-descendants"` so VoiceOver doesn't read "$" before the explanatory copy. "Your wallet is empty" gained `accessibilityRole="header"`. The "Open Exchange" CTA gained an `accessibilityHint` ("Buy your first token to fund this wallet"). The button already met the ≥ 44pt target (`minHeight: 44`) and had `hitSlop`.
+- **`__tests__/walletA11y.test.ts`** (new) — covers the two helpers. Explicit assertions that negative percentages produce no bare `-` in the day-change phrase and that small moves snap to `unchanged today` so flat assets aren't announced as `up 0.0 percent`.
+
+Verification:
+- `npx tsc --noEmit` — clean under strict mode.
+- `npm test` — **31 suites / 502 tests, all green** (up from 30 / 495).
+- No visual regression: the visible labels still show `+2.4%` / `-7.2%` in the row's right column; only the screen-reader `accessibilityLabel` changed.
+
+Outcome: Wallet meets the §7 accessibility bar on this screen. Settings already had role/label coverage from the save-hint work and remains untouched. Next a11y target (when picked up) is whichever screen the maintainer flags from a device-side VoiceOver pass.
 
 ---
 
-## 2026-05-26 17:30 UTC — Save migration framework (Stage 7)
+## 2026-05-28 — EAS Build skeleton: `eas.json`, app identifiers, build profiles
 
-- **`src/save/migrations.ts`:** registered v16→v17 (`bank.regulatoryHold`), v17→v18 (`cloutTakeover`), v18→v19 (`bank.pendingWithdrawal`); `migrateEnvelope` chains steps; `isSaveLoadable` rejects only forward-incompatible saves.
-- **`useGameLoop.ts`:** loads any save at or below `SAVE_VERSION` — runs migrations when registered, then `loadSaved` defensive defaults for older blobs. Retires the version-mismatch wipe.
-- **Tests — `__tests__/saveMigrations.test.ts`:** 7 cases (loadable guard, v18→v19, v16→v19 chain, no-op at v15).
-- **Outcome:** bumping `SAVE_VERSION` no longer orphans on-device progress when a migration is added.
+First scaffolding for cloud builds via EAS Build (Expo's cloud service that compiles real iOS/Android binaries — the gate in front of TestFlight and Play Internal Testing). No code touched; no engine, store, or save-format change. The maintainer still needs to run `eas init` to attach a `projectId` and `eas login` before the first build — those are credential-bearing steps that don't belong in the repo.
+
+- **`eas.json`** (new) — three standard profiles plus a `submit.production` stub:
+  - `development` — `developmentClient: true`, internal distribution, iOS simulator build allowed (the build profile used to spin up a dev client when we eventually move off Expo Go to unblock `react-native-mmkv` / `react-native-reanimated` / `expo-haptics` on a real device).
+  - `preview` — internal distribution, iOS device build (not simulator), Android `apk` (drag-installable onto a device for ad-hoc sharing, not store-bound).
+  - `production` — channel-pinned, `autoIncrement: true` so EAS bumps the native build number on every store build (Apple/Google reject duplicates).
+  - `cli.appVersionSource: "remote"` — EAS owns the build number; `app.json` only carries the user-facing `version` string. This is the modern default and avoids the "two sources of truth" trap.
+  - `cli.version: ">=14.0.0"` — minimum eas-cli compatible with the SDK 54 / RN 0.81 toolchain.
+- **`app.json`** — adds the three fields EAS Build requires before it will accept a build:
+  - `ios.bundleIdentifier: "com.invisioncrm.dontfomo"` — reverse-DNS app identifier (the iOS equivalent of an app's primary key on the App Store).
+  - `android.package: "com.invisioncrm.dontfomo"` — the Android equivalent (the package name shipped in the APK/AAB manifest).
+  - `runtimeVersion: { policy: "appVersion" }` — pins the OTA-update runtime to the user-facing app version, so a JS-only update can never land on a binary it wasn't built against (the standard EAS Update pairing).
+- **Deferred — not part of this skeleton.** No `extra.eas.projectId` (only `eas init` should write it; it links the repo to a specific EAS project owned by a real account). No `submit.production.ios.ascAppId` / `submit.production.android.serviceAccountKeyPath` (those need real Apple/Google credentials). No code-signing config. No CI workflow that calls EAS Build — local `eas build` runs come first.
+- **Outcome.** `npx tsc --noEmit` clean under strict mode; **495 tests across 30 suites, all green** (unchanged — pure config). Save schema unchanged at v19.
+
+## 2026-05-28 — Banner audit: Exchange trades now confirm with a banner
+
+Bible §5 calls for a dry top-edge banner on every meaningful, money-moved action; the previous audit caught `payBill`, `takeLoan`, `repayLoanInstallment`, `postDailyClout`, `buyAsset`, `sellAsset`, and `initiateBankWithdrawal`, but the three Exchange-side money movers — `buyToken`, `sellToken`, `launchToken` — were silent. This pass closes that gap.
+
+- **`src/state/store.ts`** — adds a `banner` field to the partial returned by each of the three Exchange reducers:
+  - `buyToken` → `bannerOf('Exchange', \`Bought ${tokenId} — spent ${fmtUSD(usd)}\`)`. The early-return guards (unknown token, non-positive `usd`, insufficient cash) stay banner-free so a rejected trade silently no-ops.
+  - `sellToken` → `bannerOf('Exchange', \`Sold ${tokenId} — received ${fmtUSD(quote.usd)}\`)`. Quote is computed against the clamped `amount`, so the banner always matches the cash actually credited.
+  - `launchToken` → `bannerOf('Exchange', cost > 0 ? \`Launched $${def.id} — spent ${fmtUSD(cost)}\` : \`Launched $${def.id} — your first is on the house\`)`. Picks up both the free first-launch path and the paid second-launch path; rejected launches (cap reached, ticker already taken, can't afford) stay silent.
+  - No haptic field is set on any of the three — per Bible §5 the haptic opt-in stays explicit, and the BACKLOG haptics item ("one meaningful action") is already taken by `payBill`. Adding more haptics is a separate concern.
+- **`__tests__/store.test.ts`** — five new assertions inside the existing `banner notifications` block: `buyToken` posts an `Exchange` banner naming the ticker and the dollar spend; `buyToken` does NOT post a banner when the trade is rejected (over-spend); `sellToken` posts an `Exchange` banner naming the ticker and the proceeds; `launchToken` posts an `Exchange` banner on the free path (mentions "on the house"); `launchToken` posts an `Exchange` banner on the paid path (mentions "spent $").
+- **No save-format change.** Banners are transient and already excluded from `serializeGame` (the existing assertion in this block still passes). Save shape stays at v19.
+- **Outcome.** `npx tsc --noEmit` clean under strict mode; **495 tests across 30 suites, all green** (up from 490/30).
+
+## 2026-05-28 — Wire `expo-haptics` on `payBill` banner (Bible §5)
+
+First haptic in the project — `expo-haptics` moves from CLAUDE.md §4 "Planned" to "Installed". Bible §5 calls for a true vibration paired with the dry top-edge banner on meaningful, money-moved actions; `payBill` is the canonical first wiring (rent, bills, recurring payments — the everyday confirmation a player feels in the hand).
+
+- **`package.json`** — adds `expo-haptics: ~15.0.8` (SDK-54-pinned via `npx expo install`). Ships in Expo Go, so no dev build is required for the first haptic.
+- **`src/state/store.ts`** — adds a `BannerHaptic = 'success' | 'warning' | 'error'` type and an optional `haptic?: BannerHaptic` field on `BannerMessage`. `bannerOf` gains an optional third arg. Store stays free of any native import — the field is just data. `payBill`'s banner is tagged `'success'`; every other banner remains silent for now (per BACKLOG: one meaningful action).
+- **`src/ui/feedback/haptics.ts`** — new thin wrapper around `expo-haptics`. Maps `BannerHaptic` → `Haptics.NotificationFeedbackType`, fires `notificationAsync` fire-and-forget, and swallows the promise rejection that simulators and unsupported platforms throw — a missing buzz must never break the banner animation.
+- **`src/ui/Banner.tsx`** — when a banner with `haptic` set arrives, calls `fireBannerHaptic(banner.haptic)` alongside the slide-in. Updated the file header to reflect that haptics is no longer "polish-pass only" (sound still is).
+- **`__tests__/store.test.ts`** — adds two assertions in the existing `banner notifications` block: `payBill` banner carries `haptic === 'success'`, and `postBanner` does not attach a haptic by default (so the opt-in stays explicit).
+- **Outcome.** `npx tsc --noEmit` clean under strict mode; **490 tests across 30 suites, all green** (up from 488/30). Save schema unchanged at v19 — the haptic field is transient on `BannerMessage`, which is already excluded from `serializeGame`.
+
+## 2026-05-27 — Settings: save version + last-saved hint
+
+Settings polish — surfaces the current save-schema version and a coarse "last saved" hint in a new "Save" section above the existing "Reset game" row. Read-only; no engine, save-format, or migration changes.
+
+- **`src/state/store.ts`** — adds an ephemeral `lastSavedAt: number | null` field to `GameState` (added to the `freshGame` `Omit<…>` list so it's not part of `SavedGame`, initialised to `null`). New action `markSaved(at)` records the timestamp. Survives `tick`/`postBanner`/`openApp`/`closeApp`; cleared on `newGame`.
+- **`src/state/useGameLoop.ts`** — `save()` calls `markSaved(Date.now())` after a successful `saveAdapter.save` resolves. On hydrate, `markSaved(envelope.savedAt)` runs after `loadSaved` so the hint is populated immediately from the loaded envelope; the post-load autosave then overwrites it with the fresh wall-clock value.
+- **`src/ui/settings/SettingsScreen.tsx`** — new "Save" section above "Game" with two rows: `Save version` (reads `SAVE_VERSION` constant) and `Last saved`. Values use `fontVariant: ['tabular-nums']` so digits don't jitter. Each row has a `accessibilityRole="text"` label so VoiceOver/TalkBack announces "Save schema version 19" / "Last saved 2 minutes ago" as a single utterance.
+- **`src/ui/settings/formatLastSaved.ts`** — pure formatter with coarse buckets: `null` → "Not yet saved"; `< 5 s` → "Just now"; `< 60 s` → "N seconds ago"; `< 60 min` → "N minute(s) ago"; `< 24 h` → "N hour(s) ago"; yesterday → "Yesterday at h:mm"; older → "Mon D at h:mm". Future-dated timestamps (clock skew) clamp to "Just now". Pure — no React, no RN imports.
+- **`__tests__/settingsSaveHint.test.ts`** — covers every bucket of `formatLastSaved` (including the singular/plural pivots at 1 minute and 1 hour, and the future-skew clamp) and the `markSaved` action (initial null, overwrites, survives unrelated reducers, clears on `newGame`).
+- **Outcome.** `npx tsc --noEmit` clean under strict mode; **488 tests across 30 suites, all green** (up from 474/29). Save schema unchanged at v19 — this slice never touches `serializeGame` or `loadSaved`.
+
+## 2026-05-27 — Messages thread list polish (preview, unread badges, suspicious chip)
+
+Polish pass on the Messages app — no engine, store, or save changes; the change is confined to one presentational component, `ConversationRow`.
+
+- **`src/ui/messages/ConversationRow.tsx`** — the row now treats unread state visually instead of relying on a single blue dot:
+  - Preview text shifts from `#8E8E93` → near-white `#E7E7EA` and goes semibold when `unreadCount > 0`, matching iMessage's bold-when-unread convention.
+  - The last-message timestamp tints to the system blue (`#0A84FF`) when the row has unread messages, and now uses tabular figures so the column doesn't jitter as digit widths change.
+  - The unread column widens from 10pt to 22pt so it can hold either the dot (single-unread) or a numeric badge (multi-unread, capped at `99+`). Both elements are marked `accessible={false}` because the row's `accessibilityLabel` already announces the count.
+  - The `isSuspicious` flag — already set on the Hijacked Friend primer (Jordan) in `src/data/messages.ts` but previously unused in the UI — now renders a small red "!" chip next to the contact name, mirroring the SUSPICIOUS affordance Mail (`src/ui/mail/MailRow.tsx`) and Tunnel (`TunnelChatRow.tsx`) already use. Scaled down to a 16pt circle because Messages rows are denser than Mail rows.
+  - Preview text bumped from 1 line to 2 lines so a longer last message hints without truncating mid-word.
+  - Accessibility label now joins name + unread count + suspicious flag in a single string the screen reader announces (e.g. "Jordan, 3 unread, suspicious"), replacing the older binary label.
+- **Per-CLAUDE.md §8** — all new colours stay inline as `const`s in this screen (per-app palette), not in `theme.ts` (cross-app tokens only).
+- **No tests added.** `ConversationRow` is a pure presentational component over an already-tested engine (`messages.test.ts` exercises `previewText`, `lastMessage`, `totalUnreadCount`, `markConversationRead`, `addConversationMessage`, `contactInitials`). The polish changes which `View` and `Text` nodes render against the same data; behaviour is unchanged. Verified with `npx tsc --noEmit` (strict-mode clean) and the full Jest suite (**474 tests across 29 suites, all green**).
+
+## 2026-05-27 — News polish (category chips + minute-granularity timestamps)
+
+Polish pass on the News app — no engine, store, or save changes. Adds a horizontal category-chip row above the feed and tightens the relative timestamps.
+
+- **`src/data/news.ts`** — introduces a `NewsCategory` union (`market` / `regulation` / `defi` / `tech` / `culture`), a per-category display label table, and an ordered `NEWS_CATEGORIES` list the chips row iterates. Every headline now carries a `category` field. The seed feed expanded from 4 to 8 entries so every category lands at least one story at game start. Two new pure helpers ship alongside: `formatRelativeTimestamp` (Just now → minutes → hours → days, clamped against future timestamps) and `filterHeadlines` (null = "All").
+- **`src/ui/news/NewsScreen.tsx`** — adds a horizontal `ScrollView` of pill chips above the feed (All + one per category, tinted by category accent), filters the `FlatList` data through `filterHeadlines`, switches the per-headline "9h ago" line to `formatRelativeTimestamp`, prints a small bordered category pill in each card's top-right, and renders a friendly empty state for any category that filters down to zero results. Per CLAUDE.md §13 the category accents stay inline (per-screen palette), not in `theme.ts`. Chips advertise `accessibilityRole="tab"` with `accessibilityState.selected` so screen readers track the active filter.
+- **`__tests__/news.test.ts`** — new suite covering `formatRelativeTimestamp` (sub-minute / sub-hour / sub-day / multi-day / future-clamp buckets), `filterHeadlines` (null passthrough, per-category narrowing, no-match empty), and the seed feed (every category covered, ids unique, every timestamp strictly past).
+- Verification: `npx tsc --noEmit` clean. `npm test` — **474 tests across 29 suites, all passing**.
+
+---
+
+## 2026-05-27 — Wallet polish (empty state, copy, tabular figures)
+
+Polish pass on the Wallet screen — no engine, store, or save changes. Reworks the empty state into a proper card with a CTA, sharpens the copy, and gets every numeric Text on the screen consistent with the project's formatters and `tabularNums` style.
+
+- **`src/ui/wallet/WalletScreen.tsx`** — replaces the bare empty-state line with a centred card (accent glyph, headline, body, primary "Open Exchange" button via `openApp('exchange')`, footnote pointing at Bank / Cash Swipe). Holdings rows now use `formatTokenAmount` / `formatTokenPrice` for consistency with the rest of the app and add a per-token day-change percentage from `dayOpen`. The total card gained a one-line hint explaining the live USD value. Every numeric Text wears `tabularNums`. Added `accessibilityLabel`s on the total card and each holding row (flattened "name, amount, USD, % today"), `accessibilityRole="header"` on the title, and `accessibilityRole="button"` plus an explicit label on the CTA. The CTA respects the 44pt minimum touch target per CLAUDE.md §7.
+- **Selector hygiene** — hoisted the `holdings` empty-object fallback to a module-level `EMPTY_HOLDINGS` constant per the §13 "stable-reference Zustand selectors" rule (the previous `?? {}` was a fresh object on every render and re-fired the `useMemo`).
+- Per-screen palette (`WALLET_ACCENT`, `#1a1408` card fill) stays inline per the §13 "mockup-derived colours" rule; `theme.ts` is unchanged.
+- Outcome: `npx tsc --noEmit` clean, **463 tests across 28 suites green** (no engine changes — UI-only polish).
+
+Complexity: **8/100** — single presentational file, no engine, no store, no save, no migration, no new dependencies; uses existing formatters and theme tokens.
+
+---
+
+## 2026-05-27 — Clout Notifications panel (read-only v1)
+
+Replaces the Notifications-tab placeholder inside the Clout app with a real, virtualised list driven by a static seed. Ports the bell-tab layout from `DontFOMO_X_App_Mockup.html` (lines 150–157, 273–275, 433–446). No engine, store, or save changes — pure data + UI.
+
+- **`src/data/cloutNotifications.ts`** (new) — read-only seed of five entries (follow, like, repost, mention, streak) matching the mockup canon. Each entry is a three-segment body (`before` / `bold` / `after`) plus an optional `muted` quote, an icon `kind`, and the hex colour for the icon glyph. Pure data per CLAUDE.md §5; a later milestone will swap the seed for engine-driven notifications.
+- **`src/ui/clout/CloutNotificationsPanel.tsx`** (new) — `FlatList` with header and footer. Inline SVG glyphs for follow / like / repost / streak; the mention row renders the brand-blue `@` badge from the mockup. Each row carries an `accessibilityLabel` that flattens the segmented body so screen readers announce the full notification, prefixed with the kind. Footer copy makes the read-only nature explicit. Per-screen palette stays inline (Clout's X-style black, not `theme.ts`), per the §13 "mockup-derived colours" rule; weights and tokens come from `fontWeight`.
+- **`src/ui/clout/CloutScreen.tsx`** — Notifications tab now renders `<CloutNotificationsPanel />` instead of the placeholder. Tab-bar and tab-switching wiring unchanged from the previous backlog item.
+- **`__tests__/cloutNotifications.test.ts`** (new) — five-case shape suite covering ID uniqueness, non-empty bold segments, 7-char hex icon colours, the mockup-anchored count, and full coverage of the documented kinds. `FlatList.keyExtractor` is ID-based, so duplicates would crash at runtime — caught at test time instead.
+- Outcome: `npx tsc --noEmit` clean, **463 tests across 28 suites green** (was 458 / 27). The bell tab now feels like a real notifications panel; no engine wiring changes the rest of Clout's behaviour.
+
+Complexity: **12/100** — read-only static data, one presentational component (`FlatList` + inline SVGs), one tab swap, five small data tests. Drivers: no engine, no store, no save, no migration; visual port from a finished mockup.
+
+---
+
+## 2026-05-27 — Clout bottom tab bar (Home / Search / Notifications / Profile)
+
+UI-only port of the four-tab bottom bar from `DontFOMO_X_App_Mockup.html`. No engine, store, or save changes; one new component file, one new placeholder shell, and a rework of `CloutScreen` to switch between tabs on local state.
+
+- **`src/ui/clout/CloutTabBar.tsx`** (new) — fixed-position 78pt bar (22pt safe-area padding) with four tabs: Home, Search, Notifications, Profile. Icons are inline SVGs (home, search, bell, user) styled to match the mockup (active `#E7E9EA` at stroke-width 2.6, inactive `#71767B` at 2). Each tab is a `Pressable` with `accessibilityRole="tab"`, `accessibilityState={{ selected }}`, and a 44pt minimum hit area per CLAUDE.md §7.
+- **`src/ui/clout/CloutTabPlaceholder.tsx`** (new) — quiet stub used by Search / Notifications / Profile while their real shells are still backlog items. Centred title + muted copy, no fake content.
+- **`src/ui/clout/CloutScreen.tsx`** — added local `activeTab` state (default `home`); the Home tab renders the existing profile strip + feed + PostFAB; the other three render the placeholder with tab-specific copy. The bar and FAB are hidden while `cloutTakeover` is active so the Golden Giveaway overlay remains the only interactive surface. In-game app switching stays in the store (`openAppId`); sub-tab state stays local — sub-sections of one app are not top-level navigation per CLAUDE.md §5.
+- Outcome: `npx tsc --noEmit` clean, **458 tests across 27 suites green** (no test changes — UI-only). The Clout home screen still drives all v1 gameplay; the other three tabs now exist as discoverable surfaces for the next backlog items (Notifications shell is up next).
+
+Complexity: **25/100** — pure UI, no engine/save, four placeholder shells. Drivers: visual port from a finished mockup, no new game state, no new tests required.
+
+---
+
+## 2026-05-27 — Mail UI polish: accessibility, tabular timestamps, and richer row labels
+
+Polish pass on the Mail app: the inbox row, the inbox header, and the detail view. No engine or store changes — UI only, plus new unit-test coverage of the display formatters that drive the inbox timestamps.
+
+- **`src/ui/mail/MailRow.tsx`** — the inbox row now exposes a single composed `accessibilityLabel` that includes read/unread state, suspicious flag, sender, relative time, and subject (so VoiceOver and TalkBack announce the whole row in one pass instead of fragmenting across child views); added an `accessibilityHint` ("Opens the message"). The dot, SUSPICIOUS tag, and timestamp are now `accessible={false}` so they don't double-announce. The relative-time text gained `fontVariant: ['tabular-nums']` so timestamps no longer jitter as their digits change.
+- **`src/ui/mail/MailScreen.tsx`** — Inbox title now carries `accessibilityRole="header"`. The unread sub-line keeps its mockup-faithful "X unread" rendering but exposes a singular/plural accessibility label ("1 unread message" / "5 unread messages"). The decorative search bar is hidden from assistive tech (`accessible={false}`). The empty state is grouped into one readable sentence for screen readers.
+- **`src/ui/mail/MailDetail.tsx`** — subject is now flagged as a header. The sender block gained a composed `accessibilityLabel` that announces "Suspicious sender …, address …" for phish and "From …, address …" otherwise, so the colour-coded address danger signal also reaches non-sighted players.
+- **`__tests__/format.test.ts`** — new 17-test suite covering `formatRelativeTime` (the formatter behind every mail/messages/clout timestamp) plus `formatTime`, `formatCurrency`, `formatTokenPrice`, `formatSignedPercent`, and `formatTokenAmount`. Closes the previous gap where the display formatters had zero direct coverage.
+- **Outcome:** `npx tsc --noEmit` clean; **458 tests across 27 suites passing** (was 441 / 26).
+
+---
+
+## 2026-05-27 — Bank UI polish: copy, validation, accessibility on withdrawal + hold lockouts
+
+Polish pass on the Bank withdrawal sheet and the two lockout screens (Authority Notice + Frozen Withdrawal). No engine or store changes — UI only.
+
+- **`src/ui/bank/BankWithdrawSheet.tsx`** — added input validation that surfaces a live-region message and disables Submit when the amount is missing, ≤ $0, exceeds available cash, or the destination wallet is shorter than the store's 8-char minimum. The submit button now reflects a transient `submitting` state and exposes `accessibilityState={{ disabled, busy }}` so VoiceOver and TalkBack announce the action correctly. Both inputs gained `accessibilityLabel`, `accessibilityLabelledBy`, and `accessibilityHint`; the amount input now uses tabular figures. Added `onRequestClose` for the Android hardware back button and labelled the backdrop tap target. Bumped Submit min-height to 48pt and Cancel to 44pt so they hit Apple/Google's tap-target guidelines.
+- **`src/ui/bank/BankScreen.tsx`** — both lockout modals now identify themselves to assistive tech (`accessibilityViewIsModal` + a top-level label), their countdowns expose `accessibilityRole="timer"` with `accessibilityLiveRegion="polite"` so screen readers re-announce the remaining time as it ticks, and the transaction-detail card on the Frozen Withdrawal lockout is grouped into a single readable sentence ("Pending withdrawal. Amount …. To wallet …. Reference ….") rather than four detached strings. CTAs gained `accessibilityHint` lines clarifying what each button does. The Home-screen "Withdraw to wallet" entry button gained a matching hint, and the Bank title is now flagged as a header. Bumped the lockout primary CTA to 48pt min-height and the ghost CTA to 44pt min-height.
+- **Outcome:** `npx tsc --noEmit` clean; **441 tests across 26 suites still passing.** No new tests — every change is presentational and the surfaces are not under render-test coverage.
+
+---
+
+## 2026-05-27 — Tick loop hardening: fix offline-catch-up double-fire
+
+Two real bugs in the foreground tick + AppState handling, both producing the same symptom — the market jumping further on resume than the actual offline gap warrants.
+
+- **`src/engine/time/clock.ts` — `tickClock` now advances `lastSeenAt` alongside `now`.** Before, `lastSeenAt` only moved on `resumeClock`. After a long foreground session, the next `resume(now)` computed `elapsedMs = now - lastSeenAt` and replayed every foreground tick that had already executed during the session as if it were an offline gap, double-advancing the market. The fix treats a foreground tick as proof the engine is synced with reality and moves the offline anchor with it. `now` is clamped against `lastSeenAt` so a backwards device clock cannot push the anchor into the past.
+- **`src/state/useGameLoop.ts` — AppState handler now only catches up on `background → active`.** Previously it called `resume(Date.now())` on *every* state change, including the `active → background` edge. That replayed the entire foreground session as catch-up at the moment of backgrounding, with no real offline time elapsed. The handler now `resume()`s only when `next === 'active'` and `save()`s on every other transition. Combined with the `tickClock` fix above, an in-session background→active round-trip is now a no-op for the market.
+- **`__tests__/clock.test.ts`:** updated the two `tickClock` cases that asserted the buggy "leaves anchors untouched" behaviour, and added three regression cases: backwards-clock clamp, `tickClock → resumeClock(same now)` reports ~0 elapsed, and `tickClock(1h) → resumeClock(7h)` reports exactly 6h.
+- **Verification:** `npx tsc --noEmit` clean. **441 tests across 26 suites — all green** (up from 438/26).
+- **Complexity:** 25/100 — three small, surgical edits in a pure module and one wiring file; one test file updated. Engine remains React-free.
+- **Outcome:** the BACKLOG.md item *"Tick loop + offline catch-up: fix double-fire or drift; add tests"* is done. Resume catches up exactly the genuine offline gap; foreground ticks no longer get replayed.
+
+---
+
+## 2026-05-26 19:15 UTC — Save audit: centralized defensive defaults (refactor)
+
+Complements the same-day "Save audit + corrupt-blob rejection" entry below — that one added a third defence (`validate.ts`); this one consolidates the existing defensive backfills into a single source of truth so `loadSaved` and `serializeGame` can't drift.
+
+- **`src/state/saveNormalize.ts`** (new): `normalizeSavedGame` backstops every `SavedGame` field (core scalars, bank `regulatoryHold` / `pendingWithdrawal`, director pacing, rug radar, pre-v13 onboarding `hasOnboarded: true`). Shared by `loadSaved` and `serializeGame`.
+- **`src/state/constants.ts`** (new): `STARTING_CASH` and `DEFAULT_HANDLE` extracted out of `store.ts` to break a circular import with `saveNormalize.ts`.
+- **`src/state/store.ts`**: `loadSaved` and `serializeGame` delegate to `normalizeSavedGame`.
+- **`__tests__/saveNormalize.test.ts`** (new): 5 cases — empty partial, legacy bank shape, onboarding backfill, serialize parity, v12 shape.
+- **Outcome.** `npx tsc --noEmit` clean. **425 tests / 26 suites** at the time this branch was cut; rolled forward through the later test additions on merge.
+
+---
+
+## 2026-05-26 — Save audit + corrupt-blob rejection
+
+- **New — `src/save/validate.ts`:** `validateSaveData(data)` checks the migrated blob's identity fields and throws `CorruptSaveError(reason)` on the first structural problem (clock / cash / followers / handle / market.tokens / bank / cashSwipe). Optional fields and lists are not checked — those have defensive `??` defaults in `store.loadSaved` already.
+- **`src/save/index.ts`:** re-exports `CorruptSaveError` and `validateSaveData`.
+- **`src/state/useGameLoop.ts`:** load path is now `adapter.load → migrateSave → validateSaveData → store.loadSaved`. A corrupt blob (e.g. truncated AsyncStorage write, external edit) is caught and logged with the field-level reason instead of silently restarting the player at $1000 / `@newhandle` with the corrupt state's partial fields layered on top.
+- **`store.serializeGame` left as-is** after audit: every defaultable field already had a `??`, and the `state.bank` spread is intentionally fail-loud (a TypeError on undefined bank surfaces in the save-failed warning while the on-disk save survives — defending it would silently overwrite a good save with a fresh-bank one).
+- **New — `__tests__/saveAudit.test.ts` (14 cases):** happy path, one rejection per core field with a descriptive `reason`, NaN / wrong-type rejections, and the round-trip invariant — `serializeGame(useGameStore.getState())` always validates clean.
+- **Verification:** `npx tsc --noEmit` clean. **438 tests across 26 suites — all green** (up from 424/25).
+- **Outcome:** the BACKLOG.md item *"Save audit: defensive defaults in both `loadSaved` and `serializeGame`"* is done. The save subsystem now has three layered defences: migrations (cross-version), validation (corrupt blob), and defensive backfills in `loadSaved` (partial in-memory state, e.g. hot-reload poisoning).
+
+---
+
+## 2026-05-26 — Save migration framework
+
+- **New — `src/save/migrations.ts`:** forward-only migration chain. `MIGRATIONS` registry (v15→16, v16→17, v17→18, v18→19) + `migrateSave(envelope, target)` runner. Each migration is a pure transform `(data, ctx) => data'` where `ctx.savedAt` is the envelope's write timestamp (used by v15→16 for the pacing-state anchor). Three typed errors: `TooOldSaveError`, `FutureSaveError`, `MissingMigrationError`.
+- **`src/save/SaveAdapter.ts`:** added `MIN_SUPPORTED_VERSION = 15` constant and the `MigrationContext` type. Extended `SaveMigration.migrate` from `(data) => unknown` to `(data, ctx) => unknown` — no existing callers; signature change is safe.
+- **`src/save/index.ts`:** re-exports `MIN_SUPPORTED_VERSION`, `MIGRATIONS`, `migrateSave`, the three error classes, and `MigrationContext`.
+- **`src/state/useGameLoop.ts`:** **fixed the silent save-wipe bug.** The previous loader used `envelope.version === SAVE_VERSION` and routed every mismatch to `resume()`, which then autosaved a fresh game over the old one within milliseconds. Replaced with `migrateSave` + typed-error catch. Behavior now:
+  - exact match → load directly (today's log message preserved)
+  - in `[MIN_SUPPORTED_VERSION, SAVE_VERSION)` → migrate, then load, log `save migrated vN → vM`
+  - below floor → warn `below MIN_SUPPORTED_VERSION`, start fresh (pre-launch policy; see SaveAdapter.ts comment for the App-Store-launch revisit)
+  - newer than this build → warn `newer than this build`, start fresh
+  - missing migration in the chain → warn, start fresh
+- **Defensive backfills in `store.loadSaved` left in place** as an independent safety net for partial in-memory state (hot-reload poisoning). They are idempotent and run on top of the migrated data.
+- **New — `__tests__/saveMigrations.test.ts` (11 cases):** invariants (identity, TooOld, Future, registry contiguous from MIN to SAVE), each step in isolation, idempotence on already-modern data, full v15→SAVE_VERSION walk, unrelated-field preservation across the chain.
+- **Verification:** `npx tsc --noEmit` clean. **424 tests across 25 suites — all green** (up from 413/24).
+- **Outcome:** the BACKLOG.md item *"Save migration framework in `src/save/`: vN→vN+1 migrations, retire save wipes, test one migration path"* is done. The next shape bump (v19 → v20) adds one entry to `MIGRATIONS` and one test case; the loader does not need to change again.
+
+---
+
+## 2026-05-26 — Parent CLAUDE.md realigned with shipped code
+
+- **§3 working contract:** removed the "Mockup before code for any new UI" bullet. KG dropped this gate on 2026-05-24 (recorded in the 6.5a changelog entry); the rule was still in the brief.
+- **§4 tech stack:** split into "Installed and in use" and "Planned — not yet installed." The old table listed five libraries that are not in `package.json` (`expo-router`, `react-native-mmkv`, `react-native-reanimated`, `expo-haptics`, `react-native-wagmi-charts`) as though they were live. "Installed" now reflects what's actually shipped: AsyncStorage, react-native-svg, expo-blur, expo-linear-gradient, expo-status-bar, react-native-safe-area-context, Zustand, Jest + ts-jest, plus Expo SDK 54 / RN 0.81 / TS strict. `react-native-wagmi-charts` called out as deferred — the Exchange uses an in-house `CandlestickChart`.
+- **§6 project structure:** rewritten to show the real `CryptoLife/` ↔ `cryptolife/` layout. Replaced `app/  Expo Router entry` (no such directory) with `App.tsx` + `index.ts`. Removed the empty `cryptolife/docs/` line (design docs live one level up). Added `BACKLOG.md`. Corrected `LocalSaveAdapter` → `AsyncStorageSaveAdapter` to match the actual filename.
+- **§13 current status:** replaced the 2026-05-22 "design phase complete, scaffold the project" snapshot with the 2026-05-26 reality — 12+ apps wired, four scam archetypes live, 413 tests / 24 suites green, save v19, CI + auto-merge running. Next-steps list rewritten to mirror `BACKLOG.md`, with lint/format gate and accessibility audit added.
+- **Outcome:** the standing brief no longer disagrees with the code on five library names, three section topics, and the project's stage. No code touched; doc-only. `BACKLOG.md` items unchanged.
 
 ---
 

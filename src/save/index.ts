@@ -8,14 +8,22 @@
  */
 import { AsyncStorageSaveAdapter } from './AsyncStorageSaveAdapter';
 
-export type { SaveAdapter, SaveEnvelope, SaveMigration } from './SaveAdapter';
-export { SAVE_VERSION } from './SaveAdapter';
-export {
-  SAVE_MIGRATIONS,
-  isSaveLoadable,
-  migrateEnvelope,
-} from './migrations';
+export type {
+  MigrationContext,
+  SaveAdapter,
+  SaveEnvelope,
+  SaveMigration,
+} from './SaveAdapter';
+export { MIN_SUPPORTED_VERSION, SAVE_VERSION } from './SaveAdapter';
 export { AsyncStorageSaveAdapter } from './AsyncStorageSaveAdapter';
+export {
+  FutureSaveError,
+  MIGRATIONS,
+  MissingMigrationError,
+  TooOldSaveError,
+  migrateSave,
+} from './migrations';
+export { CorruptSaveError, validateSaveData } from './validate';
 
 /** The app-wide save adapter instance. */
 export const saveAdapter = new AsyncStorageSaveAdapter();

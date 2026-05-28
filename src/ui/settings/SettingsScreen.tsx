@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SAVE_VERSION } from '../../save';
 import { useGameStore } from '../../state/store';
 import {
   appAccent,
@@ -24,6 +25,7 @@ import {
   radius,
   spacing,
 } from '../../theme/theme';
+import { formatLastSaved } from './formatLastSaved';
 
 const TOP_PAD = 52;
 const SETTINGS_ACCENT = appAccent.settings;
@@ -31,7 +33,9 @@ const SETTINGS_ACCENT = appAccent.settings;
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const resetGame = useGameStore((s) => s.resetGame);
+  const lastSavedAt = useGameStore((s) => s.lastSavedAt);
   const [resetting, setResetting] = useState(false);
+  const lastSavedHint = formatLastSaved(lastSavedAt, Date.now());
 
   const confirmReset = (): void => {
     Alert.alert(
@@ -72,6 +76,31 @@ export function SettingsScreen() {
         <Text style={styles.title}>Settings</Text>
 
         <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Save</Text>
+          <View style={styles.card}>
+            <View
+              style={styles.metaRow}
+              accessible
+              accessibilityRole="text"
+              accessibilityLabel={`Save schema version ${SAVE_VERSION}`}
+            >
+              <Text style={styles.metaLabel}>Save version</Text>
+              <Text style={styles.metaValue}>v{SAVE_VERSION}</Text>
+            </View>
+            <View style={styles.metaDivider} />
+            <View
+              style={styles.metaRow}
+              accessible
+              accessibilityRole="text"
+              accessibilityLabel={`Last saved ${lastSavedHint}`}
+            >
+              <Text style={styles.metaLabel}>Last saved</Text>
+              <Text style={styles.metaValue}>{lastSavedHint}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.section, styles.sectionContinued]}>
           <Text style={styles.sectionLabel}>Game</Text>
           <View style={styles.card}>
             <Pressable
@@ -125,6 +154,9 @@ const styles = StyleSheet.create({
   section: {
     gap: spacing.sm,
   },
+  sectionContinued: {
+    marginTop: spacing.xl,
+  },
   sectionLabel: {
     fontSize: fontSize.caption,
     fontWeight: fontWeight.semibold,
@@ -139,6 +171,29 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: color.border.hairline,
     overflow: 'hidden',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    minHeight: 44,
+  },
+  metaLabel: {
+    fontSize: fontSize.body,
+    color: color.text.primary,
+    fontWeight: fontWeight.regular,
+  },
+  metaValue: {
+    fontSize: fontSize.body,
+    color: color.text.secondary,
+    fontVariant: ['tabular-nums'],
+  },
+  metaDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: color.border.hairline,
+    marginLeft: spacing.lg,
   },
   resetRow: {
     flexDirection: 'row',

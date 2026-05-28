@@ -1,19 +1,22 @@
 /**
  * CloutScreen.tsx — the Clout app (Bible §6).
  * ------------------------------------------------------------------
- * Single-screen v1: compact profile strip at the top, then the
- * Clout feed (capped to the first 5 tweets per Bible §6), with a
- * floating Post button bottom-right that fires the daily-Post
- * streak. The tab-bar / search / notifications panels from the
- * mockup are intentionally deferred to a later polish pass.
+ * v1.1 ships the four-tab bottom navigation from the X mockup
+ * (Home, Search, Notifications, Profile). The Home tab carries all
+ * v1 gameplay — compact profile strip + feed (capped to the first 5
+ * tweets per Bible §6) + the floating Post button. Search / Notif /
+ * Profile show small placeholder shells so the bar feels real; they
+ * will be filled in by their own backlog items, starting with the
+ * Notifications panel.
  *
  * When `cloutTakeover` is non-null (Stage 6.5a — Golden Giveaway,
  * Scam Library v1.1 Event #10), the screen swaps to the full-screen
- * takeover overlay. The player resolves it from there (Participate
- * → drain; Verify → side-by-side compare with the real founder →
- * Report). Dismissing the takeover from inside the overlay does NOT
- * resolve it — the Inbound Lure deliberately re-arms on dismiss per
- * Scam Library v1.1.
+ * takeover overlay. The tab bar and FAB are hidden so the takeover
+ * is the only interactive surface. The player resolves it from
+ * there (Participate → drain; Verify → side-by-side compare with
+ * the real founder → Report). Dismissing the takeover from inside
+ * the overlay does NOT resolve it — the Inbound Lure deliberately
+ * re-arms on dismiss per Scam Library v1.1.
  *
  * The player's avatar gradient mirrors the home-screen Clout app
  * icon so the identity reads consistently across the phone.
@@ -25,6 +28,9 @@ import { CloutProfileStrip } from './CloutProfileStrip';
 import { PostFAB } from './PostFAB';
 import { GoldenGiveawayTakeover } from './GoldenGiveawayTakeover';
 import { GoldenGiveawayCompare } from './GoldenGiveawayCompare';
+import { CloutTabBar, type CloutTab } from './CloutTabBar';
+import { CloutTabPlaceholder } from './CloutTabPlaceholder';
+import { CloutNotificationsPanel } from './CloutNotificationsPanel';
 import { useGameStore } from '../../state/store';
 import {
   canPostToday as canPostTodayEngine,
@@ -61,6 +67,7 @@ export function CloutScreen() {
   const avatarGradient = APP_BY_ID.clout.gradient;
 
   const [view, setView] = useState<'takeover' | 'compare'>('takeover');
+  const [activeTab, setActiveTab] = useState<CloutTab>('home');
 
   if (cloutTakeover) {
     if (view === 'compare') {
@@ -96,49 +103,71 @@ export function CloutScreen() {
 
   return (
     <View style={styles.root}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <CloutProfileStrip
-          displayName={displayName}
-          handle={handle}
-          bio={bio}
-          followers={followers}
-          streakDays={dailyPost.currentStreakDays}
-          canPostToday={canPost}
-          avatarGradient={avatarGradient}
+      {activeTab === 'home' && (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <CloutProfileStrip
+            displayName={displayName}
+            handle={handle}
+            bio={bio}
+            followers={followers}
+            streakDays={dailyPost.currentStreakDays}
+            canPostToday={canPost}
+            avatarGradient={avatarGradient}
+          />
+
+          {visibleFeed.map((t) => (
+            <TweetCard key={t.id} tweet={t} now={clockNow} />
+          ))}
+
+          {feed.length > FEED_LIMIT && (
+            <View style={styles.tail}>
+              <Text style={styles.tailText}>
+                The feed shows {FEED_LIMIT} tweets for now. Skill-tree upgrades
+                raise this cap.
+              </Text>
+            </View>
+          )}
+
+          {feed.length === 0 && (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>Feed is quiet</Text>
+              <Text style={styles.emptyText}>
+                New posts will show up here as people you follow post.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
+
+      {activeTab === 'search' && (
+        <CloutTabPlaceholder
+          title="Search"
+          copy="Trends and accounts arrive in a later polish pass. For now the Home feed shows every post you can see."
         />
+      )}
 
-        {visibleFeed.map((t) => (
-          <TweetCard key={t.id} tweet={t} now={clockNow} />
-        ))}
+      {activeTab === 'notifications' && <CloutNotificationsPanel />}
 
-        {feed.length > FEED_LIMIT && (
-          <View style={styles.tail}>
-            <Text style={styles.tailText}>
-              The feed shows {FEED_LIMIT} tweets for now. Skill-tree upgrades
-              raise this cap.
-            </Text>
-          </View>
-        )}
+      {activeTab === 'profile' && (
+        <CloutTabPlaceholder
+          title="Profile"
+          copy={`Posts, replies, and media for ${handle} will live here once the profile view ships.`}
+        />
+      )}
 
-        {feed.length === 0 && (
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Feed is quiet</Text>
-            <Text style={styles.emptyText}>
-              New posts will show up here as people you follow post.
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+      {activeTab === 'home' && (
+        <PostFAB
+          canPost={canPost}
+          streakDays={dailyPost.currentStreakDays}
+          onPress={() => postDailyClout(Date.now())}
+        />
+      )}
 
-      <PostFAB
-        canPost={canPost}
-        streakDays={dailyPost.currentStreakDays}
-        onPress={() => postDailyClout(Date.now())}
-      />
+      <CloutTabBar activeTab={activeTab} onSelect={setActiveTab} />
     </View>
   );
 }

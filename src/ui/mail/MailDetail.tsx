@@ -113,9 +113,19 @@ export function MailDetail({ message, onBack, onAction }: MailDetailProps) {
           <Text style={styles.backLabel}>Inbox</Text>
         </Pressable>
 
-        <Text style={styles.subject}>{message.subject}</Text>
+        <Text style={styles.subject} accessibilityRole="header">
+          {message.subject}
+        </Text>
 
-        <View style={styles.sender}>
+        <View
+          style={styles.sender}
+          accessible
+          accessibilityLabel={
+            message.isSuspicious
+              ? `Suspicious sender ${message.from}, address ${message.fromAddress}`
+              : `From ${message.from}, address ${message.fromAddress}`
+          }
+        >
           <LinearGradient
             colors={grad}
             start={{ x: 0.15, y: 0 }}
