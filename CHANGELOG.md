@@ -6,6 +6,29 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-28 13:01 UTC — Accessibility pass on Wallet
+
+First a11y audit on a shipping screen (CLAUDE.md §7 — touch targets ≥ 44pt, accessibility labels on interactive elements, contrast maintained). Focused on the Wallet app because it has the densest interactive + numeric content of the two backlog candidates (Wallet / Settings). No engine, store, or save-format changes — UI-only plus one pure helper module with its own tests.
+
+- **`src/ui/wallet/walletA11y.ts`** (new) — pure label builders for screen readers:
+  - `describeDayChange(pct)` reads moves as `"up 2.4 percent today"` / `"down 7.2 percent today"` / `"unchanged today"`. The visible row still shows `+2.4%` / `-7.2%`, but VoiceOver and TalkBack now get word-form direction instead of having to sound out `+` and `-` punctuation. The flat band is ±0.05% so a perfectly stable token reads as `unchanged` rather than `up 0.0`.
+  - `buildHoldingA11yLabel({ name, amount, symbol, usd, dayChangePct })` composes one sentence in name → amount → value → change order, e.g. `"Ethereum, 1.5 ETH, worth $4,500.00, up 2.4 percent today"`.
+- **`src/ui/wallet/WalletScreen.tsx`** — applied the audit:
+  - Total card: `accessible` + `accessibilityRole="summary"`; label now includes the "live USD at the current market price" gloss so the card reads as one element instead of three separate text nodes.
+  - Holdings rows: `accessible` so the row is one focusable group; label sourced from `buildHoldingA11yLabel` (the previous inline label used `formatSignedPercent`, which embeds the bare `+`/`-` glyph).
+  - "Tokens" section head: gained `accessibilityRole="header"` so screen readers announce the landmark.
+  - Empty state: empty-glyph circle (`$` decoration) hidden from screen readers with `accessibilityElementsHidden` + `importantForAccessibility="no-hide-descendants"` so VoiceOver doesn't read "$" before the explanatory copy. "Your wallet is empty" gained `accessibilityRole="header"`. The "Open Exchange" CTA gained an `accessibilityHint` ("Buy your first token to fund this wallet"). The button already met the ≥ 44pt target (`minHeight: 44`) and had `hitSlop`.
+- **`__tests__/walletA11y.test.ts`** (new) — covers the two helpers. Explicit assertions that negative percentages produce no bare `-` in the day-change phrase and that small moves snap to `unchanged today` so flat assets aren't announced as `up 0.0 percent`.
+
+Verification:
+- `npx tsc --noEmit` — clean under strict mode.
+- `npm test` — **31 suites / 502 tests, all green** (up from 30 / 495).
+- No visual regression: the visible labels still show `+2.4%` / `-7.2%` in the row's right column; only the screen-reader `accessibilityLabel` changed.
+
+Outcome: Wallet meets the §7 accessibility bar on this screen. Settings already had role/label coverage from the save-hint work and remains untouched. Next a11y target (when picked up) is whichever screen the maintainer flags from a device-side VoiceOver pass.
+
+---
+
 ## 2026-05-28 — EAS Build skeleton: `eas.json`, app identifiers, build profiles
 
 First scaffolding for cloud builds via EAS Build (Expo's cloud service that compiles real iOS/Android binaries — the gate in front of TestFlight and Play Internal Testing). No code touched; no engine, store, or save-format change. The maintainer still needs to run `eas init` to attach a `projectId` and `eas login` before the first build — those are credential-bearing steps that don't belong in the repo.
