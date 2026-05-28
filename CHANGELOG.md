@@ -6,6 +6,17 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-27 — Settings: save version + last-saved hint
+
+Settings polish — surfaces the current save-schema version and a coarse "last saved" hint in a new "Save" section above the existing "Reset game" row. Read-only; no engine, save-format, or migration changes.
+
+- **`src/state/store.ts`** — adds an ephemeral `lastSavedAt: number | null` field to `GameState` (added to the `freshGame` `Omit<…>` list so it's not part of `SavedGame`, initialised to `null`). New action `markSaved(at)` records the timestamp. Survives `tick`/`postBanner`/`openApp`/`closeApp`; cleared on `newGame`.
+- **`src/state/useGameLoop.ts`** — `save()` calls `markSaved(Date.now())` after a successful `saveAdapter.save` resolves. On hydrate, `markSaved(envelope.savedAt)` runs after `loadSaved` so the hint is populated immediately from the loaded envelope; the post-load autosave then overwrites it with the fresh wall-clock value.
+- **`src/ui/settings/SettingsScreen.tsx`** — new "Save" section above "Game" with two rows: `Save version` (reads `SAVE_VERSION` constant) and `Last saved`. Values use `fontVariant: ['tabular-nums']` so digits don't jitter. Each row has a `accessibilityRole="text"` label so VoiceOver/TalkBack announces "Save schema version 19" / "Last saved 2 minutes ago" as a single utterance.
+- **`src/ui/settings/formatLastSaved.ts`** — pure formatter with coarse buckets: `null` → "Not yet saved"; `< 5 s` → "Just now"; `< 60 s` → "N seconds ago"; `< 60 min` → "N minute(s) ago"; `< 24 h` → "N hour(s) ago"; yesterday → "Yesterday at h:mm"; older → "Mon D at h:mm". Future-dated timestamps (clock skew) clamp to "Just now". Pure — no React, no RN imports.
+- **`__tests__/settingsSaveHint.test.ts`** — covers every bucket of `formatLastSaved` (including the singular/plural pivots at 1 minute and 1 hour, and the future-skew clamp) and the `markSaved` action (initial null, overwrites, survives unrelated reducers, clears on `newGame`).
+- **Outcome.** `npx tsc --noEmit` clean under strict mode; **488 tests across 30 suites, all green** (up from 474/29). Save schema unchanged at v19 — this slice never touches `serializeGame` or `loadSaved`.
+
 ## 2026-05-27 — Messages thread list polish (preview, unread badges, suspicious chip)
 
 Polish pass on the Messages app — no engine, store, or save changes; the change is confined to one presentational component, `ConversationRow`.

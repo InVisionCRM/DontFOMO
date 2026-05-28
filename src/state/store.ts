@@ -337,6 +337,13 @@ export interface GameState {
   banner: BannerMessage | null;
   /** Which in-game app is open; null = the home screen. */
   openAppId: AppId | null;
+  /**
+   * Wall-clock time (epoch ms) the save adapter last wrote a save, or
+   * `null` if the game hasn't written one yet this session. Ephemeral —
+   * not part of `SavedGame`; rehydrated from the envelope's `savedAt`
+   * when a save is loaded. Surfaced in Settings as the "last saved" hint.
+   */
+  lastSavedAt: number | null;
 
   /** Start a brand-new game at time `now` (epoch ms). */
   newGame: (now: number) => void;
@@ -437,6 +444,13 @@ export interface GameState {
   /** Return to the home screen. */
   closeApp: () => void;
   /**
+   * Record that the save adapter just wrote (or just loaded) a save at
+   * `at` (epoch ms). Sets `lastSavedAt`. Called from `useGameLoop`'s
+   * `save()` after a successful write, and on hydrate with the loaded
+   * envelope's `savedAt`. Surfaced in Settings.
+   */
+  markSaved: (at: number) => void;
+  /**
    * Onboarding — Profile step. Sets the player's display name (used
    * to derive the handle) and bio. Trims and slugifies; no-op on an
    * empty name.
@@ -521,6 +535,7 @@ function freshGame(now: number): Pick<
   | 'cloutTakeover'
   | 'banner'
   | 'openAppId'
+  | 'lastSavedAt'
 > {
   return {
     clock: createClock(now),
@@ -550,6 +565,7 @@ function freshGame(now: number): Pick<
     cloutTakeover: null,
     banner: null,
     openAppId: null,
+    lastSavedAt: null,
   };
 }
 
@@ -1455,6 +1471,7 @@ export const useGameStore = create<GameState>()((set) => ({
     set((s) => (s.banner?.id === id ? { banner: null } : {})),
   openApp: (id) => set({ openAppId: id }),
   closeApp: () => set({ openAppId: null }),
+  markSaved: (at) => set({ lastSavedAt: at }),
   setProfile: (displayName, bio) =>
     set((s) => {
       const trimmedName = displayName.trim();

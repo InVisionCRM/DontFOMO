@@ -39,6 +39,7 @@ export function useGameLoop(): void {
     const save = (): void => {
       saveAdapter
         .save<SavedGame>(serializeGame(useGameStore.getState()))
+        .then(() => useGameStore.getState().markSaved(Date.now()))
         .catch((error) => console.warn('[DontFOMO] save failed:', error));
     };
 
@@ -62,6 +63,10 @@ export function useGameLoop(): void {
           const migrated = migrateSave(envelope, SAVE_VERSION);
           const validated = validateSaveData(migrated.data);
           useGameStore.getState().loadSaved(validated, Date.now());
+          // Hydrate the "last saved" hint immediately from the loaded
+          // envelope. The autosave below will overwrite this with a
+          // fresh timestamp once it lands.
+          useGameStore.getState().markSaved(envelope.savedAt);
           if (envelope.version === SAVE_VERSION) {
             console.log('[DontFOMO] save loaded.');
           } else {
