@@ -14,7 +14,7 @@ First unchecked item wins. The automation agent marks `[x]` when an item lands o
 - [x] News: category chips + relative timestamps in `src/data/news.ts`
 - [x] Messages: thread list polish — avatars, preview, unread badges
 - [x] Settings: save version + last-saved hint
-- [ ] Wire `expo-haptics` on one meaningful banner action (Bible §5)
+- [x] Wire `expo-haptics` on one meaningful banner action (Bible §5)
 - [ ] Banner audit: economic actions set banner in store reducers
 - [ ] EAS Build skeleton: `eas.json`, app identifiers, build profiles
 - [ ] Accessibility pass on Wallet or Settings

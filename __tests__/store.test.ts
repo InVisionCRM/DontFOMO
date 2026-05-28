@@ -726,6 +726,18 @@ describe('banner notifications', () => {
     expect(b?.body).toContain('1,200.00');
   });
 
+  it('payBill banner carries a success haptic (Bible §5)', () => {
+    useGameStore.setState({ cash: 50_000 });
+    const now = useGameStore.getState().clock.now;
+    useGameStore.getState().payBill('rent', now);
+    expect(useGameStore.getState().banner?.haptic).toBe('success');
+  });
+
+  it('postBanner does not attach a haptic by default', () => {
+    useGameStore.getState().postBanner('Bank', 'Quiet update');
+    expect(useGameStore.getState().banner?.haptic).toBeUndefined();
+  });
+
   it('serializeGame does NOT include the transient banner slot', () => {
     useGameStore.getState().postBanner('Bank', 'X');
     const saved = serializeGame(useGameStore.getState());

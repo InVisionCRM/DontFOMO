@@ -6,6 +6,17 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-28 — Wire `expo-haptics` on `payBill` banner (Bible §5)
+
+First haptic in the project — `expo-haptics` moves from CLAUDE.md §4 "Planned" to "Installed". Bible §5 calls for a true vibration paired with the dry top-edge banner on meaningful, money-moved actions; `payBill` is the canonical first wiring (rent, bills, recurring payments — the everyday confirmation a player feels in the hand).
+
+- **`package.json`** — adds `expo-haptics: ~15.0.8` (SDK-54-pinned via `npx expo install`). Ships in Expo Go, so no dev build is required for the first haptic.
+- **`src/state/store.ts`** — adds a `BannerHaptic = 'success' | 'warning' | 'error'` type and an optional `haptic?: BannerHaptic` field on `BannerMessage`. `bannerOf` gains an optional third arg. Store stays free of any native import — the field is just data. `payBill`'s banner is tagged `'success'`; every other banner remains silent for now (per BACKLOG: one meaningful action).
+- **`src/ui/feedback/haptics.ts`** — new thin wrapper around `expo-haptics`. Maps `BannerHaptic` → `Haptics.NotificationFeedbackType`, fires `notificationAsync` fire-and-forget, and swallows the promise rejection that simulators and unsupported platforms throw — a missing buzz must never break the banner animation.
+- **`src/ui/Banner.tsx`** — when a banner with `haptic` set arrives, calls `fireBannerHaptic(banner.haptic)` alongside the slide-in. Updated the file header to reflect that haptics is no longer "polish-pass only" (sound still is).
+- **`__tests__/store.test.ts`** — adds two assertions in the existing `banner notifications` block: `payBill` banner carries `haptic === 'success'`, and `postBanner` does not attach a haptic by default (so the opt-in stays explicit).
+- **Outcome.** `npx tsc --noEmit` clean under strict mode; **490 tests across 30 suites, all green** (up from 488/30). Save schema unchanged at v19 — the haptic field is transient on `BannerMessage`, which is already excluded from `serializeGame`.
+
 ## 2026-05-27 — Settings: save version + last-saved hint
 
 Settings polish — surfaces the current save-schema version and a coarse "last saved" hint in a new "Save" section above the existing "Reset game" row. Read-only; no engine, save-format, or migration changes.
