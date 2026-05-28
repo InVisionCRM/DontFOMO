@@ -16,7 +16,7 @@ First unchecked item wins. The automation agent marks `[x]` when an item lands o
 - [x] Settings: save version + last-saved hint
 - [x] Wire `expo-haptics` on one meaningful banner action (Bible §5)
 - [x] Banner audit: economic actions set banner in store reducers
-- [ ] EAS Build skeleton: `eas.json`, app identifiers, build profiles
+- [x] EAS Build skeleton: `eas.json`, app identifiers, build profiles
 - [ ] Accessibility pass on Wallet or Settings
 - [ ] Privacy disclosure stub in `DontFOMO-design/` (on-device only)
 - [ ] Final QA checklist in `DontFOMO-design/`

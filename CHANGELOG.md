@@ -6,6 +6,23 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-28 — EAS Build skeleton: `eas.json`, app identifiers, build profiles
+
+First scaffolding for cloud builds via EAS Build (Expo's cloud service that compiles real iOS/Android binaries — the gate in front of TestFlight and Play Internal Testing). No code touched; no engine, store, or save-format change. The maintainer still needs to run `eas init` to attach a `projectId` and `eas login` before the first build — those are credential-bearing steps that don't belong in the repo.
+
+- **`eas.json`** (new) — three standard profiles plus a `submit.production` stub:
+  - `development` — `developmentClient: true`, internal distribution, iOS simulator build allowed (the build profile used to spin up a dev client when we eventually move off Expo Go to unblock `react-native-mmkv` / `react-native-reanimated` / `expo-haptics` on a real device).
+  - `preview` — internal distribution, iOS device build (not simulator), Android `apk` (drag-installable onto a device for ad-hoc sharing, not store-bound).
+  - `production` — channel-pinned, `autoIncrement: true` so EAS bumps the native build number on every store build (Apple/Google reject duplicates).
+  - `cli.appVersionSource: "remote"` — EAS owns the build number; `app.json` only carries the user-facing `version` string. This is the modern default and avoids the "two sources of truth" trap.
+  - `cli.version: ">=14.0.0"` — minimum eas-cli compatible with the SDK 54 / RN 0.81 toolchain.
+- **`app.json`** — adds the three fields EAS Build requires before it will accept a build:
+  - `ios.bundleIdentifier: "com.invisioncrm.dontfomo"` — reverse-DNS app identifier (the iOS equivalent of an app's primary key on the App Store).
+  - `android.package: "com.invisioncrm.dontfomo"` — the Android equivalent (the package name shipped in the APK/AAB manifest).
+  - `runtimeVersion: { policy: "appVersion" }` — pins the OTA-update runtime to the user-facing app version, so a JS-only update can never land on a binary it wasn't built against (the standard EAS Update pairing).
+- **Deferred — not part of this skeleton.** No `extra.eas.projectId` (only `eas init` should write it; it links the repo to a specific EAS project owned by a real account). No `submit.production.ios.ascAppId` / `submit.production.android.serviceAccountKeyPath` (those need real Apple/Google credentials). No code-signing config. No CI workflow that calls EAS Build — local `eas build` runs come first.
+- **Outcome.** `npx tsc --noEmit` clean under strict mode; **495 tests across 30 suites, all green** (unchanged — pure config). Save schema unchanged at v19.
+
 ## 2026-05-28 — Banner audit: Exchange trades now confirm with a banner
 
 Bible §5 calls for a dry top-edge banner on every meaningful, money-moved action; the previous audit caught `payBill`, `takeLoan`, `repayLoanInstallment`, `postDailyClout`, `buyAsset`, `sellAsset`, and `initiateBankWithdrawal`, but the three Exchange-side money movers — `buyToken`, `sellToken`, `launchToken` — were silent. This pass closes that gap.
