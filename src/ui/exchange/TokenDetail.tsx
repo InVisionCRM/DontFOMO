@@ -136,35 +136,75 @@ function buildCatalogCandles(
     return bucketCandles(samples, timeframe.candleCount);
   }
 
-  // Short window: walk the OU model over [startTick, rightTick].
+  // Short window: walk the OU model and produce candleCount candles,
+  // where (candleCount − 1) are complete and the rightmost one is
+  // **in-progress** — it grows in real time within its window. When
+  // its window fills, it becomes the new newest-complete candle and a
+  // fresh in-progress one starts to its right. Coinbase / TradingView
+  // pattern.
   //
-  // **Snap to candle boundaries.** Without this, the window's right
-  // edge moves by 1 tick (3 s) every store update, so the candle
-  // bucket boundaries shift slightly each render while the slot
-  // positions stay fixed — the "Christmas lights" flicker. Snapping
-  // means the chart only changes when a full candle interval has
-  // passed; then every candle slides one slot to the left and a
-  // fresh one appears on the right. Real trading-chart behavior.
+  // The boundaries of the complete candles are still snapped to
+  // candle-width multiples (so older candles don't twitch each tick
+  // — that's the snap-fix). Only the rightmost bucket changes
+  // every store tick.
   const windowTicks = Math.floor(timeframe.windowMs / MARKET_TICK_MS);
   const ticksPerCandle = Math.max(
     1,
     Math.floor(windowTicks / timeframe.candleCount),
   );
-  const rightTick = Math.floor(currentTick / ticksPerCandle) * ticksPerCandle;
-  const startTick = Math.max(0, rightTick - timeframe.candleCount * ticksPerCandle);
-  if (startTick >= rightTick) return [];
+  // Most recent boundary that fully-complete candles end at.
+  const lastCompleteEnd =
+    Math.floor(currentTick / ticksPerCandle) * ticksPerCandle;
+  const hasPartial = currentTick > lastCompleteEnd;
+  const completeCandles = hasPartial
+    ? timeframe.candleCount - 1
+    : timeframe.candleCount;
+  const startTick = Math.max(
+    0,
+    lastCompleteEnd - completeCandles * ticksPerCandle,
+  );
+  if (startTick >= currentTick) return [];
 
   // Snapshot-accelerated jump to startTick.
   const startPrice =
     startTick === 0
       ? def.basePrice
       : priceAtTick(def, seed, def.basePrice, 0, def.basePrice, startTick, tokenId);
-  // Pull the full visible window in one pass — up to the snapped
-  // right edge, not currentTick. (The live price displayed above the
-  // chart is the up-to-the-moment value; the chart shows completed
-  // candles only.)
-  const prices = priceSequence(def, seed, def.basePrice, startTick, startPrice, rightTick);
-  return bucketCandles(prices, timeframe.candleCount);
+  // Walk all the way to currentTick (not the snapped right edge) so
+  // the partial rightmost candle can grow tick-by-tick.
+  const prices = priceSequence(
+    def,
+    seed,
+    def.basePrice,
+    startTick,
+    startPrice,
+    currentTick,
+  );
+
+  // Bucket: each bucket is exactly ticksPerCandle prices wide, except
+  // the last one (the in-progress rightmost candle) which holds
+  // however many ticks have arrived since the last complete boundary
+  // (1 ≤ N ≤ ticksPerCandle − 1, or ticksPerCandle exactly when we
+  // hit a boundary).
+  const candles: Candle[] = [];
+  for (let offset = 0; offset < prices.length; offset += ticksPerCandle) {
+    const end = Math.min(offset + ticksPerCandle, prices.length);
+    if (end <= offset) break;
+    let high = prices[offset];
+    let low = prices[offset];
+    for (let i = offset; i < end; i++) {
+      const p = prices[i];
+      if (p > high) high = p;
+      if (p < low) low = p;
+    }
+    candles.push({
+      open: prices[offset],
+      close: prices[end - 1],
+      high,
+      low,
+    });
+  }
+  return candles;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
