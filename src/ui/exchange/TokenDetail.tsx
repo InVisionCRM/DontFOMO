@@ -136,18 +136,34 @@ function buildCatalogCandles(
     return bucketCandles(samples, timeframe.candleCount);
   }
 
-  // Short window: walk the OU model over [startTick, currentTick].
+  // Short window: walk the OU model over [startTick, rightTick].
+  //
+  // **Snap to candle boundaries.** Without this, the window's right
+  // edge moves by 1 tick (3 s) every store update, so the candle
+  // bucket boundaries shift slightly each render while the slot
+  // positions stay fixed — the "Christmas lights" flicker. Snapping
+  // means the chart only changes when a full candle interval has
+  // passed; then every candle slides one slot to the left and a
+  // fresh one appears on the right. Real trading-chart behavior.
   const windowTicks = Math.floor(timeframe.windowMs / MARKET_TICK_MS);
-  const startTick = Math.max(0, currentTick - windowTicks);
-  if (startTick >= currentTick) return [];
+  const ticksPerCandle = Math.max(
+    1,
+    Math.floor(windowTicks / timeframe.candleCount),
+  );
+  const rightTick = Math.floor(currentTick / ticksPerCandle) * ticksPerCandle;
+  const startTick = Math.max(0, rightTick - timeframe.candleCount * ticksPerCandle);
+  if (startTick >= rightTick) return [];
 
   // Snapshot-accelerated jump to startTick.
   const startPrice =
     startTick === 0
       ? def.basePrice
       : priceAtTick(def, seed, def.basePrice, 0, def.basePrice, startTick, tokenId);
-  // Pull the full visible window in one pass.
-  const prices = priceSequence(def, seed, def.basePrice, startTick, startPrice, currentTick);
+  // Pull the full visible window in one pass — up to the snapped
+  // right edge, not currentTick. (The live price displayed above the
+  // chart is the up-to-the-moment value; the chart shows completed
+  // candles only.)
+  const prices = priceSequence(def, seed, def.basePrice, startTick, startPrice, rightTick);
   return bucketCandles(prices, timeframe.candleCount);
 }
 
