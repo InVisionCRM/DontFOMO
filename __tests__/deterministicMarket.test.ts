@@ -16,9 +16,11 @@ import {
   noise,
   priceAtTick,
   priceAtTickFromOrigin,
+  priceSequence,
   tickAtTime,
   tokenSeed,
 } from '../src/engine/market/deterministicMarket';
+import { snapshotsInRange } from '../src/engine/market/snapshots';
 import type { SimParams } from '../src/engine/market';
 
 const VOLATILE: SimParams = { drift: 0.0012, volatility: 0.085, isStable: false };
@@ -253,6 +255,45 @@ describe('OU model — bounded over long timescales (Bible §2)', () => {
     // Guard against accidental retuning — the Bible amendment pins these.
     expect(OU_THETA).toBe(0.001);
     expect(OU_MU_TARGET).toBe(0.2);
+  });
+
+  it('priceSequence returns one entry per tick in [fromTick+1, toTick]', () => {
+    const params: SimParams = { drift: 0, volatility: 0.04, isStable: false };
+    const seq = priceSequence(params, tokenSeed('NEURA'), 1.84, 100, 1.84, 110);
+    expect(seq).toHaveLength(10);
+    for (const p of seq) expect(p).toBeGreaterThan(0);
+  });
+
+  it('priceSequence final entry equals priceAtTick at the same toTick', () => {
+    const params: SimParams = { drift: 0, volatility: 0.04, isStable: false };
+    const seed = tokenSeed('NEURA');
+    const seq = priceSequence(params, seed, 1.84, 0, 1.84, 200);
+    const direct = priceAtTick(params, seed, 1.84, 0, 1.84, 200);
+    expect(seq[seq.length - 1]).toBe(direct);
+  });
+
+  it('priceSequence returns [] when fromTick === toTick', () => {
+    const params: SimParams = { drift: 0, volatility: 0.04, isStable: false };
+    expect(priceSequence(params, tokenSeed('NEURA'), 1.84, 50, 1.0, 50)).toEqual([]);
+  });
+
+  it('priceSequence throws when toTick < fromTick (forward-only)', () => {
+    const params: SimParams = { drift: 0, volatility: 0.04, isStable: false };
+    expect(() =>
+      priceSequence(params, tokenSeed('NEURA'), 1.84, 100, 1.0, 50),
+    ).toThrow(/forward-only/);
+  });
+
+  it('snapshotsInRange returns snapshots whose tick is in [from, to]', () => {
+    // The baked snapshot table is from MOONP (tick 0 → tick GENERATED_THROUGH_TICK
+    // in steps of SNAPSHOT_INTERVAL_TICKS = 28800).
+    const inRange = snapshotsInRange('MOONP', 0, 28800 * 3);
+    // Snapshots at ticks 0, 28800, 57600, 86400 = 4 entries.
+    expect(inRange.map((s) => s.tick)).toEqual([0, 28800, 57600, 86400]);
+  });
+
+  it('snapshotsInRange returns [] when no token has snapshots', () => {
+    expect(snapshotsInRange('NOT_A_REAL_TOKEN', 0, 1_000_000)).toEqual([]);
   });
 
   it('snapshot-accelerated walk agrees with un-accelerated walk', () => {

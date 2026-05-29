@@ -6,6 +6,38 @@ after any coding work is mandatory.
 
 ---
 
+## 2026-05-28 — Stage 7b: time-windowed candlestick chart (the visible payoff of Phase A)
+
+The chart no longer "wiggles in place" — each timeframe shows a real, time-aligned view of the shared-world catalog history. Every player tapping into MOONP at the same wall-clock moment sees the same chart.
+
+**Engine — `src/engine/market/`:**
+
+- **`deterministicMarket.ts` — `priceSequence(params, seed, basePrice, fromTick, fromPrice, toTick)` (new).** Returns every price from `fromTick + 1` to `toTick` inclusive in one OU pass. Single round-trip through log space at the boundaries. Used by the chart to populate the visible window cheaply (one engine call per render instead of one per tick).
+- **`snapshots.ts` — `snapshotsInRange(tokenId, fromTick, toTick)` (new).** Returns every baked snapshot in `[fromTick, toTick]`. Used by the chart's ALL view so a 5-month chart renders in milliseconds — no OU walk over millions of ticks.
+
+**UI — `src/ui/exchange/TokenDetail.tsx`:**
+
+- **`TIMEFRAMES` rewritten** from `{label, candles}` (count-only) to `{label, windowMs, candleCount, useSnapshots}` (time-aligned). 1H = 60 min × 30 candles; 1D = 24 h × 48 candles; 1W = 7 d × 56 candles; 1M = 30 d × 60 candles; ALL = since `WORLD_BIRTHDAY` × 60 candles (snapshot-sampled).
+- **`buildCatalogCandles(tokenId, currentTick, timeframe)` (new, local helper).** For short windows: snapshot-accelerated jump to `startTick`, then `priceSequence` over the visible range, then bucket into OHLC candles. For the ALL view: read snapshots in range and bucket. For player tokens (no catalog entry): fall back to the existing per-session `state.history` buffer.
+- **Render path** now memoizes candles on `(displayedId, timeframe, state.price)` so the chart only recomputes when something visible changed.
+- **`CandlestickChart.tsx` unchanged** — same OHLC array contract.
+
+**Tests — 5 new in `__tests__/deterministicMarket.test.ts`:**
+
+- `priceSequence` length, final-entry equals `priceAtTick`, empty-when-equal, forward-only throw.
+- `snapshotsInRange` returns expected snapshots for MOONP at the bake intervals; empty for unknown tokens.
+
+**Verification:** `npx tsc --noEmit` clean. **Full suite: 543 tests across 33 suites, all green — 59 s total** (down from 105 s after Phase A).
+
+**What you can see now:** open the Exchange, tap a token, switch between 1H / 1D / 1W / 1M / ALL — each timeframe shows a genuinely different chart shape pulled from the deterministic shared world. The 1H view changes a candle every ~2 minutes of real time; the ALL view spans the full ~5-month world history at one-day resolution.
+
+**Known caveats:**
+- The chart doesn't yet animate the rightmost candle "growing" — it redraws cleanly on each store tick. Polish item, not blocking.
+- Player tokens still use the per-session random walk for their chart (Bible §9 — player tokens deferred to the registry).
+- Save migration v19 → v20 (dropping catalog `history`/`dayOpen` from disk now that the chart computes from the engine) is the next step. Not in this PR — the field is harmlessly redundant for now.
+
+---
+
 ## 2026-05-28 — Stage 7a Phase A: deterministic catalog-token prices (Bible §2)
 
 Implements Bible v0.13 + v0.13 amendment (DontFOMO-design `07d19d4`): the seven catalog tokens become a deterministic function of `(token_seed, world_tick)`, so every player sees the same prices at the same wall-clock moment.

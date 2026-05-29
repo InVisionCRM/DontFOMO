@@ -60,3 +60,28 @@ export function nearestSnapshotAtOrBefore(
   }
   return null;
 }
+
+/**
+ * Return every snapshot for `tokenId` whose `tick` is in
+ * `[fromTick, toTick]` (inclusive on both ends). Used by the chart's
+ * long-range timeframes (1M, ALL) — sampling at one-day resolution
+ * is much cheaper than walking the OU model and looks the same at
+ * the pixel resolution a multi-month chart can display.
+ *
+ * Returns `[]` when there are no snapshots in range or no table.
+ */
+export function snapshotsInRange(
+  tokenId: string,
+  fromTick: number,
+  toTick: number,
+): SnapshotTable {
+  const table = MARKET_SNAPSHOTS[tokenId];
+  if (!table || table.length === 0 || toTick < fromTick) return [];
+  const out: PriceSnapshot[] = [];
+  for (const s of table) {
+    if (s.tick < fromTick) continue;
+    if (s.tick > toTick) break;
+    out.push(s);
+  }
+  return out;
+}

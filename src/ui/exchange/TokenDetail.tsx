@@ -8,7 +8,7 @@
  * The Buy / Sell buttons are inert here — trading lands in checkpoint
  * 3. The slide uses React Native's built-in Animated.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -26,7 +26,20 @@ import { TokenBadge } from './TokenBadge';
 import { OwnBadge } from './OwnBadge';
 import { resolveTokenDefinition } from './playerTokenView';
 import { useGameStore } from '../../state/store';
-import { dayChangePercent, toCandles } from '../../engine/market';
+import {
+  MARKET_TICK_MS,
+  dayChangePercent,
+  toCandles,
+  type Candle,
+} from '../../engine/market';
+import {
+  priceAtTick,
+  priceSequence,
+  tickAtTime,
+  tokenSeed,
+} from '../../engine/market/deterministicMarket';
+import { snapshotsInRange } from '../../engine/market/snapshots';
+import { TOKEN_BY_ID } from '../../data/tokens';
 import { formatSignedPercent, formatTokenPrice } from '../format';
 import {
   appAccent,
@@ -47,17 +60,96 @@ interface TokenDetailProps {
   onTrade: (tokenId: string, mode: 'buy' | 'sell') => void;
 }
 
-/** Timeframe tabs — each maps to a candle count over the kept history. */
+/**
+ * Timeframe tabs — each maps to a wall-clock time window the chart
+ * shows. Candles are time-aligned (e.g. 1H = ~4 minutes per candle),
+ * so they appear/scroll/grow naturally as ticks come in — Bible §2's
+ * "shared market" property in visible form.
+ *
+ * `windowMs` is the duration the chart covers (from `now − windowMs`
+ * to `now`). `candleCount` is how many candles to draw in that window.
+ * `useSnapshots` flips long-range timeframes to read from the baked
+ * snapshot table (one entry per in-game day) so they render fast even
+ * on a months-old world.
+ */
 const TIMEFRAMES = [
-  { label: '1H', candles: 14 },
-  { label: '1D', candles: 26 },
-  { label: '1W', candles: 34 },
-  { label: '1M', candles: 44 },
-  { label: 'ALL', candles: 60 },
+  { label: '1H', windowMs: 60 * 60 * 1000, candleCount: 30, useSnapshots: false },
+  { label: '1D', windowMs: 24 * 60 * 60 * 1000, candleCount: 48, useSnapshots: false },
+  { label: '1W', windowMs: 7 * 24 * 60 * 60 * 1000, candleCount: 56, useSnapshots: false },
+  { label: '1M', windowMs: 30 * 24 * 60 * 60 * 1000, candleCount: 60, useSnapshots: false },
+  { label: 'ALL', windowMs: 0, candleCount: 60, useSnapshots: true },
 ] as const;
 
 /** Top padding so content clears the notch. */
 const TOP_PAD = 52;
+
+/**
+ * Bucket a flat array of prices into `count` OHLC candles. Each
+ * candle aggregates roughly `prices.length / count` consecutive
+ * prices. Identical to the legacy `toCandles` but kept local because
+ * the rest of the chart now lives here.
+ */
+function bucketCandles(prices: readonly number[], count: number): Candle[] {
+  if (prices.length === 0 || count < 1) return [];
+  const bucketSize = Math.max(1, Math.ceil(prices.length / count));
+  const candles: Candle[] = [];
+  for (let i = 0; i < prices.length; i += bucketSize) {
+    const bucket = prices.slice(i, i + bucketSize);
+    let high = bucket[0];
+    let low = bucket[0];
+    for (const p of bucket) {
+      if (p > high) high = p;
+      if (p < low) low = p;
+    }
+    candles.push({
+      open: bucket[0],
+      close: bucket[bucket.length - 1],
+      high,
+      low,
+    });
+  }
+  return candles;
+}
+
+/**
+ * Build the candle series for a catalog token at the given world
+ * tick / timeframe. Pulls live prices from the deterministic OU
+ * walker for short windows; reads from the baked snapshot table for
+ * the ALL view.
+ *
+ * For runtime / player tokens (no entry in the catalog), falls back
+ * to bucketing the per-session `history` buffer.
+ */
+function buildCatalogCandles(
+  tokenId: string,
+  currentTick: number,
+  timeframe: (typeof TIMEFRAMES)[number],
+): Candle[] {
+  const def = TOKEN_BY_ID[tokenId];
+  if (!def) return [];
+  const seed = tokenSeed(tokenId);
+
+  // ALL: sample from snapshots (one per in-game day). Cheap.
+  if (timeframe.useSnapshots) {
+    const samples = snapshotsInRange(tokenId, 0, currentTick).map((s) => s.price);
+    if (samples.length === 0) return [];
+    return bucketCandles(samples, timeframe.candleCount);
+  }
+
+  // Short window: walk the OU model over [startTick, currentTick].
+  const windowTicks = Math.floor(timeframe.windowMs / MARKET_TICK_MS);
+  const startTick = Math.max(0, currentTick - windowTicks);
+  if (startTick >= currentTick) return [];
+
+  // Snapshot-accelerated jump to startTick.
+  const startPrice =
+    startTick === 0
+      ? def.basePrice
+      : priceAtTick(def, seed, def.basePrice, 0, def.basePrice, startTick, tokenId);
+  // Pull the full visible window in one pass.
+  const prices = priceSequence(def, seed, def.basePrice, startTick, startPrice, currentTick);
+  return bucketCandles(prices, timeframe.candleCount);
+}
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -117,7 +209,18 @@ export function TokenDetail({ tokenId, onBack, onTrade }: TokenDetailProps) {
   const change = dayChangePercent(state);
   const changeColor =
     change > 0 ? color.success : change < 0 ? color.danger : color.text.tertiary;
-  const candles = toCandles(state.history, TIMEFRAMES[timeframe].candles);
+  const tf = TIMEFRAMES[timeframe];
+  // Catalog tokens read from the deterministic engine / snapshots
+  // (Bible §2 — shared world). Player tokens fall back to bucketing
+  // the per-session history buffer.
+  const isCatalog = TOKEN_BY_ID[displayedId] !== undefined;
+  const candles = useMemo(() => {
+    if (isCatalog) {
+      const currentTick = tickAtTime(Date.now(), MARKET_TICK_MS);
+      return buildCatalogCandles(displayedId, currentTick, tf);
+    }
+    return toCandles(state.history, tf.candleCount);
+  }, [displayedId, isCatalog, tf, state.history, state.price]);
   const chartWidth = width - spacing.lg * 2;
 
   return (
