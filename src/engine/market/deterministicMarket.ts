@@ -211,6 +211,53 @@ export function priceAtTickFromOrigin(
 }
 
 /**
+ * Compute every price from `fromTick + 1` to `toTick` inclusive,
+ * walking the OU model deterministically. Used by the chart to
+ * build a visible window of N consecutive prices in one pass
+ * (cheaper than calling priceAtTick once per tick).
+ *
+ * Returns an array of length `toTick - fromTick`. For `toTick ===
+ * fromTick` returns an empty array. For stable tokens, every entry
+ * is the pegged-wobble price at that tick (O(1) per entry).
+ *
+ * Snapshot acceleration is NOT used here — callers are expected to
+ * use `priceAtTick(tokenId)` to jump to `fromTick` first, then call
+ * `priceSequence` to populate the visible window from there.
+ */
+export function priceSequence(
+  params: SimParams,
+  seed: TokenSeed,
+  basePrice: number,
+  fromTick: number,
+  fromPrice: number,
+  toTick: number,
+): number[] {
+  if (toTick < fromTick) {
+    throw new Error(
+      `priceSequence: toTick (${toTick}) is before fromTick (${fromTick}); the model is forward-only.`,
+    );
+  }
+  if (toTick === fromTick) return [];
+  const length = toTick - fromTick;
+  const out: number[] = new Array(length);
+  if (params.isStable) {
+    for (let i = 0; i < length; i++) {
+      out[i] = stablePriceAtTick(seed, fromTick + 1 + i, params.volatility);
+    }
+    return out;
+  }
+  // OU walk; single round-trip through log space at the boundaries.
+  let logDev = Math.log(Math.max(fromPrice, MIN_PRICE) / basePrice);
+  for (let i = 0; i < length; i++) {
+    const tick = fromTick + 1 + i;
+    const z = gaussianNoise(seed, tick);
+    logDev = (1 - OU_THETA) * logDev + OU_THETA * OU_MU_TARGET + params.volatility * z;
+    out[i] = Math.max(MIN_PRICE, basePrice * Math.exp(logDev));
+  }
+  return out;
+}
+
+/**
  * How many market ticks have elapsed between `WORLD_BIRTHDAY_UTC_MS`
  * and `nowMs`, given the market tick rate. Returns 0 if `nowMs` is at
  * or before the birthday.
