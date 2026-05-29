@@ -251,12 +251,31 @@ export function TokenDetail({ tokenId, onBack, onTrade }: TokenDetailProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokenId, width]);
 
+  // IMPORTANT: every hook must be called on every render in the same
+  // order (Rules of Hooks). Compute candles BEFORE the early returns —
+  // the early returns then drop the result. Catalog tokens read from
+  // the deterministic engine / snapshots (Bible §2 — shared world).
+  // Player tokens fall back to bucketing the per-session history.
+  const tf = TIMEFRAMES[timeframe];
+  const state = displayedId ? market.tokens[displayedId] : undefined;
+  const isCatalog = displayedId
+    ? TOKEN_BY_ID[displayedId] !== undefined
+    : false;
+  const candles = useMemo(() => {
+    if (!displayedId) return [];
+    if (isCatalog) {
+      const currentTick = tickAtTime(Date.now(), MARKET_TICK_MS);
+      return buildCatalogCandles(displayedId, currentTick, tf);
+    }
+    if (!state) return [];
+    return toCandles(state.history, tf.candleCount);
+  }, [displayedId, isCatalog, tf, state?.history, state?.price]);
+
   if (!displayedId) {
     return null;
   }
 
   const token = resolveTokenDefinition(displayedId, playerTokens);
-  const state = market.tokens[displayedId];
   if (!token || !state) {
     return null;
   }
@@ -265,18 +284,6 @@ export function TokenDetail({ tokenId, onBack, onTrade }: TokenDetailProps) {
   const change = dayChangePercent(state);
   const changeColor =
     change > 0 ? color.success : change < 0 ? color.danger : color.text.tertiary;
-  const tf = TIMEFRAMES[timeframe];
-  // Catalog tokens read from the deterministic engine / snapshots
-  // (Bible §2 — shared world). Player tokens fall back to bucketing
-  // the per-session history buffer.
-  const isCatalog = TOKEN_BY_ID[displayedId] !== undefined;
-  const candles = useMemo(() => {
-    if (isCatalog) {
-      const currentTick = tickAtTime(Date.now(), MARKET_TICK_MS);
-      return buildCatalogCandles(displayedId, currentTick, tf);
-    }
-    return toCandles(state.history, tf.candleCount);
-  }, [displayedId, isCatalog, tf, state.history, state.price]);
   const chartWidth = width - spacing.lg * 2;
 
   return (
